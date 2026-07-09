@@ -1,0 +1,426 @@
+class_name FGUIComponent
+extends FGUIObject
+
+var children: Array = []
+var controllers: Array = []
+var transitions: Array = []
+var margin: FGUIMargin = FGUIMargin.new()
+var opaque: bool = false
+var track_bounds: bool = false
+var children_render_order: int = FGUIEnums.CHILDREN_RENDER_ASCENT
+var apex_index: int = 0
+var scroll_pane: FGUIScrollPane
+
+var _building_display_list: bool = false
+var _bounds_changed: bool = false
+var _content_node: Control
+
+var num_children: int:
+	get:
+		return children.size()
+var view_width: float:
+	get:
+		return scroll_pane.view_width if scroll_pane != null else width - margin.left - margin.right
+	set(value):
+		if scroll_pane != null:
+			scroll_pane.view_width = value
+		else:
+			width = value + margin.left + margin.right
+var view_height: float:
+	get:
+		return scroll_pane.view_height if scroll_pane != null else height - margin.top - margin.bottom
+	set(value):
+		if scroll_pane != null:
+			scroll_pane.view_height = value
+		else:
+			height = value + margin.top + margin.bottom
+
+
+func add_child(child: FGUIObject) -> FGUIObject:
+	return add_child_at(child, children.size())
+
+
+func add_child_at(child: FGUIObject, index: int) -> FGUIObject:
+	if child == null:
+		push_error("FairyGUI child is null.")
+		return null
+	index = clampi(index, 0, children.size())
+	if child.parent != null:
+		child.parent.remove_child(child)
+	child.parent = self
+	children.insert(index, child)
+	_add_child_node(child, index)
+	return child
+
+
+func remove_child(child: FGUIObject, dispose_child: bool = false) -> FGUIObject:
+	var index := children.find(child)
+	if index == -1:
+		return child
+	children.remove_at(index)
+	var container := _get_content_node()
+	if child.node != null and child.node.get_parent() == container:
+		container.remove_child(child.node)
+	child.parent = null
+	if dispose_child:
+		child.dispose()
+	return child
+
+
+func remove_child_at(index: int, dispose_child: bool = false) -> FGUIObject:
+	var child := get_child_at(index)
+	if child == null:
+		return null
+	return remove_child(child, dispose_child)
+
+
+func remove_children(begin_index: int = 0, end_index: int = -1, dispose_child: bool = false) -> void:
+	if end_index < 0 or end_index >= children.size():
+		end_index = children.size() - 1
+	for i in range(begin_index, end_index + 1):
+		remove_child_at(begin_index, dispose_child)
+
+
+func get_child_index(child: FGUIObject) -> int:
+	return children.find(child)
+
+
+func set_child_index(child: FGUIObject, index: int) -> void:
+	var old_index := children.find(child)
+	if old_index == -1:
+		return
+	children.remove_at(old_index)
+	index = clampi(index, 0, children.size())
+	children.insert(index, child)
+	_rebuild_native_display_list()
+
+
+func get_child_at(index: int) -> FGUIObject:
+	if index < 0 or index >= children.size():
+		return null
+	return children[index]
+
+
+func get_child(child_name: String) -> FGUIObject:
+	for child in children:
+		if child.name == child_name:
+			return child
+	return null
+
+
+func get_child_by_path(path: String) -> FGUIObject:
+	var parts := path.split(".")
+	var current: FGUIComponent = self
+	var result: FGUIObject = null
+	for i in parts.size():
+		result = current.get_child(parts[i])
+		if result == null:
+			return null
+		if i < parts.size() - 1:
+			if result is FGUIComponent:
+				current = result
+			else:
+				return null
+	return result
+
+
+func get_controller_at(index: int) -> FGUIController:
+	if index < 0 or index >= controllers.size():
+		return null
+	return controllers[index]
+
+
+func get_controller(controller_name: String) -> FGUIController:
+	for controller in controllers:
+		if controller.name == controller_name:
+			return controller
+	return null
+
+
+func add_controller(controller: FGUIController) -> void:
+	if controller == null:
+		return
+	controller.parent = self
+	controllers.append(controller)
+	apply_controller(controller)
+
+
+func apply_controller(controller: FGUIController) -> void:
+	for child in children:
+		child.handle_controller_changed(controller)
+
+
+func apply_all_controllers() -> void:
+	for controller in controllers:
+		apply_controller(controller)
+
+
+func ensure_bounds_correct() -> void:
+	if _bounds_changed:
+		update_bounds()
+
+
+func set_bounds_changed_flag() -> void:
+	_bounds_changed = true
+
+
+func update_bounds() -> void:
+	_bounds_changed = false
+	if children.is_empty():
+		return
+	var max_pos := Vector2.ZERO
+	for child in children:
+		max_pos.x = maxf(max_pos.x, child.x + child.width * absf(child._scale.x))
+		max_pos.y = maxf(max_pos.y, child.y + child.height * absf(child._scale.y))
+	if scroll_pane != null:
+		scroll_pane.set_content_size(max_pos.x, max_pos.y)
+
+
+func child_sorting_order_changed(_child: FGUIObject) -> void:
+	children.sort_custom(func(a: FGUIObject, b: FGUIObject) -> bool:
+		return a.sorting_order < b.sorting_order
+	)
+	_rebuild_native_display_list()
+
+
+func construct_from_resource() -> void:
+	construct_from_resource2([], 0)
+
+
+func construct_from_resource2(_object_pool: Array = [], _pool_index: int = 0) -> void:
+	if package_item == null:
+		return
+	var content_item := package_item.get_branch()
+	var buffer: FGUIByteBuffer = content_item.raw_data
+	if buffer == null:
+		return
+
+	buffer.seek(0, 0)
+	_under_construct = true
+	source_width = buffer.read_i32()
+	source_height = buffer.read_i32()
+	init_width = source_width
+	init_height = source_height
+	set_size(source_width, source_height)
+
+	if buffer.read_bool():
+		min_width = buffer.read_i32()
+		max_width = buffer.read_i32()
+		min_height = buffer.read_i32()
+		max_height = buffer.read_i32()
+
+	if buffer.read_bool():
+		set_pivot(buffer.read_float32(), buffer.read_float32(), buffer.read_bool())
+
+	if buffer.read_bool():
+		margin.top = buffer.read_i32()
+		margin.bottom = buffer.read_i32()
+		margin.left = buffer.read_i32()
+		margin.right = buffer.read_i32()
+
+	var overflow := buffer.read_i8()
+	if overflow == FGUIEnums.OVERFLOW_HIDDEN and node != null:
+		node.clip_contents = true
+	elif overflow == FGUIEnums.OVERFLOW_SCROLL:
+		var saved_pos := buffer.pos
+		if node != null:
+			node.clip_contents = true
+		if buffer.seek(0, 7):
+			setup_scroll(buffer)
+		buffer.pos = saved_pos
+	else:
+		setup_overflow(overflow)
+
+	if buffer.read_bool():
+		buffer.skip(8)
+
+	_building_display_list = true
+	_setup_controllers(buffer)
+	_setup_children(buffer, content_item)
+	_setup_component_relations(buffer)
+	_setup_children_relations(buffer)
+	_setup_children_after_add(buffer)
+	_setup_component_metadata(buffer, content_item)
+	_setup_transitions(buffer)
+	if content_item.object_type != FGUIEnums.OBJECT_COMPONENT:
+		construct_extension(buffer)
+
+	_building_display_list = false
+	_under_construct = false
+	_rebuild_native_display_list()
+	apply_all_controllers()
+
+
+func construct_extension(_buffer: FGUIByteBuffer) -> void:
+	pass
+
+
+func setup_after_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
+	super.setup_after_add(buffer, begin_pos)
+	if not buffer.seek(begin_pos, 4):
+		return
+
+	buffer.read_i16()
+	var count := buffer.read_i16()
+	for i in count:
+		var controller_name = buffer.read_s()
+		var page_id = buffer.read_s()
+		for controller in controllers:
+			if controller.name == controller_name:
+				controller.selected_page_id = page_id
+
+	if buffer.version >= 2:
+		count = buffer.read_i16()
+		for i in count:
+			var target := _string_or_empty(buffer.read_s())
+			var property_id := buffer.read_i16()
+			var value = buffer.read_s()
+			var obj := get_child_by_path(target)
+			if obj != null:
+				obj.set_prop(property_id, value)
+
+
+func _setup_controllers(buffer: FGUIByteBuffer) -> void:
+	if not buffer.seek(0, 1):
+		return
+	var count := buffer.read_i16()
+	for i in count:
+		var next_pos := buffer.read_i16() + buffer.pos
+		var controller := FGUIController.new()
+		controller.parent = self
+		controller.setup(buffer)
+		controllers.append(controller)
+		buffer.pos = next_pos
+
+
+func _setup_children(buffer: FGUIByteBuffer, content_item: FGUIPackageItem) -> void:
+	if not buffer.seek(0, 2):
+		return
+	var count := buffer.read_i16()
+	for i in count:
+		var data_len := buffer.read_i16()
+		var cur_pos := buffer.pos
+		buffer.seek(cur_pos, 0)
+		var object_type := buffer.read_i8()
+		var src = buffer.read_s()
+		var pkg_id = buffer.read_s()
+
+		var item: FGUIPackageItem = null
+		if src != null:
+			var pkg: FGUIPackage = FGUIPackage.get_by_id(pkg_id) if pkg_id != null else content_item.owner
+			if pkg != null:
+				item = pkg.get_item_by_id(src)
+
+		var child: FGUIObject = FGUIObjectFactory.new_object_from_item(item) if item != null else FGUIObjectFactory.new_object(object_type)
+		if child == null:
+			child = FGUIObject.new()
+		if item != null:
+			child.construct_from_resource()
+
+		child._under_construct = true
+		child.setup_before_add(buffer, cur_pos)
+		child.parent = self
+		children.append(child)
+		buffer.pos = cur_pos + data_len
+
+
+func _setup_component_relations(buffer: FGUIByteBuffer) -> void:
+	if buffer.seek(0, 3):
+		relations.setup(buffer, true)
+
+
+func _setup_children_relations(buffer: FGUIByteBuffer) -> void:
+	if not buffer.seek(0, 2):
+		return
+	buffer.skip(2)
+	for child in children:
+		var next_pos := buffer.read_i16() + buffer.pos
+		if buffer.seek(buffer.pos, 3):
+			child.relations.setup(buffer, false)
+		buffer.pos = next_pos
+
+
+func _setup_children_after_add(buffer: FGUIByteBuffer) -> void:
+	if not buffer.seek(0, 2):
+		return
+	buffer.skip(2)
+	for child in children:
+		var next_pos := buffer.read_i16() + buffer.pos
+		child.setup_after_add(buffer, buffer.pos)
+		child._under_construct = false
+		buffer.pos = next_pos
+
+
+func _setup_component_metadata(buffer: FGUIByteBuffer, content_item: FGUIPackageItem) -> void:
+	if not buffer.seek(0, 4):
+		return
+	buffer.skip(2)
+	opaque = buffer.read_bool()
+	var mask_id := buffer.read_i16()
+	if mask_id != -1:
+		buffer.read_bool()
+	var hit_test_id = buffer.read_s()
+	buffer.read_i32()
+	var child_hit_index := buffer.read_i32()
+	if hit_test_id != null:
+		content_item.owner.get_item_by_id(hit_test_id)
+	elif child_hit_index != -1:
+		get_child_at(child_hit_index)
+
+
+func _setup_transitions(buffer: FGUIByteBuffer) -> void:
+	if not buffer.seek(0, 5):
+		return
+	var count := buffer.read_i16()
+	for i in count:
+		var next_pos := buffer.read_i16() + buffer.pos
+		var transition := FGUITransition.new(self)
+		transition.setup(buffer)
+		transitions.append(transition)
+		buffer.pos = next_pos
+
+
+func _skip_relation_block(buffer: FGUIByteBuffer) -> void:
+	var count := buffer.read_i16()
+	for i in count:
+		var next_pos := buffer.read_i16() + buffer.pos
+		buffer.pos = next_pos
+
+
+func _add_child_node(child: FGUIObject, index: int) -> void:
+	var container := _get_content_node()
+	if container == null or child == null or child.node == null:
+		return
+	container.add_child(child.node)
+	if index >= 0 and index < container.get_child_count():
+		container.move_child(child.node, index)
+
+
+func _rebuild_native_display_list() -> void:
+	var container := _get_content_node()
+	if container == null:
+		return
+	for child in children:
+		if child.node != null and child.node.get_parent() != container:
+			container.add_child(child.node)
+
+
+func _get_content_node() -> Control:
+	return _content_node if _content_node != null else node
+
+
+func setup_scroll(buffer: FGUIByteBuffer) -> void:
+	if scroll_pane == null:
+		scroll_pane = FGUIScrollPane.new(self)
+	scroll_pane.setup(buffer)
+	_content_node = scroll_pane.content
+
+
+func setup_overflow(_overflow: int) -> void:
+	if margin.left == 0 and margin.top == 0:
+		return
+	if _content_node == null:
+		_content_node = Control.new()
+		_content_node.mouse_filter = Control.MOUSE_FILTER_PASS
+		node.add_child(_content_node)
+	_content_node.position = Vector2(margin.left, margin.top)
