@@ -57,6 +57,7 @@ func _initialize() -> void:
 		push_error("Demo asset folder is missing.")
 		quit(1)
 		return
+	var loaded_packages: Array[String] = []
 	for file_name in dir.get_files():
 		if not file_name.ends_with(".fui"):
 			continue
@@ -66,6 +67,7 @@ func _initialize() -> void:
 			push_error("Package failed to load: %s" % package_path)
 			quit(1)
 			return
+		loaded_packages.append(pkg.id)
 		if pkg.items.is_empty():
 			push_error("Package has no items: %s" % package_path)
 			quit(1)
@@ -79,4 +81,8 @@ func _initialize() -> void:
 				quit(1)
 				return
 			view.dispose()
+	for package_id in loaded_packages:
+		FGUIPackage.remove_package(package_id)
+	for i in 3:
+		await process_frame
 	quit(0)

@@ -167,7 +167,10 @@ func on_owner_size_changed() -> void:
 
 func dispose() -> void:
 	if container != null:
-		container.queue_free()
+		if container.is_inside_tree():
+			container.queue_free()
+		else:
+			container.free()
 	container = null
 	content = null
 

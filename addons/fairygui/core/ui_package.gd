@@ -62,6 +62,16 @@ static func remove_package(package_id_or_name: String) -> void:
 	_inst_by_id.erase(pkg.res_key)
 	if pkg.custom_id != "":
 		_inst_by_id.erase(pkg.custom_id)
+	pkg.dispose()
+
+
+static func remove_all_packages() -> void:
+	var packages: Array = []
+	for pkg in _inst_by_name.values():
+		if not packages.has(pkg):
+			packages.append(pkg)
+	for pkg: FGUIPackage in packages:
+		remove_package(pkg.id)
 
 
 static func create_object_from_package(package_name: String, resource_name: String, user_class: Variant = null) -> FGUIObject:
@@ -129,6 +139,26 @@ func set_custom_id(value: String) -> void:
 	custom_id = value
 	if custom_id != "":
 		_inst_by_id[custom_id] = self
+
+
+func dispose() -> void:
+	for item: FGUIPackageItem in items:
+		item.owner = null
+		item.raw_data = null
+		item.texture = null
+		item.audio = null
+		item.bitmap_font = null
+		item.pixel_hit_test_data = null
+		item.frames.clear()
+		item.high_resolution.clear()
+		item.branches.clear()
+		item.decoded = false
+	items.clear()
+	dependencies.clear()
+	branches.clear()
+	_items_by_id.clear()
+	_items_by_name.clear()
+	_sprites.clear()
 
 
 func create_object(resource_name: String, user_class: Variant = null) -> FGUIObject:

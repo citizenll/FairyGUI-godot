@@ -443,7 +443,10 @@ func dispose() -> void:
 	remove_from_parent()
 	relations.dispose()
 	if node != null:
-		node.queue_free()
+		if node.is_inside_tree():
+			node.queue_free()
+		else:
+			node.free()
 		node = null
 
 
