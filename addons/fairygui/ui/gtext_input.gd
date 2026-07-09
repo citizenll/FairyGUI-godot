@@ -87,7 +87,7 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 		return
 	var value = buffer.read_s()
 	if value != null:
-		prompt_text = FGUIUBBParser.parse(str(value), true)
+		prompt_text = FGUIUBBParser.default_parser.parse(str(value), true)
 	value = buffer.read_s()
 	if value != null:
 		restrict = str(value)

@@ -95,7 +95,7 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 	if _font_name.begins_with("ui://"):
 		var font_item := FGUIPackage.get_item_by_url(_font_name)
 		if font_item != null:
-			var font_asset := font_item.owner.get_item_asset(font_item)
+			var font_asset: Variant = font_item.owner.get_item_asset(font_item)
 			if font_asset is FGUIBitmapFont:
 				_bitmap_font = font_asset
 				if label != null:

@@ -218,11 +218,17 @@ func _load_from_package(item_url: String) -> void:
 	source_width = content_item.width
 	source_height = content_item.height
 	match content_item.type:
-		FGUIEnums.PACKAGE_ITEM_IMAGE, FGUIEnums.PACKAGE_ITEM_ATLAS, FGUIEnums.PACKAGE_ITEM_MOVIE_CLIP:
+		FGUIEnums.PACKAGE_ITEM_IMAGE, FGUIEnums.PACKAGE_ITEM_ATLAS:
 			texture_rect.texture = content_item.texture
 			if texture_rect.texture == null:
 				_set_error_state()
 			else:
+				update_layout()
+		FGUIEnums.PACKAGE_ITEM_MOVIE_CLIP:
+			if content_item.frames.is_empty():
+				_set_error_state()
+			else:
+				texture_rect.texture = content_item.frames[0].get("texture")
 				update_layout()
 		FGUIEnums.PACKAGE_ITEM_COMPONENT:
 			var obj := FGUIPackage.create_object_from_url(item_url)

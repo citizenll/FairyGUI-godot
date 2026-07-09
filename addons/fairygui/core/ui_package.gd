@@ -164,6 +164,12 @@ func get_item_asset(item: FGUIPackageItem) -> Variant:
 						item.texture = _create_sprite_texture(atlas_texture, sprite)
 			return item.texture
 
+		FGUIEnums.PACKAGE_ITEM_MOVIE_CLIP:
+			if not item.decoded:
+				item.decoded = true
+				_load_movie_clip(item)
+			return item.frames
+
 		FGUIEnums.PACKAGE_ITEM_ATLAS:
 			if not item.decoded:
 				item.decoded = true
@@ -462,6 +468,34 @@ func _load_font(item: FGUIPackageItem) -> void:
 		item.bitmap_font = bitmap_font
 
 
+func _load_movie_clip(item: FGUIPackageItem) -> void:
+	var buffer := item.raw_data
+	if buffer == null:
+		return
+	buffer.seek(0, 0)
+	item.interval = buffer.read_i32()
+	item.swing = buffer.read_bool()
+	item.repeat_delay = buffer.read_i32()
+	if not buffer.seek(0, 1):
+		return
+	var count := buffer.read_i16()
+	item.frames.clear()
+	for i in count:
+		var next_pos := buffer.read_i16() + buffer.pos
+		var frame_offset := Vector2i(buffer.read_i32(), buffer.read_i32())
+		buffer.read_i32()
+		buffer.read_i32()
+		var frame := {"add_delay": buffer.read_i32(), "texture": null}
+		var sprite_id = buffer.read_s()
+		var sprite: Dictionary = _sprites.get(_string_or_empty(sprite_id), {})
+		if not sprite.is_empty():
+			var atlas_texture: Texture2D = get_item_asset(sprite["atlas"])
+			if atlas_texture != null:
+				frame["texture"] = _create_movie_frame_texture(atlas_texture, sprite, Vector2i(item.width, item.height), frame_offset)
+		item.frames.append(frame)
+		buffer.pos = next_pos
+
+
 func _create_sprite_texture(atlas_texture: Texture2D, sprite: Dictionary) -> Texture2D:
 	var region: Rect2i = sprite["rect"]
 	if not bool(sprite.get("rotated", false)) and Vector2i(sprite.get("offset", Vector2i.ZERO)) == Vector2i.ZERO and Vector2i(sprite.get("original_size", region.size)) == region.size:
@@ -489,6 +523,19 @@ func _create_sprite_texture(atlas_texture: Texture2D, sprite: Dictionary) -> Tex
 					out_image.set_pixel(tx, ty, source)
 	else:
 		out_image.blit_rect(atlas_image, region, offset)
+	return ImageTexture.create_from_image(out_image)
+
+
+func _create_movie_frame_texture(atlas_texture: Texture2D, sprite: Dictionary, frame_size: Vector2i, frame_offset: Vector2i) -> Texture2D:
+	var sprite_texture := _create_sprite_texture(atlas_texture, sprite)
+	if sprite_texture == null:
+		return null
+	var sprite_image := sprite_texture.get_image()
+	if sprite_image == null or sprite_image.is_empty():
+		return null
+	var out_image := Image.create_empty(maxi(1, frame_size.x), maxi(1, frame_size.y), false, Image.FORMAT_RGBA8)
+	out_image.fill(Color.TRANSPARENT)
+	out_image.blit_rect(sprite_image, Rect2i(Vector2i.ZERO, sprite_image.get_size()), frame_offset)
 	return ImageTexture.create_from_image(out_image)
 
 

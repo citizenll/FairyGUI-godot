@@ -75,4 +75,13 @@ func _initialize() -> void:
 		quit(1)
 		return
 
+	var clip := FGUIMovieClip.new()
+	clip.frames = [{"add_delay": 0, "texture": null}, {"add_delay": 0, "texture": null}]
+	clip.frame = 0
+	clip.set_prop(FGUIEnums.OBJECT_PROP_DELTA_TIME, 16)
+	if clip.frame != 1:
+		push_error("MovieClip frame advance failed.")
+		quit(1)
+		return
+
 	quit(0)

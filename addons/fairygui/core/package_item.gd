@@ -22,6 +22,10 @@ var texture: Texture2D
 var audio: AudioStream
 var bitmap_font: FGUIBitmapFont
 var pixel_hit_test_data: FGUIPixelHitTestData
+var frames: Array = []
+var interval: int = 0
+var repeat_delay: int = 0
+var swing: bool = false
 var extension_type: Variant = null
 
 
