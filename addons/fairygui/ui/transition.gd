@@ -332,31 +332,39 @@ func _schedule_item(item: Dictionary, token: int) -> bool:
 	var action_time := _get_item_play_time(item)
 	if config != null:
 		var duration := float(config["duration"])
+		var repeat := int(config.get("repeat", 0))
+		var total_span := _get_tween_total_span(duration, repeat)
 		var offset := maxf(0.0, _start_time - action_time)
 		var end_limit := _end_time if _end_time >= 0.0 else INF
 		if action_time > end_limit:
 			return false
-		if offset >= duration:
-			_apply_value(item, _get_tween_end_value(item))
+		if total_span < INF and offset >= total_span:
+			var complete_start := _get_tween_start_value(item).duplicate(true)
+			var complete_end := _get_tween_end_value(item).duplicate(true)
+			_prepare_missing_tween_values(item, complete_start, complete_end)
+			_apply_tween_variant(_variant_at_tween_elapsed(item, complete_start, complete_end, total_span), item)
 			_call_hook(item, true)
 			return false
-		var play_duration := minf(duration - offset, end_limit - action_time - offset)
+		var play_duration := total_span - offset
+		if end_limit < INF:
+			play_duration = minf(play_duration, end_limit - action_time - offset)
 		if play_duration <= 0.0:
 			return false
 		var delay := maxf(0.0, action_time - _start_time)
 		var start_value := _get_tween_start_value(item).duplicate(true)
 		var end_value := _get_tween_end_value(item).duplicate(true)
 		_prepare_missing_tween_values(item, start_value, end_value)
-		var from_variant := _variant_at_ratio(item, start_value, end_value, offset / maxf(duration, 0.0001))
-		var to_variant := _variant_at_ratio(item, start_value, end_value, (offset + play_duration) / maxf(duration, 0.0001))
+		if repeat < 0 and end_limit == INF:
+			return _schedule_infinite_tween_cycle(item, token, delay, offset, start_value, end_value, true)
 		var tween := _make_tween()
 		if tween == null:
 			return false
 		if delay > 0.0:
 			tween.tween_interval(delay / _time_scale)
 		tween.tween_callback(Callable(self, "_call_hook").bind(item, false))
-		tween.tween_method(Callable(self, "_apply_tween_variant").bind(item), from_variant, to_variant, play_duration / _time_scale)
-		tween.tween_callback(Callable(self, "_call_hook").bind(item, true))
+		tween.tween_method(Callable(self, "_apply_tween_elapsed").bind(item, start_value, end_value), offset, offset + play_duration, play_duration / _time_scale)
+		if total_span < INF and offset + play_duration >= total_span - 0.0001:
+			tween.tween_callback(Callable(self, "_call_hook").bind(item, true))
 		tween.finished.connect(Callable(self, "_on_item_tween_finished").bind(token, tween))
 		return true
 
@@ -380,8 +388,30 @@ func _make_tween() -> Tween:
 		return null
 	var tween := owner.node.create_tween()
 	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tween.set_trans(Tween.TRANS_LINEAR)
 	_active_tweens.append(tween)
 	return tween
+
+
+func _schedule_infinite_tween_cycle(item: Dictionary, token: int, delay: float, offset: float, start_value: Dictionary, end_value: Dictionary, call_start_hook: bool) -> bool:
+	var config: Dictionary = item["tween_config"]
+	var duration := float(config.get("duration", 0.0))
+	if duration <= 0.0:
+		return false
+	var next_offset := (floorf(offset / duration) + 1.0) * duration
+	if next_offset <= offset:
+		next_offset = offset + duration
+	var tween := _make_tween()
+	if tween == null:
+		return false
+	if delay > 0.0:
+		tween.tween_interval(delay / _time_scale)
+	if call_start_hook:
+		tween.tween_callback(Callable(self, "_call_hook").bind(item, false))
+	var segment_duration := maxf(0.0001, next_offset - offset)
+	tween.tween_method(Callable(self, "_apply_tween_elapsed").bind(item, start_value, end_value), offset, next_offset, segment_duration / _time_scale)
+	tween.finished.connect(Callable(self, "_on_infinite_tween_cycle_finished").bind(token, tween, item, next_offset, start_value, end_value))
+	return true
 
 
 func _on_delayed_item(item: Dictionary, token: int) -> void:
@@ -397,6 +427,13 @@ func _on_item_tween_finished(token: int, tween: Tween) -> void:
 		return
 	if _active_tweens.is_empty():
 		_finish_playback(token)
+
+
+func _on_infinite_tween_cycle_finished(token: int, tween: Tween, item: Dictionary, next_offset: float, start_value: Dictionary, end_value: Dictionary) -> void:
+	_active_tweens.erase(tween)
+	if token != _play_id or not playing:
+		return
+	_schedule_infinite_tween_cycle(item, token, 0.0, next_offset, start_value, end_value, false)
 
 
 func _finish_playback(token: int) -> void:
@@ -438,6 +475,10 @@ func _apply_tween_variant(value: Variant, item: Dictionary) -> void:
 		actual["f1"] = point.x + float(actual.get("start_x", 0.0))
 		actual["f2"] = point.y + float(actual.get("start_y", 0.0))
 	_apply_value(item, actual)
+
+
+func _apply_tween_elapsed(elapsed: float, item: Dictionary, start_value: Dictionary, end_value: Dictionary) -> void:
+	_apply_tween_variant(_variant_at_tween_elapsed(item, start_value, end_value, elapsed), item)
 
 
 func _apply_value(item: Dictionary, source_value: Dictionary) -> void:
@@ -515,7 +556,11 @@ func _apply_complete_state() -> void:
 		if item.get("target") == null:
 			continue
 		if item.get("tween_config") != null:
-			_apply_value(item, _get_tween_end_value(item))
+			var start_value := _get_tween_start_value(item).duplicate(true)
+			var end_value := _get_tween_end_value(item).duplicate(true)
+			_prepare_missing_tween_values(item, start_value, end_value)
+			var span := _get_tween_total_span(float(item["tween_config"]["duration"]), int(item["tween_config"].get("repeat", 0)))
+			_apply_tween_variant(_variant_at_tween_elapsed(item, start_value, end_value, span if span < INF else float(item["tween_config"]["duration"])), item)
 		else:
 			_apply_value(item, item["value"])
 
@@ -597,6 +642,38 @@ func _variant_at_ratio(item: Dictionary, start_value: Dictionary, end_value: Dic
 			)
 		_:
 			return ratio
+
+
+func _variant_at_tween_elapsed(item: Dictionary, start_value: Dictionary, end_value: Dictionary, elapsed: float) -> Variant:
+	var config: Dictionary = item["tween_config"]
+	var duration := float(config.get("duration", 0.0))
+	if duration <= 0.0:
+		return _variant_at_ratio(item, start_value, end_value, 1.0)
+	var tt := maxf(0.0, elapsed)
+	var repeat := int(config.get("repeat", 0))
+	var reversed_cycle := false
+	if repeat != 0:
+		var round := int(floorf(tt / duration))
+		tt -= duration * float(round)
+		if bool(config.get("yoyo", false)):
+			reversed_cycle = round % 2 == 1
+		if repeat > 0 and repeat - round < 0:
+			if bool(config.get("yoyo", false)):
+				reversed_cycle = repeat % 2 == 1
+			tt = duration
+	elif tt >= duration:
+		tt = duration
+	var eased_time := duration - tt if reversed_cycle else tt
+	var ratio := FGUIEaseManager.evaluate(int(config.get("ease_type", FGUIEaseType.QUAD_OUT)), eased_time, duration)
+	return _variant_at_ratio(item, start_value, end_value, ratio)
+
+
+func _get_tween_total_span(duration: float, repeat: int) -> float:
+	if duration <= 0.0:
+		return 0.0
+	if repeat < 0:
+		return INF
+	return duration * float(repeat + 1)
 
 
 func _value_from_variant(type: int, value: Variant) -> Dictionary:
