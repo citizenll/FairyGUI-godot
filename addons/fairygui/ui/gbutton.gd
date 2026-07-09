@@ -226,6 +226,11 @@ func set_prop(index: int, value: Variant) -> void:
 
 
 func _on_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			set_state(DOWN)
+		elif mode == FGUIEnums.BUTTON_COMMON:
+			set_state(UP)
 	super._on_gui_input(event)
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		_handle_click(event)
@@ -240,3 +245,5 @@ func _handle_click(event: Variant) -> void:
 		emit_event(FGUIEvents.STATE_CHANGED, event)
 	elif related_controller != null:
 		related_controller.selected_page_id = related_page_id
+	if sound != null:
+		root.play_one_shot_sound(sound, sound_volume_scale)
