@@ -24,6 +24,9 @@ var item_pool := FGUIObjectPool.new()
 var _virtual: bool = false
 var _num_items: int = 0
 var _selected_indices: Array[int] = []
+var _virtual_item_size: Vector2 = Vector2.ZERO
+var _virtual_first_index: int = 0
+var _refreshing_virtual: bool = false
 
 var num_items: int:
 	get:
@@ -162,17 +165,57 @@ func set_virtual_and_loop() -> void:
 
 
 func refresh_virtual_list() -> void:
+	if not _virtual:
+		return
+	if _refreshing_virtual:
+		return
+	_refreshing_virtual = true
 	remove_children_to_pool()
-	var count := _num_items
-	for i in count:
+	if _num_items <= 0:
+		if scroll_pane != null:
+			scroll_pane.set_content_size(0, 0)
+		_refreshing_virtual = false
+		return
+	_ensure_virtual_item_size()
+	var horizontal := layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW
+	var span := (_virtual_item_size.x + column_gap) if horizontal else (_virtual_item_size.y + line_gap)
+	span = maxf(1.0, span)
+	var scroll_pos := scroll_pane.pos_x if horizontal and scroll_pane != null else (scroll_pane.pos_y if scroll_pane != null else 0.0)
+	var view_size := view_width if horizontal else view_height
+	if view_size <= 0.0:
+		view_size = width if horizontal else height
+	_virtual_first_index = clampi(int(floorf(scroll_pos / span)), 0, maxi(0, _num_items - 1))
+	var visible_count := mini(_num_items - _virtual_first_index, int(ceilf(view_size / span)) + 2)
+	for offset in visible_count:
+		var i := _virtual_first_index + offset
 		var url := item_provider.call(i) if item_provider.is_valid() else default_item
 		var obj := add_item_from_pool(str(url))
 		if obj != null and item_renderer.is_valid():
 			item_renderer.call(i, obj)
-	update_bounds()
+		if obj != null:
+			obj.data = i
+			if horizontal:
+				obj.set_xy(i * span, 0)
+			else:
+				obj.set_xy(0, i * span)
+	if scroll_pane != null:
+		if horizontal:
+			scroll_pane.set_content_size(_num_items * span - column_gap, _virtual_item_size.y)
+		else:
+			scroll_pane.set_content_size(_virtual_item_size.x, _num_items * span - line_gap)
+	_refreshing_virtual = false
 
 
 func scroll_to_view(index: int, animated: bool = false, set_first: bool = false) -> void:
+	if _virtual:
+		_ensure_virtual_item_size()
+		if scroll_pane != null:
+			if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW:
+				scroll_pane.set_pos(index * (_virtual_item_size.x + column_gap), scroll_pane.pos_y, animated)
+			else:
+				scroll_pane.set_pos(scroll_pane.pos_x, index * (_virtual_item_size.y + line_gap), animated)
+			refresh_virtual_list()
+		return
 	var obj := get_child_at(index)
 	if scroll_pane != null and obj != null:
 		scroll_pane.scroll_to_view(obj, animated, set_first)
@@ -335,7 +378,7 @@ func _setup_item(buffer: FGUIByteBuffer, obj: FGUIObject) -> void:
 
 
 func _click_item(_event: Variant, item: FGUIObject) -> void:
-	var index := get_child_index(item)
+	var index := int(item.data) if _virtual and item.data != null else get_child_index(item)
 	if index == -1:
 		return
 	if selection_mode == FGUIEnums.LIST_SELECTION_SINGLE:
@@ -361,3 +404,14 @@ func _measure_first_items(item_count: int, horizontal: bool) -> float:
 		if i != count - 1:
 			total += (column_gap if horizontal else line_gap)
 	return total
+
+
+func _ensure_virtual_item_size() -> void:
+	if _virtual_item_size.x > 0.0 and _virtual_item_size.y > 0.0:
+		return
+	var obj := get_from_pool(default_item)
+	if obj == null:
+		_virtual_item_size = Vector2(maxf(1.0, width), maxf(1.0, height))
+		return
+	_virtual_item_size = Vector2(maxf(1.0, obj.width), maxf(1.0, obj.height))
+	return_to_pool(obj)

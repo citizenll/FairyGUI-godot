@@ -104,6 +104,7 @@ func set_pos(x: float, y: float, _animated: bool = false) -> void:
 		y = roundf(y / maxf(view_height, 1.0)) * maxf(view_height, 1.0)
 	pos_x = _clamp_x(x)
 	pos_y = _clamp_y(y)
+	_on_native_scroll()
 
 
 func set_perc_x(value: float, animated: bool = false) -> void:
@@ -180,6 +181,8 @@ func _create_nodes() -> void:
 	content.name = "Content"
 	content.mouse_filter = Control.MOUSE_FILTER_PASS
 	container.add_child(content)
+	container.get_h_scroll_bar().value_changed.connect(func(_value: float) -> void: _on_native_scroll())
+	container.get_v_scroll_bar().value_changed.connect(func(_value: float) -> void: _on_native_scroll())
 	owner.node.add_child(container)
 
 
@@ -189,3 +192,10 @@ func _clamp_x(value: float) -> float:
 
 func _clamp_y(value: float) -> float:
 	return clampf(value, 0.0, maxf(0.0, content_height - view_height))
+
+
+func _on_native_scroll() -> void:
+	if owner is FGUIList and owner._virtual and not owner._refreshing_virtual:
+		owner.refresh_virtual_list()
+	if owner != null:
+		owner.emit_event(FGUIEvents.SCROLL)
