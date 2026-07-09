@@ -1,23 +1,36 @@
 class_name FGUIMovieClip
 extends FGUIImage
 
-var playing: bool = true:
+var playing: bool:
+	get:
+		return _playing
 	set(value):
-		playing = value
+		if _playing == value:
+			return
+		_playing = value
 		_update_timer()
-var frame: int = 0:
+		update_gear(5)
+var frame: int:
+	get:
+		return _frame
 	set(value):
-		frame = maxi(0, value)
+		_frame = maxi(0, value)
 		_apply_frame()
+		update_gear(5)
 var interval: float = 0.0
 var repeat_delay: float = 0.0
-var time_scale: float = 1.0:
+var time_scale: float:
+	get:
+		return _time_scale
 	set(value):
-		time_scale = maxf(0.0001, value)
+		_time_scale = maxf(0.0001, value)
 		_update_timer()
 var swing: bool = false
 var frames: Array = []
 
+var _playing: bool = true
+var _frame: int = 0
+var _time_scale: float = 1.0
 var _timer: Timer
 var _reversed: bool = false
 
@@ -95,9 +108,9 @@ func _update_timer() -> void:
 func _current_frame_delay() -> float:
 	if frames.is_empty():
 		return 0.1
-	var frame_data: Dictionary = frames[clampi(frame, 0, frames.size() - 1)]
+	var frame_data: Dictionary = frames[clampi(_frame, 0, frames.size() - 1)]
 	var delay := interval + float(frame_data.get("add_delay", 0)) / 1000.0
-	if frame == frames.size() - 1:
+	if _frame == frames.size() - 1:
 		delay += repeat_delay
 	return maxf(0.001, delay / time_scale)
 
@@ -112,24 +125,23 @@ func _advance(_delta: float) -> void:
 		return
 	if swing:
 		if _reversed:
-			frame -= 1
-			if frame <= 0:
+			frame = _frame - 1
+			if _frame <= 0:
 				frame = 0
 				_reversed = false
 		else:
-			frame += 1
-			if frame >= frames.size() - 1:
+			frame = _frame + 1
+			if _frame >= frames.size() - 1:
 				frame = frames.size() - 1
 				_reversed = true
 	else:
-		frame = (frame + 1) % frames.size()
+		frame = (_frame + 1) % frames.size()
 
 
 func _apply_frame() -> void:
 	if image_node == null or frames.is_empty():
 		return
-	frame = clampi(frame, 0, frames.size() - 1)
-	var frame_data: Dictionary = frames[frame]
-	var texture: Texture2D = frame_data.get("texture")
-	if texture != null:
-		image_node.texture = texture
+	_frame = clampi(_frame, 0, frames.size() - 1)
+	var frame_data: Dictionary = frames[_frame]
+	var texture_value: Variant = frame_data.get("texture")
+	image_node.texture = texture_value if texture_value is Texture2D else null

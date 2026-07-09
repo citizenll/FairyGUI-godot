@@ -168,6 +168,8 @@ func set_xy(new_x: float, new_y: float) -> void:
 	_x = new_x
 	_y = new_y
 	_handle_xy_changed()
+	if group != null and group is FGUIGroup:
+		group.set_bounds_changed_flag(true)
 
 
 func set_size(new_width: float, new_height: float, _ignore_pivot: bool = false) -> void:
@@ -179,13 +181,18 @@ func set_size(new_width: float, new_height: float, _ignore_pivot: bool = false) 
 	new_height = maxf(new_height, min_height)
 	if is_equal_approx(_raw_width, new_width) and is_equal_approx(_raw_height, new_height):
 		return
+	var old_width := _raw_width
+	var old_height := _raw_height
 	_raw_width = new_width
 	_raw_height = new_height
 	_width = new_width
 	_height = new_height
 	_handle_size_changed()
+	relations.on_owner_size_changed(_raw_width - old_width, _raw_height - old_height, _pivot_as_anchor)
 	if parent != null:
 		parent.set_bounds_changed_flag()
+	if group != null and group is FGUIGroup:
+		group.set_bounds_changed_flag()
 	emit_event(FGUIEvents.SIZE_CHANGED)
 
 
@@ -353,6 +360,19 @@ func update_gear(index: int) -> void:
 	var gear: FGUIGearBase = _gears.get(index)
 	if gear != null and gear.controller != null:
 		gear.update_state()
+
+
+func update_gear_from_relations(index: int, dx: float, dy: float) -> void:
+	if _under_construct or _gear_locked:
+		return
+	if index == 1:
+		var gear_xy: FGUIGearBase = _gears.get(1)
+		if gear_xy is FGUIGearXY:
+			gear_xy.update_from_relations(dx, dy)
+	elif index == 2:
+		var gear_size: FGUIGearBase = _gears.get(2)
+		if gear_size is FGUIGearSize:
+			gear_size.update_from_relations(dx, dy)
 
 
 func handle_controller_changed(controller: FGUIController) -> void:

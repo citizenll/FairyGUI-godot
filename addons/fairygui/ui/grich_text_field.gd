@@ -11,8 +11,41 @@ func _create_display_object() -> void:
 
 
 func _get_text() -> String:
-	return label.text
+	return _text
 
 
 func _set_text(value: String) -> void:
-	label.text = FGUIUBBParser.default_parser.parse(value) if FGUIUBBParser.default_parser != null else value
+	_text = value
+	var parsed := FGUIUBBParser.default_parser.parse(value) if FGUIUBBParser.default_parser != null else value
+	if not (label is RichTextLabel):
+		return
+	var image_regex := RegEx.new()
+	image_regex.compile("(?i)\\[img\\](ui://[^\\[]+)\\[/img\\]")
+	var first_match := image_regex.search(parsed)
+	if first_match == null:
+		label.text = parsed
+		return
+	label.clear()
+	var cursor := 0
+	var current_match := first_match
+	while current_match != null:
+		var start := current_match.get_start()
+		var end := current_match.get_end()
+		if start > cursor:
+			label.append_text(parsed.substr(cursor, start - cursor))
+		_append_package_image(current_match.get_string(1))
+		cursor = end
+		current_match = image_regex.search(parsed, cursor)
+	if cursor < parsed.length():
+		label.append_text(parsed.substr(cursor))
+
+
+func _append_package_image(url: String) -> void:
+	var item := FGUIPackage.get_item_by_url(url)
+	if item == null:
+		return
+	item = item.get_branch().get_high_resolution()
+	item.load()
+	if item.texture == null:
+		return
+	label.add_image(item.texture, item.width, item.height)

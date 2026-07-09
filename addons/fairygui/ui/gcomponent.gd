@@ -40,6 +40,24 @@ func add_child(child: FGUIObject) -> FGUIObject:
 	return add_child_at(child, children.size())
 
 
+func dispose() -> void:
+	for transition: FGUITransition in transitions:
+		transition.dispose()
+	transitions.clear()
+	for controller: FGUIController in controllers:
+		controller.parent = null
+		controller.actions.clear()
+	controllers.clear()
+	for child: FGUIObject in children.duplicate():
+		child.dispose()
+	children.clear()
+	if scroll_pane != null:
+		scroll_pane.dispose()
+		scroll_pane = null
+	_content_node = null
+	super.dispose()
+
+
 func add_child_at(child: FGUIObject, index: int) -> FGUIObject:
 	if child == null:
 		push_error("FairyGUI child is null.")
@@ -179,6 +197,10 @@ func apply_all_controllers() -> void:
 func ensure_bounds_correct() -> void:
 	if _bounds_changed:
 		update_bounds()
+
+
+func ensure_size_correct() -> void:
+	ensure_bounds_correct()
 
 
 func set_bounds_changed_flag() -> void:

@@ -39,7 +39,10 @@ func _initialize() -> void:
 
 	var completed := [false]
 	transition.play(func() -> void: completed[0] = true)
-	await create_timer(0.15).timeout
+	var waited := 0.0
+	while not completed[0] and waited < 1.0:
+		await create_timer(0.05).timeout
+		waited += 0.05
 
 	if not completed[0]:
 		push_error("Transition completion callback was not called.")
@@ -84,4 +87,9 @@ func _initialize() -> void:
 		quit(1)
 		return
 
+	transition.dispose()
+	clip.dispose()
+	owner.dispose()
+	host.queue_free()
+	await process_frame
 	quit(0)

@@ -31,3 +31,10 @@ func apply() -> void:
 func update_state() -> void:
 	storage[_active_page_id()] = {"size": Vector2(owner.width, owner.height), "scale": owner._scale}
 
+
+func update_from_relations(dx: float, dy: float) -> void:
+	for page_id in storage.keys():
+		var value: Dictionary = storage[page_id]
+		var size: Vector2 = value["size"]
+		value["size"] = Vector2(size.x + dx, size.y + dy)
+	default_value["size"] = Vector2(default_value["size"].x + dx, default_value["size"].y + dy)

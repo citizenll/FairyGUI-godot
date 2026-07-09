@@ -375,6 +375,24 @@ func _setup_item(buffer: FGUIByteBuffer, obj: FGUIObject) -> void:
 	value = buffer.read_s()
 	if value != null:
 		obj.name = str(value)
+	if obj is FGUIComponent:
+		var component := obj as FGUIComponent
+		var count := buffer.read_i16()
+		for i in count:
+			var controller_name = buffer.read_s()
+			var page_id = buffer.read_s()
+			var controller := component.get_controller(_string_or_empty(controller_name))
+			if controller != null:
+				controller.selected_page_id = _string_or_empty(page_id)
+		if buffer.version >= 2:
+			count = buffer.read_i16()
+			for i in count:
+				var target := _string_or_empty(buffer.read_s())
+				var property_id := buffer.read_i16()
+				var prop_value = buffer.read_s()
+				var child := component.get_child_by_path(target)
+				if child != null:
+					child.set_prop(property_id, prop_value)
 
 
 func _click_item(_event: Variant, item: FGUIObject) -> void:
