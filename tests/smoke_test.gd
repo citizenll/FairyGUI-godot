@@ -70,11 +70,12 @@ func _initialize() -> void:
 			push_error("Package has no items: %s" % package_path)
 			quit(1)
 			return
-		var main_item := pkg.get_item_by_name("Main")
-		if main_item != null:
-			var view := pkg.create_object("Main")
+		for item: FGUIPackageItem in pkg.items:
+			if item.type != FGUIEnums.PACKAGE_ITEM_COMPONENT:
+				continue
+			var view := pkg.create_object(item.name)
 			if view == null:
-				push_error("Main object failed to instantiate: %s" % package_path)
+				push_error("Component failed to instantiate: %s/%s" % [package_path, item.name])
 				quit(1)
 				return
 			view.dispose()

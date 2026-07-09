@@ -108,6 +108,13 @@ func get_child(child_name: String) -> FGUIObject:
 	return null
 
 
+func get_child_by_id(child_id: String) -> FGUIObject:
+	for child in children:
+		if child.id == child_id:
+			return child
+	return null
+
+
 func get_child_by_path(path: String) -> FGUIObject:
 	var parts := path.split(".")
 	var current: FGUIComponent = self
@@ -145,9 +152,23 @@ func add_controller(controller: FGUIController) -> void:
 	apply_controller(controller)
 
 
+func get_transition(transition_name: String) -> FGUITransition:
+	for transition in transitions:
+		if transition.name == transition_name:
+			return transition
+	return null
+
+
+func get_transition_at(index: int) -> FGUITransition:
+	if index < 0 or index >= transitions.size():
+		return null
+	return transitions[index]
+
+
 func apply_controller(controller: FGUIController) -> void:
 	for child in children:
 		child.handle_controller_changed(controller)
+	controller.run_actions()
 
 
 func apply_all_controllers() -> void:

@@ -202,7 +202,9 @@ func _load_package(buffer: FGUIByteBuffer) -> void:
 
 	if compressed:
 		var compressed_data := buffer.data.slice(buffer.pos, buffer.get_length())
-		var decompressed := compressed_data.decompress_dynamic(-1, FileAccess.COMPRESSION_DEFLATE)
+		var decompressed := FGUIRawInflate.decompress(compressed_data)
+		if decompressed.is_empty():
+			decompressed = compressed_data.decompress_dynamic(-1, FileAccess.COMPRESSION_DEFLATE)
 		if decompressed.is_empty():
 			push_error("FairyGUI compressed package could not be decompressed: %s" % res_key)
 			return
