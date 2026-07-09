@@ -58,6 +58,31 @@ func hide_popup(popup: FGUIObject = null) -> void:
 		popup.remove_from_parent()
 
 
+func play_one_shot_sound(sound: Variant, volume_scale: float = 1.0) -> AudioStreamPlayer:
+	var stream: AudioStream
+	if sound is AudioStream:
+		stream = sound
+	elif sound is String:
+		var path := String(sound)
+		if path.begins_with("ui://"):
+			var item := FGUIPackage.get_item_by_url(path)
+			if item != null:
+				stream = item.owner.get_item_asset(item)
+		else:
+			var resource := load(path)
+			if resource is AudioStream:
+				stream = resource
+	if stream == null or node == null:
+		return null
+	var player := AudioStreamPlayer.new()
+	player.stream = stream
+	player.volume_db = linear_to_db(maxf(0.0001, volume_scale))
+	node.add_child(player)
+	player.finished.connect(player.queue_free)
+	player.play()
+	return player
+
+
 func _update_size_from_viewport() -> void:
 	if node == null:
 		return

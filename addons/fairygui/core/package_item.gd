@@ -19,6 +19,9 @@ var scale_by_tile: bool = false
 var tile_grid_indice: int = 0
 var smoothing: bool = true
 var texture: Texture2D
+var audio: AudioStream
+var bitmap_font: FGUIBitmapFont
+var pixel_hit_test_data: FGUIPixelHitTestData
 var extension_type: Variant = null
 
 

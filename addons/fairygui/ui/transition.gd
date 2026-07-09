@@ -483,6 +483,11 @@ func _apply_value(item: Dictionary, source_value: Dictionary) -> void:
 			target.set_prop(FGUIEnums.OBJECT_PROP_TIME_SCALE, _time_scale)
 		ACTION_VISIBLE:
 			target.visible = bool(value.get("visible", true))
+		ACTION_SOUND:
+			if playing and float(item.get("time", 0.0)) >= _start_time:
+				var root_object := target.root
+				if root_object != null:
+					root_object.play_one_shot_sound(String(value.get("sound", "")), float(value.get("volume", 1.0)))
 		ACTION_TRANSITION:
 			if playing and value.get("trans") != null:
 				var trans: FGUITransition = value["trans"]

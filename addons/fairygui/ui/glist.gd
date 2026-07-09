@@ -230,22 +230,74 @@ func update_bounds() -> void:
 	_bounds_changed = false
 	var cur := Vector2.ZERO
 	var max_size := Vector2.ZERO
+	var line_size := Vector2.ZERO
+	var items_in_line := 0
+	var view_limit := Vector2(maxf(1.0, view_width), maxf(1.0, view_height))
 	for child: FGUIObject in children:
 		if fold_invisible_items and not child.visible:
 			continue
 		match layout:
 			FGUIEnums.LIST_LAYOUT_SINGLE_ROW:
+				if auto_resize_item and view_height > 0.0:
+					child.height = view_height
 				child.set_xy(cur.x, 0)
 				cur.x += child.width + column_gap
 				max_size.y = maxf(max_size.y, child.height)
+			FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL:
+				var should_wrap := items_in_line > 0 and (cur.x + child.width > view_limit.x or (column_count > 0 and items_in_line >= column_count))
+				if should_wrap:
+					max_size.x = maxf(max_size.x, cur.x - column_gap)
+					cur.x = 0.0
+					cur.y += line_size.y + line_gap
+					line_size = Vector2.ZERO
+					items_in_line = 0
+				child.set_xy(cur.x, cur.y)
+				cur.x += child.width + column_gap
+				line_size.y = maxf(line_size.y, child.height)
+				items_in_line += 1
+				max_size.y = maxf(max_size.y, cur.y + line_size.y)
+			FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL:
+				var should_wrap := items_in_line > 0 and (cur.y + child.height > view_limit.y or (line_count > 0 and items_in_line >= line_count))
+				if should_wrap:
+					max_size.y = maxf(max_size.y, cur.y - line_gap)
+					cur.y = 0.0
+					cur.x += line_size.x + column_gap
+					line_size = Vector2.ZERO
+					items_in_line = 0
+				child.set_xy(cur.x, cur.y)
+				cur.y += child.height + line_gap
+				line_size.x = maxf(line_size.x, child.width)
+				items_in_line += 1
+				max_size.x = maxf(max_size.x, cur.x + line_size.x)
+			FGUIEnums.LIST_LAYOUT_PAGINATION:
+				var cell_w := maxf(1.0, child.width + column_gap)
+				var cell_h := maxf(1.0, child.height + line_gap)
+				var cols := column_count if column_count > 0 else maxi(1, int(floorf((view_limit.x + column_gap) / cell_w)))
+				var rows := line_count if line_count > 0 else maxi(1, int(floorf((view_limit.y + line_gap) / cell_h)))
+				var page_capacity := maxi(1, cols * rows)
+				var index := items_in_line
+				var page := int(floori(index / page_capacity))
+				var page_index := index % page_capacity
+				var col := page_index % cols
+				var row := int(floori(page_index / cols))
+				child.set_xy(page * view_limit.x + col * cell_w, row * cell_h)
+				max_size.x = maxf(max_size.x, (page + 1) * view_limit.x)
+				max_size.y = maxf(max_size.y, view_limit.y)
+				items_in_line += 1
 			_:
+				if auto_resize_item and view_width > 0.0:
+					child.width = view_width
 				child.set_xy(0, cur.y)
 				cur.y += child.height + line_gap
 				max_size.x = maxf(max_size.x, child.width)
 	if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW:
 		max_size.x = maxf(0, cur.x - column_gap)
-	else:
+	elif layout == FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN:
 		max_size.y = maxf(0, cur.y - line_gap)
+	elif layout == FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL:
+		max_size.x = maxf(max_size.x, cur.x - column_gap)
+	elif layout == FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL:
+		max_size.y = maxf(max_size.y, cur.y - line_gap)
 	if scroll_pane != null:
 		scroll_pane.set_content_size(max_size.x, max_size.y)
 

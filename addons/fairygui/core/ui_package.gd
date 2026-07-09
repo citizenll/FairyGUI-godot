@@ -170,6 +170,18 @@ func get_item_asset(item: FGUIPackageItem) -> Variant:
 				item.texture = _load_texture(item.file)
 			return item.texture
 
+		FGUIEnums.PACKAGE_ITEM_SOUND:
+			if not item.decoded:
+				item.decoded = true
+				item.audio = _load_audio(item.file)
+			return item.audio
+
+		FGUIEnums.PACKAGE_ITEM_FONT:
+			if not item.decoded:
+				item.decoded = true
+				_load_font(item)
+			return item.bitmap_font
+
 		FGUIEnums.PACKAGE_ITEM_COMPONENT:
 			return item.raw_data
 
@@ -354,6 +366,10 @@ func _read_pixel_hit_tests(buffer: FGUIByteBuffer, index_table_pos: int) -> void
 	var count := buffer.read_u16()
 	for i in count:
 		var next_pos := buffer.read_i32() + buffer.pos
+		var item: FGUIPackageItem = _items_by_id.get(_string_or_empty(buffer.read_s()))
+		if item != null and item.type == FGUIEnums.PACKAGE_ITEM_IMAGE:
+			item.pixel_hit_test_data = FGUIPixelHitTestData.new()
+			item.pixel_hit_test_data.load(buffer)
 		buffer.pos = next_pos
 
 
@@ -369,6 +385,81 @@ func _load_texture(path: String) -> Texture2D:
 
 	push_warning("FairyGUI texture not found: %s" % path)
 	return null
+
+
+func _load_audio(path: String) -> AudioStream:
+	var stream := load(path)
+	if stream is AudioStream:
+		return stream
+	push_warning("FairyGUI audio not found: %s" % path)
+	return null
+
+
+func _load_font(item: FGUIPackageItem) -> void:
+	var content_item := item.get_branch()
+	var buffer := content_item.raw_data
+	if buffer == null:
+		return
+	buffer.seek(0, 0)
+	var bitmap_font := FGUIBitmapFont.new()
+	var ttf := buffer.read_bool()
+	bitmap_font.tint = buffer.read_bool()
+	bitmap_font.auto_scale_size = buffer.read_bool()
+	buffer.read_bool()
+	bitmap_font.font_size = maxi(buffer.read_i32(), 1)
+	var xadvance := buffer.read_i32()
+	bitmap_font.line_height = maxi(buffer.read_i32(), bitmap_font.font_size)
+
+	var main_sprite: Dictionary = _sprites.get(content_item.id, {})
+	var main_texture: Texture2D
+	if not main_sprite.is_empty():
+		main_texture = get_item_asset(main_sprite["atlas"])
+
+	if not buffer.seek(0, 1):
+		content_item.bitmap_font = bitmap_font
+		if content_item != item:
+			item.bitmap_font = bitmap_font
+		return
+
+	var count := buffer.read_i32()
+	for i in count:
+		var next_pos := buffer.read_i16() + buffer.pos
+		var code := buffer.read_u16()
+		var image_id = buffer.read_s()
+		var bx := buffer.read_i32()
+		var by := buffer.read_i32()
+		var glyph := {
+			"x": buffer.read_i32(),
+			"y": buffer.read_i32(),
+			"width": buffer.read_i32(),
+			"height": buffer.read_i32(),
+			"advance": buffer.read_i32(),
+			"texture": null
+		}
+		buffer.read_i8()
+		if ttf:
+			if main_texture != null and not main_sprite.is_empty():
+				var main_rect: Rect2i = main_sprite["rect"]
+				var texture := AtlasTexture.new()
+				texture.atlas = main_texture
+				texture.region = Rect2(main_rect.position.x + bx, main_rect.position.y + by, glyph["width"], glyph["height"])
+				texture.filter_clip = true
+				glyph["texture"] = texture
+		else:
+			var char_item: FGUIPackageItem = _items_by_id.get(_string_or_empty(image_id))
+			if char_item != null:
+				char_item = char_item.get_branch().get_high_resolution()
+				glyph["width"] = char_item.width
+				glyph["height"] = char_item.height
+				glyph["texture"] = get_item_asset(char_item)
+			if int(glyph["advance"]) == 0:
+				glyph["advance"] = int(glyph["x"]) + int(glyph["width"]) if xadvance == 0 else xadvance
+		bitmap_font.glyphs[code] = glyph
+		buffer.pos = next_pos
+
+	content_item.bitmap_font = bitmap_font
+	if content_item != item:
+		item.bitmap_font = bitmap_font
 
 
 func _create_sprite_texture(atlas_texture: Texture2D, sprite: Dictionary) -> Texture2D:

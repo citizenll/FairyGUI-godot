@@ -381,10 +381,16 @@ func _setup_component_metadata(buffer: FGUIByteBuffer, content_item: FGUIPackage
 	if mask_id != -1:
 		buffer.read_bool()
 	var hit_test_id = buffer.read_s()
-	buffer.read_i32()
+	var hit_offset_x := buffer.read_i32()
 	var child_hit_index := buffer.read_i32()
 	if hit_test_id != null:
-		content_item.owner.get_item_by_id(hit_test_id)
+		var hit_item: FGUIPackageItem = content_item.owner.get_item_by_id(hit_test_id)
+		if hit_item != null and hit_item.pixel_hit_test_data != null:
+			pixel_hit_test = FGUIPixelHitTest.new(hit_item.pixel_hit_test_data, hit_offset_x, child_hit_index)
+			if source_width > 0.0:
+				pixel_hit_test.scale_x = width / source_width
+			if source_height > 0.0:
+				pixel_hit_test.scale_y = height / source_height
 	elif child_hit_index != -1:
 		get_child_at(child_hit_index)
 

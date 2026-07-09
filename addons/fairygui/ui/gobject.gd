@@ -8,6 +8,7 @@ var package_item: FGUIPackageItem
 var parent: FGUIComponent
 var node: Control
 var relations: FGUIRelations
+var pixel_hit_test: FGUIPixelHitTest
 
 var id: String:
 	get:
@@ -444,6 +445,11 @@ func _handle_size_changed() -> void:
 	if node != null:
 		node.size = Vector2(_width, _height)
 		node.pivot_offset = Vector2(_width * _pivot.x, _height * _pivot.y)
+	if pixel_hit_test != null:
+		if source_width > 0.0:
+			pixel_hit_test.scale_x = _width / source_width
+		if source_height > 0.0:
+			pixel_hit_test.scale_y = _height / source_height
 
 
 func _handle_alpha_changed() -> void:
@@ -470,6 +476,8 @@ func _handle_grayed_changed() -> void:
 
 func _on_gui_input(event: InputEvent) -> void:
 	if not _touchable:
+		return
+	if event is InputEventMouse and pixel_hit_test != null and not pixel_hit_test.contains(event.position.x, event.position.y):
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:

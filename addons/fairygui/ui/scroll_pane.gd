@@ -8,6 +8,8 @@ var scroll_type: int = FGUIEnums.SCROLL_BOTH
 var bounceback_effect: bool = true
 var touch_effect: bool = true
 var page_mode: bool = false
+var content_width: float = 0.0
+var content_height: float = 0.0
 
 
 func _init(p_owner: FGUIComponent = null) -> void:
@@ -21,7 +23,7 @@ var pos_x: float:
 		return container.scroll_horizontal if container != null else 0.0
 	set(value):
 		if container != null:
-			container.scroll_horizontal = int(value)
+			container.scroll_horizontal = int(_clamp_x(value))
 
 
 var pos_y: float:
@@ -29,7 +31,7 @@ var pos_y: float:
 		return container.scroll_vertical if container != null else 0.0
 	set(value):
 		if container != null:
-			container.scroll_vertical = int(value)
+			container.scroll_vertical = int(_clamp_y(value))
 
 
 var view_width: float:
@@ -71,21 +73,85 @@ func setup(buffer: FGUIByteBuffer) -> void:
 
 
 func set_content_size(width: float, height: float) -> void:
+	content_width = maxf(0.0, width)
+	content_height = maxf(0.0, height)
 	if content != null:
-		content.custom_minimum_size = Vector2(width, height)
-		content.size = Vector2(maxf(content.size.x, width), maxf(content.size.y, height))
+		content.custom_minimum_size = Vector2(content_width, content_height)
+		content.size = Vector2(content_width, content_height)
+	pos_x = pos_x
+	pos_y = pos_y
 
 
-func scroll_to_view(obj: FGUIObject, _animated: bool = false, _set_first: bool = false) -> void:
+func scroll_to_view(obj: FGUIObject, _animated: bool = false, set_first: bool = false) -> void:
 	if obj == null or container == null:
 		return
-	container.scroll_horizontal = int(obj.x)
-	container.scroll_vertical = int(obj.y)
+	var target_x := pos_x
+	var target_y := pos_y
+	if set_first or obj.x < pos_x:
+		target_x = obj.x
+	elif obj.x + obj.width > pos_x + view_width:
+		target_x = obj.x + obj.width - view_width
+	if set_first or obj.y < pos_y:
+		target_y = obj.y
+	elif obj.y + obj.height > pos_y + view_height:
+		target_y = obj.y + obj.height - view_height
+	set_pos(target_x, target_y)
 
 
 func set_pos(x: float, y: float, _animated: bool = false) -> void:
-	pos_x = x
-	pos_y = y
+	if page_mode:
+		x = roundf(x / maxf(view_width, 1.0)) * maxf(view_width, 1.0)
+		y = roundf(y / maxf(view_height, 1.0)) * maxf(view_height, 1.0)
+	pos_x = _clamp_x(x)
+	pos_y = _clamp_y(y)
+
+
+func set_perc_x(value: float, animated: bool = false) -> void:
+	set_pos((content_width - view_width) * clampf(value, 0.0, 1.0), pos_y, animated)
+
+
+func set_perc_y(value: float, animated: bool = false) -> void:
+	set_pos(pos_x, (content_height - view_height) * clampf(value, 0.0, 1.0), animated)
+
+
+func scroll_left(ratio: float = 1.0, animated: bool = false) -> void:
+	set_pos(pos_x - FGUIConfig.default_scroll_step * ratio, pos_y, animated)
+
+
+func scroll_right(ratio: float = 1.0, animated: bool = false) -> void:
+	set_pos(pos_x + FGUIConfig.default_scroll_step * ratio, pos_y, animated)
+
+
+func scroll_up(ratio: float = 1.0, animated: bool = false) -> void:
+	set_pos(pos_x, pos_y - FGUIConfig.default_scroll_step * ratio, animated)
+
+
+func scroll_down(ratio: float = 1.0, animated: bool = false) -> void:
+	set_pos(pos_x, pos_y + FGUIConfig.default_scroll_step * ratio, animated)
+
+
+func is_right_most() -> bool:
+	return pos_x >= maxf(0.0, content_width - view_width)
+
+
+func is_bottom_most() -> bool:
+	return pos_y >= maxf(0.0, content_height - view_height)
+
+
+func current_page_x() -> int:
+	return int(roundf(pos_x / maxf(view_width, 1.0)))
+
+
+func current_page_y() -> int:
+	return int(roundf(pos_y / maxf(view_height, 1.0)))
+
+
+func set_current_page_x(value: int, animated: bool = false) -> void:
+	set_pos(float(value) * view_width, pos_y, animated)
+
+
+func set_current_page_y(value: int, animated: bool = false) -> void:
+	set_pos(pos_x, float(value) * view_height, animated)
 
 
 func handle_controller_changed(_controller: FGUIController) -> void:
@@ -95,6 +161,7 @@ func handle_controller_changed(_controller: FGUIController) -> void:
 func on_owner_size_changed() -> void:
 	if container != null and owner != null:
 		container.size = Vector2(owner.width, owner.height)
+		set_pos(pos_x, pos_y)
 
 
 func dispose() -> void:
@@ -115,3 +182,10 @@ func _create_nodes() -> void:
 	container.add_child(content)
 	owner.node.add_child(container)
 
+
+func _clamp_x(value: float) -> float:
+	return clampf(value, 0.0, maxf(0.0, content_width - view_width))
+
+
+func _clamp_y(value: float) -> float:
+	return clampf(value, 0.0, maxf(0.0, content_height - view_height))
