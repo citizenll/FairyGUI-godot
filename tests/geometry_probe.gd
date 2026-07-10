@@ -40,8 +40,20 @@ func _initialize() -> void:
 	object.set_scale(1.0, 1.0)
 
 	object.request_focus()
-	if fgui_root.focus != object:
+	if fgui_root.focus != object or not object.focused:
 		_fail("GObject request_focus did not update the FairyGUI root focus.")
+		return
+	if not object.in_container:
+		_fail("GObject in_container did not reflect an attached display node.")
+		return
+	object.pixel_snapping = true
+	object.set_xy(20.4, 30.6)
+	if not object.node.position.is_equal_approx(Vector2(10.0, 26.0)):
+		_fail("GObject pixel_snapping did not round pivot-adjusted node coordinates.")
+		return
+	object.pixel_snapping = false
+	if not object.node.position.is_equal_approx(Vector2(10.4, 25.6)):
+		_fail("Disabling GObject pixel_snapping did not restore precise coordinates.")
 		return
 	var transformed := object.transform_point(Vector2(5.0, 5.0), fgui_root)
 	if not fgui_root.transform_point(transformed, object).is_equal_approx(Vector2(5.0, 5.0)):

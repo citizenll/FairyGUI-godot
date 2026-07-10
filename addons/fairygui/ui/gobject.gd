@@ -133,6 +133,14 @@ var tooltips: String:
 		_tooltips = value
 		if node != null:
 			node.tooltip_text = value if FGUIConfig.tooltips_win == "" else ""
+var pixel_snapping: bool:
+	get:
+		return _pixel_snapping
+	set(value):
+		if _pixel_snapping == value:
+			return
+		_pixel_snapping = value
+		_handle_xy_changed()
 var x_min: float:
 	get:
 		return _x
@@ -175,6 +183,13 @@ var dragging: bool:
 var is_disposed: bool:
 	get:
 		return node == null
+var in_container: bool:
+	get:
+		return node != null and node.get_parent() != null
+var focused: bool:
+	get:
+		var root_object := root
+		return root_object != null and root_object.focus == self
 var source_width: float = 0.0
 var source_height: float = 0.0
 var init_width: float = 0.0
@@ -200,6 +215,7 @@ var _rotation: float = 0.0
 var _scale: Vector2 = Vector2.ONE
 var _pivot: Vector2 = Vector2.ZERO
 var _pivot_as_anchor: bool = false
+var _pixel_snapping: bool = false
 var _under_construct: bool = false
 var _internal_visible: bool = true
 var _sorting_order: int = 0
@@ -723,6 +739,8 @@ func _handle_xy_changed() -> void:
 		var next_pos := Vector2(_x, _y)
 		if _pivot_as_anchor:
 			next_pos -= Vector2(_width * _pivot.x, _height * _pivot.y)
+		if _pixel_snapping:
+			next_pos = next_pos.round()
 		node.position = next_pos
 	emit_event(FGUIEvents.XY_CHANGED)
 
