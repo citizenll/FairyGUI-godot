@@ -89,6 +89,13 @@ var group: FGUIObject:
 		return _group
 	set(value):
 		_group = value
+var tooltips: String:
+	get:
+		return _tooltips
+	set(value):
+		_tooltips = value
+		if node != null:
+			node.tooltip_text = value if FGUIConfig.tooltips_win == "" else ""
 var x_min: float:
 	get:
 		return _x
@@ -161,6 +168,8 @@ func _init() -> void:
 		node.set_meta("fgui_owner", self)
 		node.name = _id
 		node.gui_input.connect(_on_gui_input)
+		node.mouse_entered.connect(_on_mouse_entered)
+		node.mouse_exited.connect(_on_mouse_exited)
 
 
 func set_xy(new_x: float, new_y: float) -> void:
@@ -289,7 +298,7 @@ func setup_after_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 	if buffer.seek(begin_pos, 1):
 		var tips = buffer.read_s()
 		if tips != null:
-			_tooltips = tips
+			tooltips = str(tips)
 		var group_id := buffer.read_i16()
 		if group_id >= 0 and parent != null:
 			_group = parent.get_child_at(group_id)
@@ -535,6 +544,22 @@ func _on_gui_input(event: InputEvent) -> void:
 		_x = node.position.x
 		_y = node.position.y
 		emit_event(FGUIEvents.DRAG_MOVE, event)
+
+
+func _on_mouse_entered() -> void:
+	if _tooltips == "" or FGUIConfig.tooltips_win == "":
+		return
+	var root_object := root
+	if root_object != null:
+		root_object.show_tooltips(_tooltips)
+
+
+func _on_mouse_exited() -> void:
+	if FGUIConfig.tooltips_win == "":
+		return
+	var root_object := root
+	if root_object != null:
+		root_object.hide_tooltips()
 
 
 func _string_or_empty(value: Variant) -> String:

@@ -40,7 +40,7 @@ The Godot source tree is still useful as the API reference for current Control, 
 - Text fields support template variables, line spacing, outline/shadow settings, and Both/Height/Ellipsis auto-size behavior through Godot labels. Text inputs support FairyGUI `restrict` character ranges, inverse ranges, and escaped literals.
 - Loaders preserve package MovieClip frame playback and propagate `playing`, `frame`, and `time_scale` to loaded movie content.
 - Buttons, component hit areas, drag operations, sliders, combo boxes, scroll bars, and window focus handling accept Godot screen-touch input in addition to mouse input.
-- `GRoot` manages nested popup stacks, automatic up/down placement, target-relative coordinates, and outside-pointer dismissal.
+- `GRoot` manages nested popup stacks, automatic up/down placement, target-relative coordinates, outside-pointer dismissal, and configured/custom tooltip windows. Objects fall back to Godot native tooltip text when no FairyGUI tooltip resource is configured.
 - Components support forward and reversed image/rectangle alpha masks. Forward masks use native `CanvasItem` clipping; reversed masks use a local Canvas shader and preserve texture alpha. Component input filtering follows mask bounds and configured pixel-hit tests.
 - Scroll panes provide header/footer lock layout, top/bottom navigation, edge-drag `PULL_DOWN_RELEASE`/`PULL_UP_RELEASE` events, and `SCROLL_END` for completed pointer drags. Godot's native elastic overscroll animation is not replicated yet.
 - Tree nodes support dynamic insertion, removal, reordering, selection, and single-click folder expansion with pooled cell refreshes.

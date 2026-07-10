@@ -6,6 +6,8 @@ static var inst: FGUIRoot
 var content_scale_factor: float = 1.0
 var _modal_layer: FGUIGraph
 var _popup_stack: Array[FGUIObject] = []
+var _tooltip_win: FGUIObject
+var _default_tooltip_win: FGUIObject
 
 
 func _init() -> void:
@@ -88,6 +90,12 @@ func _handle_size_changed() -> void:
 
 func dispose() -> void:
 	_popup_stack.clear()
+	if _tooltip_win != null and _tooltip_win.parent == self:
+		remove_child(_tooltip_win)
+	_tooltip_win = null
+	if _default_tooltip_win != null and _default_tooltip_win.parent == null:
+		_default_tooltip_win.dispose()
+	_default_tooltip_win = null
 	if _modal_layer != null and _modal_layer.parent != self:
 		_modal_layer.dispose()
 	_modal_layer = null
@@ -142,6 +150,7 @@ func has_any_popup() -> bool:
 
 func _on_gui_input(event: InputEvent) -> void:
 	if FGUIToolSet.is_primary_pointer_press(event):
+		hide_tooltips()
 		_check_popups(FGUIToolSet.get_pointer_position(event))
 	super._on_gui_input(event)
 
@@ -166,6 +175,49 @@ func _close_popups_from(index: int) -> void:
 		_popup_stack.remove_at(popup_index)
 		if popup != null and popup.parent == self:
 			remove_child(popup)
+
+
+func show_tooltips(message: String) -> void:
+	if _default_tooltip_win == null:
+		if FGUIConfig.tooltips_win == "":
+			return
+		_default_tooltip_win = FGUIPackage.create_object_from_url(FGUIConfig.tooltips_win)
+	if _default_tooltip_win == null:
+		return
+	_default_tooltip_win.set_text(message)
+	show_tooltips_win(_default_tooltip_win)
+
+
+func show_tooltips_win(tooltip_win: FGUIObject, global_position: Vector2 = Vector2.INF) -> void:
+	if tooltip_win == null:
+		return
+	hide_tooltips()
+	_tooltip_win = tooltip_win
+	var pointer_position := global_position
+	var offset_from_pointer := pointer_position == Vector2.INF
+	if offset_from_pointer and node != null:
+		pointer_position = node.get_global_mouse_position()
+	var position := global_to_local(pointer_position)
+	var x := position.x + (10.0 if offset_from_pointer else 0.0)
+	var y := position.y + (20.0 if offset_from_pointer else 0.0)
+	if x + tooltip_win.width > width:
+		x -= tooltip_win.width + 1.0
+		if x < 0.0:
+			x = 10.0
+	if y + tooltip_win.height > height:
+		y -= tooltip_win.height + 1.0
+		if x - tooltip_win.width - 1.0 > 0.0:
+			x -= tooltip_win.width + 1.0
+		if y < 0.0:
+			y = 10.0
+	tooltip_win.set_xy(x, y)
+	add_child(tooltip_win)
+
+
+func hide_tooltips() -> void:
+	if _tooltip_win != null and _tooltip_win.parent == self:
+		remove_child(_tooltip_win)
+	_tooltip_win = null
 
 
 func play_one_shot_sound(sound: Variant, volume_scale: float = 1.0) -> AudioStreamPlayer:

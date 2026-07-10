@@ -35,6 +35,24 @@ func _initialize() -> void:
 		_fail("GRoot did not close popups after an outside touch.")
 		return
 
+	var tooltip_owner := FGUIObject.new()
+	tooltip_owner.tooltips = "Native tooltip"
+	if tooltip_owner.node.tooltip_text != "Native tooltip":
+		_fail("GObject did not expose native tooltip text without a configured tooltip window.")
+		return
+	var tooltip := FGUIComponent.new()
+	tooltip.set_size(20.0, 10.0)
+	ui_root.show_tooltips_win(tooltip, Vector2(195.0, 95.0))
+	if tooltip.parent != ui_root or not Vector2(tooltip.x, tooltip.y).is_equal_approx(Vector2(153.0, 84.0)):
+		_fail("GRoot did not position a custom tooltip inside the viewport.")
+		return
+	ui_root.hide_tooltips()
+	if tooltip.parent != null:
+		_fail("GRoot did not hide a custom tooltip.")
+		return
+
+	tooltip.dispose()
+	tooltip_owner.dispose()
 	submenu.dispose()
 	popup.dispose()
 	ui_root.dispose()
