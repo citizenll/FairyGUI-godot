@@ -18,9 +18,25 @@ func _initialize() -> void:
 	if component_names.is_empty():
 		_fail("Imported .fui resource did not expose component names.")
 		return
+	var preview_scene := load("res://examples/editor_preview/fui_preview.tscn") as PackedScene
+	if preview_scene == null:
+		_fail("The editor preview example scene did not load.")
+		return
 
 	var host := Control.new()
 	root.add_child(host)
+	var scene_view := preview_scene.instantiate() as FGUIView
+	if scene_view == null:
+		_fail("The editor preview example scene did not instantiate an FGUIView.")
+		return
+	host.add_child(scene_view)
+	await process_frame
+	await process_frame
+	if scene_view.package != resource or scene_view.get_fairy_object() == null:
+		_fail("The editor preview scene did not retain its dragged .fui resource or instantiate its preview.")
+		return
+	scene_view.queue_free()
+	await process_frame
 	var view := FGUIView.new()
 	host.add_child(view)
 	var package_property := _find_property(view, "package")
