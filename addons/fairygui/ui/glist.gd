@@ -22,10 +22,13 @@ var selection_controller: FGUIController
 var item_pool := FGUIObjectPool.new()
 
 var _virtual: bool = false
+var _loop: bool = false
 var _num_items: int = 0
 var _selected_indices: Array[int] = []
 var _virtual_item_size: Vector2 = Vector2.ZERO
 var _virtual_first_index: int = 0
+var _virtual_real_num_items: int = 0
+var _virtual_loop_position_initialized: bool = false
 var _refreshing_virtual: bool = false
 
 var num_items: int:
@@ -33,7 +36,14 @@ var num_items: int:
 		return _num_items if _virtual else children.size()
 	set(value):
 		if _virtual:
-			_num_items = max(0, value)
+			var next_count := max(0, value)
+			if next_count != _num_items:
+				_num_items = next_count
+				_virtual_real_num_items = _num_items * 6 if _loop else _num_items
+				_virtual_loop_position_initialized = false
+				for index in _selected_indices.duplicate():
+					if index >= _num_items:
+						_selected_indices.erase(index)
 			refresh_virtual_list()
 		else:
 			var target := max(0, value)
@@ -118,9 +128,12 @@ func add_selection(index: int, scroll_it_to_view: bool = false) -> void:
 		clear_selection()
 	if not _selected_indices.has(index):
 		_selected_indices.append(index)
-	var obj := get_child_at(index) if not _virtual else null
-	if obj is FGUIButton:
-		obj.selected = true
+	if _virtual:
+		_set_virtual_selection(index, true)
+	else:
+		var obj := get_child_at(index)
+		if obj is FGUIButton:
+			obj.selected = true
 	if scroll_it_to_view:
 		scroll_to_view(index)
 	_update_selection_controller(index)
@@ -128,16 +141,24 @@ func add_selection(index: int, scroll_it_to_view: bool = false) -> void:
 
 func remove_selection(index: int) -> void:
 	_selected_indices.erase(index)
-	var obj := get_child_at(index) if index >= 0 and index < children.size() else null
-	if obj is FGUIButton:
-		obj.selected = false
-
-
-func clear_selection() -> void:
-	for index in _selected_indices.duplicate():
+	if _virtual:
+		_set_virtual_selection(index, false)
+	else:
 		var obj := get_child_at(index) if index >= 0 and index < children.size() else null
 		if obj is FGUIButton:
 			obj.selected = false
+
+
+func clear_selection() -> void:
+	if _virtual:
+		for child: FGUIObject in children:
+			if child is FGUIButton:
+				child.selected = false
+	else:
+		for index in _selected_indices.duplicate():
+			var obj := get_child_at(index) if index >= 0 and index < children.size() else null
+			if obj is FGUIButton:
+				obj.selected = false
 	_selected_indices.clear()
 
 
@@ -159,12 +180,35 @@ func resize_to_fit(item_count: int = 0, min_size: int = 0) -> void:
 
 
 func set_virtual() -> void:
-	_virtual = true
-	_num_items = 0
+	_set_virtual(false)
 
 
 func set_virtual_and_loop() -> void:
-	set_virtual()
+	_set_virtual(true)
+
+
+func _set_virtual(loop: bool) -> void:
+	if _virtual:
+		if _loop != loop:
+			push_error("FairyGUI virtual list mode cannot be changed after initialization.")
+		return
+	if scroll_pane == null:
+		push_error("FairyGUI virtual list must be scrollable.")
+		return
+	if loop and layout != FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN and layout != FGUIEnums.LIST_LAYOUT_SINGLE_ROW:
+		push_error("FairyGUI loop virtual lists currently require a single-column or single-row layout.")
+		return
+	_virtual = true
+	_loop = loop
+	_num_items = 0
+	_virtual_real_num_items = 0
+	_virtual_first_index = 0
+	_virtual_loop_position_initialized = false
+	_virtual_item_size = Vector2.ZERO
+	remove_children_to_pool()
+	if _loop:
+		scroll_pane.bounceback_effect = false
+	refresh_virtual_list()
 
 
 func refresh_virtual_list() -> void:
@@ -175,6 +219,9 @@ func refresh_virtual_list() -> void:
 	_refreshing_virtual = true
 	remove_children_to_pool()
 	if _num_items <= 0:
+		_virtual_real_num_items = 0
+		_virtual_first_index = 0
+		_virtual_loop_position_initialized = false
 		if scroll_pane != null:
 			scroll_pane.set_content_size(0, 0)
 		_refreshing_virtual = false
@@ -183,41 +230,51 @@ func refresh_virtual_list() -> void:
 	var horizontal := layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW
 	var span := (_virtual_item_size.x + column_gap) if horizontal else (_virtual_item_size.y + line_gap)
 	span = maxf(1.0, span)
+	_virtual_real_num_items = _num_items * 6 if _loop else _num_items
+	if scroll_pane != null:
+		if horizontal:
+			scroll_pane.set_content_size(_virtual_real_num_items * span - column_gap, _virtual_item_size.y)
+		else:
+			scroll_pane.set_content_size(_virtual_item_size.x, _virtual_real_num_items * span - line_gap)
+		if _loop:
+			_update_virtual_loop_position(horizontal, span)
 	var scroll_pos := scroll_pane.pos_x if horizontal and scroll_pane != null else (scroll_pane.pos_y if scroll_pane != null else 0.0)
 	var view_size := view_width if horizontal else view_height
 	if view_size <= 0.0:
 		view_size = width if horizontal else height
-	_virtual_first_index = clampi(int(floorf(scroll_pos / span)), 0, maxi(0, _num_items - 1))
-	var visible_count := mini(_num_items - _virtual_first_index, int(ceilf(view_size / span)) + 2)
+	_virtual_first_index = clampi(int(floorf(scroll_pos / span)), 0, maxi(0, _virtual_real_num_items - 1))
+	var visible_count := mini(_virtual_real_num_items - _virtual_first_index, int(ceilf(view_size / span)) + 2)
 	for offset in visible_count:
-		var i := _virtual_first_index + offset
-		var url := item_provider.call(i) if item_provider.is_valid() else default_item
+		var physical_index := _virtual_first_index + offset
+		var item_index := _physical_to_item_index(physical_index)
+		var url := item_provider.call(item_index) if item_provider.is_valid() else default_item
 		var obj := add_item_from_pool(str(url))
 		if obj != null and item_renderer.is_valid():
-			item_renderer.call(i, obj)
+			item_renderer.call(item_index, obj)
 		if obj != null:
-			obj.data = i
+			obj.data = item_index
+			if obj is FGUIButton:
+				obj.selected = _selected_indices.has(item_index)
 			if horizontal:
-				obj.set_xy(i * span, 0)
+				obj.set_xy(physical_index * span, 0)
 			else:
-				obj.set_xy(0, i * span)
-	if scroll_pane != null:
-		if horizontal:
-			scroll_pane.set_content_size(_num_items * span - column_gap, _virtual_item_size.y)
-		else:
-			scroll_pane.set_content_size(_virtual_item_size.x, _num_items * span - line_gap)
+				obj.set_xy(0, physical_index * span)
 	_refreshing_virtual = false
 
 
 func scroll_to_view(index: int, animated: bool = false, set_first: bool = false) -> void:
 	if _virtual:
+		if index < 0 or index >= _num_items:
+			return
 		_ensure_virtual_item_size()
 		if scroll_pane != null:
-			if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW:
-				scroll_pane.set_pos(index * (_virtual_item_size.x + column_gap), scroll_pane.pos_y, animated)
+			var horizontal := layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW
+			var span := (_virtual_item_size.x + column_gap) if horizontal else (_virtual_item_size.y + line_gap)
+			var physical_index := _nearest_physical_item_index(index, maxf(1.0, span), horizontal)
+			if horizontal:
+				scroll_pane.set_pos(physical_index * span, scroll_pane.pos_y, animated)
 			else:
-				scroll_pane.set_pos(scroll_pane.pos_x, index * (_virtual_item_size.y + line_gap), animated)
-			refresh_virtual_list()
+				scroll_pane.set_pos(scroll_pane.pos_x, physical_index * span, animated)
 		return
 	var obj := get_child_at(index)
 	if scroll_pane != null and obj != null:
@@ -280,6 +337,8 @@ func handle_controller_changed(controller: FGUIController) -> void:
 
 func update_bounds() -> void:
 	_bounds_changed = false
+	if _virtual:
+		return
 	var cur := Vector2.ZERO
 	var max_size := Vector2.ZERO
 	var line_size := Vector2.ZERO
@@ -415,6 +474,87 @@ func _click_item(_event: Variant, item: FGUIObject) -> void:
 	else:
 		add_selection(index, scroll_item_to_view_on_click)
 	emit_event(FGUIEvents.CLICK_ITEM, item)
+
+
+func get_first_child_in_view() -> int:
+	if _virtual:
+		return _physical_to_item_index(_virtual_first_index)
+	var horizontal := layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW
+	var scroll_pos := scroll_pane.pos_x if horizontal and scroll_pane != null else (scroll_pane.pos_y if scroll_pane != null else 0.0)
+	for index in children.size():
+		var child: FGUIObject = children[index]
+		var end := (child.x + child.width) if horizontal else (child.y + child.height)
+		if end > scroll_pos:
+			return index
+	return -1
+
+
+func child_index_to_item_index(index: int) -> int:
+	if not _virtual:
+		return index
+	if index < 0 or index >= children.size():
+		return -1
+	var value = children[index].data
+	return int(value) if value != null else -1
+
+
+func item_index_to_child_index(index: int) -> int:
+	if not _virtual:
+		return index
+	for child_index in children.size():
+		if children[child_index].data != null and int(children[child_index].data) == index:
+			return child_index
+	return -1
+
+
+func _physical_to_item_index(physical_index: int) -> int:
+	if _num_items <= 0:
+		return -1
+	return physical_index % _num_items if _loop else physical_index
+
+
+func _nearest_physical_item_index(item_index: int, span: float, horizontal: bool) -> int:
+	if not _loop or _num_items <= 0:
+		return item_index
+	var scroll_pos := scroll_pane.pos_x if horizontal else scroll_pane.pos_y
+	var nearest := item_index
+	var nearest_distance := INF
+	for copy_index in 6:
+		var physical_index := item_index + copy_index * _num_items
+		var distance := absf(physical_index * span - scroll_pos)
+		if distance < nearest_distance:
+			nearest = physical_index
+			nearest_distance = distance
+	return nearest
+
+
+func _update_virtual_loop_position(horizontal: bool, span: float) -> void:
+	if scroll_pane == null or _num_items <= 0:
+		return
+	var segment := _num_items * span
+	if segment <= 0.0:
+		return
+	var max_position := maxf(0.0, (scroll_pane.content_width - scroll_pane.view_width) if horizontal else (scroll_pane.content_height - scroll_pane.view_height))
+	var current_position := scroll_pane.pos_x if horizontal else scroll_pane.pos_y
+	var target_position := current_position
+	if not _virtual_loop_position_initialized:
+		target_position = clampf(segment * 3.0, 0.0, max_position)
+		_virtual_loop_position_initialized = true
+	elif current_position < segment and current_position + segment * 3.0 <= max_position:
+		target_position += segment * 3.0
+	elif current_position > segment * 4.0 and current_position - segment * 3.0 >= 0.0:
+		target_position -= segment * 3.0
+	if not is_equal_approx(target_position, current_position):
+		if horizontal:
+			scroll_pane.set_pos(target_position, scroll_pane.pos_y)
+		else:
+			scroll_pane.set_pos(scroll_pane.pos_x, target_position)
+
+
+func _set_virtual_selection(index: int, selected: bool) -> void:
+	for child: FGUIObject in children:
+		if child is FGUIButton and child.data != null and int(child.data) == index:
+			child.selected = selected
 
 
 func _update_selection_controller(index: int) -> void:
