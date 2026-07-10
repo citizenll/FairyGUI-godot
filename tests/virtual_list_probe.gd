@@ -4,6 +4,7 @@ extends SceneTree
 class ProbeList extends FGUIList:
 	var recycled: Array[FGUIObject] = []
 	var created_count: int = 0
+	var item_size := Vector2(50.0, 40.0)
 
 
 	func get_from_pool(_url: String = "") -> FGUIObject:
@@ -11,7 +12,7 @@ class ProbeList extends FGUIList:
 		if recycled.is_empty():
 			var button := FGUIButton.new()
 			button.mode = FGUIEnums.BUTTON_CHECK
-			button.set_size(50, 40)
+			button.set_size(item_size.x, item_size.y)
 			obj = button
 			created_count += 1
 		else:
@@ -108,9 +109,135 @@ func _initialize() -> void:
 		return
 
 	list.dispose()
+
+	var flow_horizontal := _create_virtual_list(
+		host,
+		Vector2(130.0, 20.0),
+		FGUIEnums.SCROLL_VERTICAL,
+		FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL,
+		Vector2(50.0, 20.0)
+	)
+	flow_horizontal.column_gap = 5
+	flow_horizontal.line_gap = 4
+	flow_horizontal.column_count = 2
+	flow_horizontal.set_virtual()
+	flow_horizontal.num_items = 5
+	await process_frame
+	if absf(flow_horizontal.scroll_pane.content_width - 105.0) > 0.1 or absf(flow_horizontal.scroll_pane.content_height - 68.0) > 0.1:
+		_fail("Flow-horizontal virtual list content size is incorrect.")
+		return
+	if not _expect_item_position(flow_horizontal, 0, Vector2(0.0, 0.0), "flow-horizontal item 0"):
+		return
+	if not _expect_item_position(flow_horizontal, 1, Vector2(55.0, 0.0), "flow-horizontal item 1"):
+		return
+	if not _expect_item_position(flow_horizontal, 2, Vector2(0.0, 24.0), "flow-horizontal item 2"):
+		return
+	flow_horizontal.scroll_pane.set_pos(0.0, 25.0)
+	await process_frame
+	if flow_horizontal.get_first_child_in_view() != 2:
+		_fail("Flow-horizontal virtual list did not recycle by row.")
+		return
+	flow_horizontal.scroll_to_view(4)
+	await process_frame
+	if flow_horizontal.get_first_child_in_view() != 4:
+		_fail("Flow-horizontal virtual list scroll_to_view did not target the row.")
+		return
+	flow_horizontal.dispose()
+
+	var flow_vertical := _create_virtual_list(
+		host,
+		Vector2(30.0, 60.0),
+		FGUIEnums.SCROLL_HORIZONTAL,
+		FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL,
+		Vector2(30.0, 20.0)
+	)
+	flow_vertical.column_gap = 4
+	flow_vertical.line_gap = 3
+	flow_vertical.line_count = 2
+	flow_vertical.set_virtual()
+	flow_vertical.num_items = 5
+	await process_frame
+	if absf(flow_vertical.scroll_pane.content_width - 98.0) > 0.1 or absf(flow_vertical.scroll_pane.content_height - 43.0) > 0.1:
+		_fail("Flow-vertical virtual list content size is incorrect.")
+		return
+	if not _expect_item_position(flow_vertical, 0, Vector2(0.0, 0.0), "flow-vertical item 0"):
+		return
+	if not _expect_item_position(flow_vertical, 1, Vector2(0.0, 23.0), "flow-vertical item 1"):
+		return
+	if not _expect_item_position(flow_vertical, 2, Vector2(34.0, 0.0), "flow-vertical item 2"):
+		return
+	flow_vertical.scroll_pane.set_pos(35.0, 0.0)
+	await process_frame
+	if flow_vertical.get_first_child_in_view() != 2:
+		_fail("Flow-vertical virtual list did not recycle by column.")
+		return
+	flow_vertical.scroll_to_view(4)
+	await process_frame
+	if flow_vertical.get_first_child_in_view() != 4:
+		_fail("Flow-vertical virtual list scroll_to_view did not target the column.")
+		return
+	flow_vertical.dispose()
+
+	var pagination := _create_virtual_list(
+		host,
+		Vector2(100.0, 60.0),
+		FGUIEnums.SCROLL_HORIZONTAL,
+		FGUIEnums.LIST_LAYOUT_PAGINATION,
+		Vector2(30.0, 20.0)
+	)
+	pagination.column_gap = 2
+	pagination.line_gap = 3
+	pagination.column_count = 3
+	pagination.line_count = 2
+	pagination.set_virtual()
+	pagination.num_items = 7
+	await process_frame
+	if absf(pagination.scroll_pane.content_width - 200.0) > 0.1 or absf(pagination.scroll_pane.content_height - 60.0) > 0.1:
+		_fail("Pagination virtual list content size is incorrect.")
+		return
+	if not _expect_item_position(pagination, 5, Vector2(64.0, 23.0), "pagination item 5"):
+		return
+	pagination.scroll_pane.set_pos(100.0, 0.0)
+	await process_frame
+	if pagination.get_first_child_in_view() != 6:
+		_fail("Pagination virtual list did not recycle by page.")
+		return
+	if not _expect_item_position(pagination, 6, Vector2(100.0, 0.0), "pagination item 6"):
+		return
+	pagination.scroll_to_view(5)
+	await process_frame
+	if pagination.get_first_child_in_view() != 0:
+		_fail("Pagination virtual list scroll_to_view did not target the page.")
+		return
+	pagination.dispose()
 	host.queue_free()
 	await process_frame
 	quit(0)
+
+
+func _create_virtual_list(host: Control, size: Vector2, scroll_type: int, list_layout: int, item_size: Vector2) -> ProbeList:
+	var list := ProbeList.new()
+	list.item_size = item_size
+	list.set_size(size.x, size.y)
+	host.add_child(list.node)
+	list.scroll_pane = FGUIScrollPane.new(list)
+	list._content_node = list.scroll_pane.content
+	list.scroll_pane.scroll_type = scroll_type
+	list.scroll_pane._configure_native_scroll_modes()
+	list.layout = list_layout
+	return list
+
+
+func _expect_item_position(list: ProbeList, item_index: int, expected: Vector2, label: String) -> bool:
+	var child_index := list.item_index_to_child_index(item_index)
+	if child_index < 0:
+		_fail("%s was not rendered." % label)
+		return false
+	var item := list.get_child_at(child_index)
+	if absf(item.x - expected.x) > 0.1 or absf(item.y - expected.y) > 0.1:
+		_fail("%s has position (%s, %s), expected (%s, %s)." % [label, item.x, item.y, expected.x, expected.y])
+		return false
+	return true
 
 
 func _fail(message: String) -> void:

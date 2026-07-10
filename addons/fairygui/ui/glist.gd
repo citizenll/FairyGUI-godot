@@ -227,23 +227,23 @@ func refresh_virtual_list() -> void:
 		_refreshing_virtual = false
 		return
 	_ensure_virtual_item_size()
-	var horizontal := layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW
-	var span := (_virtual_item_size.x + column_gap) if horizontal else (_virtual_item_size.y + line_gap)
-	span = maxf(1.0, span)
 	_virtual_real_num_items = _num_items * 6 if _loop else _num_items
+	var layout_info := _get_virtual_layout_info(_virtual_real_num_items)
+	if layout_info.is_empty():
+		_refreshing_virtual = false
+		return
+	var horizontal := bool(layout_info["horizontal"])
+	var span := float(layout_info["primary_span"])
 	if scroll_pane != null:
-		if horizontal:
-			scroll_pane.set_content_size(_virtual_real_num_items * span - column_gap, _virtual_item_size.y)
-		else:
-			scroll_pane.set_content_size(_virtual_item_size.x, _virtual_real_num_items * span - line_gap)
+		scroll_pane.set_content_size(float(layout_info["content_width"]), float(layout_info["content_height"]))
 		if _loop:
 			_update_virtual_loop_position(horizontal, span)
 	var scroll_pos := scroll_pane.pos_x if horizontal and scroll_pane != null else (scroll_pane.pos_y if scroll_pane != null else 0.0)
-	var view_size := view_width if horizontal else view_height
-	if view_size <= 0.0:
-		view_size = width if horizontal else height
-	_virtual_first_index = clampi(int(floorf(scroll_pos / span)), 0, maxi(0, _virtual_real_num_items - 1))
-	var visible_count := mini(_virtual_real_num_items - _virtual_first_index, int(ceilf(view_size / span)) + 2)
+	var group_count := int(layout_info["group_count"])
+	var items_per_group := int(layout_info["items_per_group"])
+	var first_group := clampi(int(floorf(scroll_pos / span)), 0, maxi(0, group_count - 1))
+	_virtual_first_index = mini(_virtual_real_num_items - 1, first_group * items_per_group)
+	var visible_count := mini(_virtual_real_num_items - _virtual_first_index, (int(ceilf(float(layout_info["view_primary"]) / span)) + 2) * items_per_group)
 	for offset in visible_count:
 		var physical_index := _virtual_first_index + offset
 		var item_index := _physical_to_item_index(physical_index)
@@ -255,10 +255,8 @@ func refresh_virtual_list() -> void:
 			obj.data = item_index
 			if obj is FGUIButton:
 				obj.selected = _selected_indices.has(item_index)
-			if horizontal:
-				obj.set_xy(physical_index * span, 0)
-			else:
-				obj.set_xy(0, physical_index * span)
+			var item_position := _get_virtual_item_position(physical_index, layout_info)
+			obj.set_xy(item_position.x, item_position.y)
 	_refreshing_virtual = false
 
 
@@ -268,13 +266,18 @@ func scroll_to_view(index: int, animated: bool = false, set_first: bool = false)
 			return
 		_ensure_virtual_item_size()
 		if scroll_pane != null:
-			var horizontal := layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW
-			var span := (_virtual_item_size.x + column_gap) if horizontal else (_virtual_item_size.y + line_gap)
+			_virtual_real_num_items = _num_items * 6 if _loop else _num_items
+			var layout_info := _get_virtual_layout_info(_virtual_real_num_items)
+			if layout_info.is_empty():
+				return
+			var horizontal := bool(layout_info["horizontal"])
+			var span := float(layout_info["primary_span"])
 			var physical_index := _nearest_physical_item_index(index, maxf(1.0, span), horizontal)
+			var target_position := floori(float(physical_index) / float(layout_info["items_per_group"])) * span
 			if horizontal:
-				scroll_pane.set_pos(physical_index * span, scroll_pane.pos_y, animated)
+				scroll_pane.set_pos(target_position, scroll_pane.pos_y, animated)
 			else:
-				scroll_pane.set_pos(scroll_pane.pos_x, physical_index * span, animated)
+				scroll_pane.set_pos(scroll_pane.pos_x, target_position, animated)
 		return
 	var obj := get_child_at(index)
 	if scroll_pane != null and obj != null:
@@ -505,6 +508,148 @@ func item_index_to_child_index(index: int) -> int:
 		if children[child_index].data != null and int(children[child_index].data) == index:
 			return child_index
 	return -1
+
+
+func _get_virtual_layout_info(item_count: int) -> Dictionary:
+	if item_count <= 0:
+		return {}
+	var viewport_width := maxf(1.0, view_width if view_width > 0.0 else width)
+	var viewport_height := maxf(1.0, view_height if view_height > 0.0 else height)
+	var cell_width := maxf(1.0, _virtual_item_size.x)
+	var cell_height := maxf(1.0, _virtual_item_size.y)
+	var horizontal_span := maxf(1.0, cell_width + float(column_gap))
+	var vertical_span := maxf(1.0, cell_height + float(line_gap))
+
+	match layout:
+		FGUIEnums.LIST_LAYOUT_SINGLE_ROW:
+			return {
+				"layout": layout,
+				"horizontal": true,
+				"primary_span": horizontal_span,
+				"items_per_group": 1,
+				"group_count": item_count,
+				"view_primary": viewport_width,
+				"content_width": maxf(cell_width, float(item_count) * horizontal_span - float(column_gap)),
+				"content_height": cell_height,
+				"cell_width": cell_width,
+				"cell_height": cell_height,
+				"horizontal_span": horizontal_span,
+				"vertical_span": vertical_span,
+				"columns": 1,
+				"rows": 1,
+				"view_width": viewport_width,
+				"view_height": viewport_height,
+			}
+		FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL:
+			var columns := column_count if column_count > 0 else maxi(1, int(floorf((viewport_width + float(column_gap)) / horizontal_span)))
+			var rows := maxi(1, int(ceilf(float(item_count) / float(columns))))
+			return {
+				"layout": layout,
+				"horizontal": false,
+				"primary_span": vertical_span,
+				"items_per_group": columns,
+				"group_count": rows,
+				"view_primary": viewport_height,
+				"content_width": maxf(cell_width, float(columns) * horizontal_span - float(column_gap)),
+				"content_height": maxf(cell_height, float(rows) * vertical_span - float(line_gap)),
+				"cell_width": cell_width,
+				"cell_height": cell_height,
+				"horizontal_span": horizontal_span,
+				"vertical_span": vertical_span,
+				"columns": columns,
+				"rows": rows,
+				"view_width": viewport_width,
+				"view_height": viewport_height,
+			}
+		FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL:
+			var rows := line_count if line_count > 0 else maxi(1, int(floorf((viewport_height + float(line_gap)) / vertical_span)))
+			var columns := maxi(1, int(ceilf(float(item_count) / float(rows))))
+			return {
+				"layout": layout,
+				"horizontal": true,
+				"primary_span": horizontal_span,
+				"items_per_group": rows,
+				"group_count": columns,
+				"view_primary": viewport_width,
+				"content_width": maxf(cell_width, float(columns) * horizontal_span - float(column_gap)),
+				"content_height": maxf(cell_height, float(rows) * vertical_span - float(line_gap)),
+				"cell_width": cell_width,
+				"cell_height": cell_height,
+				"horizontal_span": horizontal_span,
+				"vertical_span": vertical_span,
+				"columns": columns,
+				"rows": rows,
+				"view_width": viewport_width,
+				"view_height": viewport_height,
+			}
+		FGUIEnums.LIST_LAYOUT_PAGINATION:
+			var columns := column_count if column_count > 0 else maxi(1, int(floorf((viewport_width + float(column_gap)) / horizontal_span)))
+			var rows := line_count if line_count > 0 else maxi(1, int(floorf((viewport_height + float(line_gap)) / vertical_span)))
+			var page_capacity := maxi(1, columns * rows)
+			var page_count := maxi(1, int(ceilf(float(item_count) / float(page_capacity))))
+			return {
+				"layout": layout,
+				"horizontal": true,
+				"primary_span": viewport_width,
+				"items_per_group": page_capacity,
+				"group_count": page_count,
+				"view_primary": viewport_width,
+				"content_width": float(page_count) * viewport_width,
+				"content_height": viewport_height,
+				"cell_width": cell_width,
+				"cell_height": cell_height,
+				"horizontal_span": horizontal_span,
+				"vertical_span": vertical_span,
+				"columns": columns,
+				"rows": rows,
+				"view_width": viewport_width,
+				"view_height": viewport_height,
+			}
+		_:
+			return {
+				"layout": FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN,
+				"horizontal": false,
+				"primary_span": vertical_span,
+				"items_per_group": 1,
+				"group_count": item_count,
+				"view_primary": viewport_height,
+				"content_width": cell_width,
+				"content_height": maxf(cell_height, float(item_count) * vertical_span - float(line_gap)),
+				"cell_width": cell_width,
+				"cell_height": cell_height,
+				"horizontal_span": horizontal_span,
+				"vertical_span": vertical_span,
+				"columns": 1,
+				"rows": 1,
+				"view_width": viewport_width,
+				"view_height": viewport_height,
+			}
+
+
+func _get_virtual_item_position(physical_index: int, layout_info: Dictionary) -> Vector2:
+	var list_layout := int(layout_info["layout"])
+	var horizontal_span := float(layout_info["horizontal_span"])
+	var vertical_span := float(layout_info["vertical_span"])
+	match list_layout:
+		FGUIEnums.LIST_LAYOUT_SINGLE_ROW:
+			return Vector2(float(physical_index) * horizontal_span, 0.0)
+		FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL:
+			var columns := int(layout_info["columns"])
+			return Vector2(float(physical_index % columns) * horizontal_span, float(physical_index / columns) * vertical_span)
+		FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL:
+			var rows := int(layout_info["rows"])
+			return Vector2(float(physical_index / rows) * horizontal_span, float(physical_index % rows) * vertical_span)
+		FGUIEnums.LIST_LAYOUT_PAGINATION:
+			var page_capacity := int(layout_info["items_per_group"])
+			var page := physical_index / page_capacity
+			var page_index := physical_index % page_capacity
+			var columns := int(layout_info["columns"])
+			return Vector2(
+				float(page) * float(layout_info["view_width"]) + float(page_index % columns) * horizontal_span,
+				float(page_index / columns) * vertical_span
+			)
+		_:
+			return Vector2(0.0, float(physical_index) * vertical_span)
 
 
 func _physical_to_item_index(physical_index: int) -> int:
