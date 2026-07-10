@@ -49,6 +49,14 @@ func _initialize() -> void:
 	if not object.on_stage:
 		_fail("GObject on_stage did not reflect an attached display node.")
 		return
+	if object.display_object != object.node or FGUIObject.cast(object.node) != object:
+		_fail("GObject display-object accessors did not map the native Control back to its owner.")
+		return
+	var button_cast := FGUIButton.new()
+	if button_cast.as_button != button_cast or button_cast.as_com != button_cast or object.as_button != null:
+		_fail("GObject typed accessors did not preserve matching and nonmatching runtime types.")
+		return
+	button_cast.dispose()
 	object.rotation = 450.0
 	if absf(object.normalize_rotation - 90.0) > 0.01 or absf(object.node.rotation_degrees - 90.0) > 0.01:
 		_fail("GObject normalize_rotation did not normalize the display rotation.")

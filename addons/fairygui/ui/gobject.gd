@@ -205,6 +205,63 @@ var resource_url: String:
 		if package_item != null and package_item.owner != null:
 			return "ui://%s%s" % [package_item.owner.id, package_item.id]
 		return ""
+var display_object: Control:
+	get:
+		return node
+var tree_node: FGUITreeNode:
+	get:
+		return data as FGUITreeNode
+var as_com: FGUIComponent:
+	get:
+		return self as FGUIComponent
+var as_button: FGUIButton:
+	get:
+		return self as FGUIButton
+var as_label: FGUILabel:
+	get:
+		return self as FGUILabel
+var as_progress: FGUIProgressBar:
+	get:
+		return self as FGUIProgressBar
+var as_text_field: FGUITextField:
+	get:
+		return self as FGUITextField
+var as_rich_text_field: FGUIRichTextField:
+	get:
+		return self as FGUIRichTextField
+var as_text_input: FGUITextInput:
+	get:
+		return self as FGUITextInput
+var as_loader: FGUILoader:
+	get:
+		return self as FGUILoader
+var as_loader3d: FGUILoader3D:
+	get:
+		return self as FGUILoader3D
+var as_list: FGUIList:
+	get:
+		return self as FGUIList
+var as_tree: FGUITree:
+	get:
+		return self as FGUITree
+var as_graph: FGUIGraph:
+	get:
+		return self as FGUIGraph
+var as_group: FGUIGroup:
+	get:
+		return self as FGUIGroup
+var as_slider: FGUISlider:
+	get:
+		return self as FGUISlider
+var as_combo_box: FGUIComboBox:
+	get:
+		return self as FGUIComboBox
+var as_image: FGUIImage:
+	get:
+		return self as FGUIImage
+var as_movie_clip: FGUIMovieClip:
+	get:
+		return self as FGUIMovieClip
 var focused: bool:
 	get:
 		var root_object := root
@@ -528,6 +585,11 @@ func update_gear(index: int) -> void:
 	var gear: FGUIGearBase = _gears.get(index)
 	if gear != null and gear.controller != null:
 		gear.update_state()
+
+
+func check_gear_controller(index: int, controller: FGUIController) -> bool:
+	var gear: FGUIGearBase = _gears.get(index)
+	return gear != null and gear.controller == controller
 
 
 func update_gear_from_relations(index: int, dx: float, dy: float) -> void:
@@ -1002,3 +1064,7 @@ func _on_mouse_exited() -> void:
 
 func _string_or_empty(value: Variant) -> String:
 	return "" if value == null else str(value)
+
+
+static func cast(display_object: Node) -> FGUIObject:
+	return FGUIToolSet.display_object_to_gobject(display_object)

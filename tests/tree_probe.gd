@@ -45,7 +45,7 @@ func _initialize() -> void:
 	var first_leaf := FGUITreeNode.new(false, "First")
 	folder.add_child(first_leaf)
 	tree.root_node.add_child(folder)
-	if tree.num_children != 2 or tree.get_child_at(0).data != folder or tree.get_child_at(1).data != first_leaf:
+	if tree.num_children != 2 or tree.get_child_at(0).data != folder or tree.get_child_at(1).data != first_leaf or tree.get_child_at(0).tree_node != folder:
 		_fail("Tree did not create visible cells for inserted expanded nodes.")
 		return
 	if tree.get_child_at(0).get_text() != "Folder":
