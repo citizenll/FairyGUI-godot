@@ -44,6 +44,14 @@ func get_branch() -> FGUIPackageItem:
 
 
 func get_high_resolution() -> FGUIPackageItem:
+	if not high_resolution.is_empty() and FGUIRoot.content_scale_level > 0 and owner != null:
+		var index := FGUIRoot.content_scale_level - 1
+		if index >= 0 and index < high_resolution.size():
+			var item_id = high_resolution[index]
+			if item_id != null and item_id != "":
+				var item: FGUIPackageItem = owner.get_item_by_id(str(item_id))
+				if item != null:
+					return item
 	return self
 
 

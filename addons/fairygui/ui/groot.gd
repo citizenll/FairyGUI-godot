@@ -2,8 +2,19 @@ class_name FGUIRoot
 extends FGUIComponent
 
 static var inst: FGUIRoot
+static var content_scale_level: int = 0
 
-var content_scale_factor: float = 1.0
+var content_scale_factor: float = 1.0:
+	set(value):
+		content_scale_factor = maxf(0.0, value)
+		if content_scale_factor >= 3.5:
+			content_scale_level = 3
+		elif content_scale_factor >= 2.5:
+			content_scale_level = 2
+		elif content_scale_factor >= 1.5:
+			content_scale_level = 1
+		else:
+			content_scale_level = 0
 var _modal_layer: FGUIGraph
 var _popup_stack: Array[FGUIObject] = []
 var _tooltip_win: FGUIObject
