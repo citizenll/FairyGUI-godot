@@ -34,6 +34,9 @@ func _initialize() -> void:
 	if window.parent != gui_root or not window.shown or window.init_count != 1 or window.shown_count != 1:
 		_fail("Window show did not attach through GRoot and initialize once.")
 		return
+	if gui_root.focus != window:
+		_fail("GRoot show_window did not focus the opened window.")
+		return
 	if window.width != 120 or window.height != 80:
 		_fail("Window content pane did not define window size.")
 		return
@@ -81,8 +84,45 @@ func _initialize() -> void:
 		_fail("Window reopen did not preserve initialization state.")
 		return
 
+	var global_wait := FGUIComponent.new()
+	gui_root._modal_wait_pane = global_wait
+	gui_root.show_modal_wait("Loading")
+	if not gui_root.modal_waiting or global_wait.parent != gui_root or gui_root.get_child_at(gui_root.num_children - 1) != global_wait:
+		_fail("GRoot global modal wait did not attach above modal windows.")
+		return
+	gui_root.show_window(second_window)
+	if gui_root.get_child_at(gui_root.num_children - 1) != global_wait:
+		_fail("GRoot global modal wait did not remain above subsequently shown windows.")
+		return
+	gui_root.close_modal_wait()
+	if gui_root.modal_waiting or global_wait.parent != null:
+		_fail("GRoot close_modal_wait did not detach the wait pane.")
+		return
+	gui_root.close_all_except_modals()
+	if second_window.parent != null or window.parent != gui_root or gui_root.get_top_window() != window:
+		_fail("GRoot close_all_except_modals did not retain only modal windows.")
+		return
+	gui_root.close_all_windows()
+	if window.parent != null or gui_root.get_top_window() != null or gui_root.has_modal_window:
+		_fail("GRoot close_all_windows did not clear root windows and modal state.")
+		return
+
+	var clamped_window := ProbeWindow.new()
+	clamped_window.set_size(60.0, 40.0)
+	clamped_window.set_xy(500.0, 500.0)
+	clamped_window.show_on(gui_root)
+	if absf(clamped_window.x - 340.0) > 0.1 or absf(clamped_window.y - 260.0) > 0.1:
+		_fail("GRoot show_window did not constrain an off-screen window.")
+		return
+	clamped_window.hide_immediately()
+	if clamped_window.parent != null:
+		_fail("Window hide_immediately did not detach from GRoot.")
+		return
+
 	window.dispose()
 	second_window.dispose()
+	clamped_window.dispose()
+	global_wait.dispose()
 	close_button.dispose()
 	gui_root.dispose()
 	host.queue_free()

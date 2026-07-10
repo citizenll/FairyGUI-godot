@@ -62,7 +62,11 @@ func hide() -> void:
 
 
 func hide_immediately() -> void:
-	hide()
+	var root := parent as FGUIRoot
+	if root != null:
+		root.hide_window_immediately(self)
+	else:
+		_hide_from_root()
 
 
 func _show_from_root() -> void:

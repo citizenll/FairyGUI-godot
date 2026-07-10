@@ -16,11 +16,25 @@ var content_scale_factor: float = 1.0:
 		else:
 			content_scale_level = 0
 var _modal_layer: FGUIGraph
+var _modal_wait_pane: FGUIObject
 var _popup_stack: Array[FGUIObject] = []
 var _tooltip_win: FGUIObject
 var _default_tooltip_win: FGUIObject
 var _focus_object: FGUIObject
 var _attached_viewport: Viewport
+var volume_scale: float = 1.0:
+	set(value):
+		volume_scale = maxf(0.0, value)
+
+var modal_layer: FGUIGraph:
+	get:
+		return _modal_layer
+var has_modal_window: bool:
+	get:
+		return _modal_layer != null and _modal_layer.parent == self
+var modal_waiting: bool:
+	get:
+		return _modal_wait_pane != null and _modal_wait_pane.parent == self
 
 var focus: FGUIObject:
 	get:
@@ -74,6 +88,15 @@ func show_window(window: FGUIWindow) -> void:
 	else:
 		set_child_index(window, children.size() - 1)
 	window._show_from_root()
+	window.request_focus()
+	if window.x > width:
+		window.x = width - window.width
+	elif window.x + window.width < 0.0:
+		window.x = 0.0
+	if window.y > height:
+		window.y = height - window.height
+	elif window.y + window.height < 0.0:
+		window.y = 0.0
 	_adjust_modal_layer()
 
 
@@ -86,6 +109,30 @@ func hide_window(window: FGUIWindow) -> void:
 	_adjust_modal_layer()
 
 
+func hide_window_immediately(window: FGUIWindow) -> void:
+	hide_window(window)
+
+
+func close_all_except_modals() -> void:
+	for child: FGUIObject in children.duplicate():
+		if child is FGUIWindow and not (child as FGUIWindow).modal:
+			hide_window(child as FGUIWindow)
+
+
+func close_all_windows() -> void:
+	for child: FGUIObject in children.duplicate():
+		if child is FGUIWindow:
+			hide_window(child as FGUIWindow)
+
+
+func get_top_window() -> FGUIWindow:
+	for index in range(children.size() - 1, -1, -1):
+		var child: FGUIObject = children[index]
+		if child is FGUIWindow:
+			return child as FGUIWindow
+	return null
+
+
 func bring_to_front(window: FGUIWindow) -> void:
 	if window != null and window.parent == self:
 		set_child_index(window, children.size() - 1)
@@ -94,9 +141,11 @@ func bring_to_front(window: FGUIWindow) -> void:
 
 func _adjust_modal_layer() -> void:
 	var modal_window: FGUIWindow = null
-	for child in children:
+	for index in range(children.size() - 1, -1, -1):
+		var child: FGUIObject = children[index]
 		if child is FGUIWindow and child.modal and child.shown:
-			modal_window = child
+			modal_window = child as FGUIWindow
+			break
 	if modal_window == null:
 		if _modal_layer != null and _modal_layer.parent == self:
 			remove_child(_modal_layer)
@@ -108,9 +157,11 @@ func _adjust_modal_layer() -> void:
 		_modal_layer.node.mouse_filter = Control.MOUSE_FILTER_STOP
 	_modal_layer.set_size(width, height)
 	if _modal_layer.parent != self:
-		add_child(_modal_layer)
-	set_child_index(modal_window, children.size() - 1)
-	set_child_index(_modal_layer, get_child_index(modal_window) - 1)
+		add_child_at(_modal_layer, get_child_index(modal_window))
+	else:
+		set_child_index_before(_modal_layer, get_child_index(modal_window))
+	if _modal_wait_pane != null and _modal_wait_pane.parent == self:
+		set_child_index(_modal_wait_pane, children.size() - 1)
 
 
 func _handle_size_changed() -> void:
@@ -129,6 +180,9 @@ func dispose() -> void:
 	if _default_tooltip_win != null and _default_tooltip_win.parent == null:
 		_default_tooltip_win.dispose()
 	_default_tooltip_win = null
+	if _modal_wait_pane != null and _modal_wait_pane.parent == null:
+		_modal_wait_pane.dispose()
+	_modal_wait_pane = null
 	if _modal_layer != null and _modal_layer.parent != self:
 		_modal_layer.dispose()
 	_modal_layer = null
@@ -144,7 +198,15 @@ func show_popup(popup: FGUIObject, target: FGUIObject = null, direction: int = F
 	if existing_index >= 0:
 		_close_popups_from(existing_index)
 	_popup_stack.append(popup)
+	if target != null:
+		var current: FGUIObject = target
+		while current != null:
+			if current.parent == self:
+				popup.sorting_order = max(popup.sorting_order, current.sorting_order)
+				break
+			current = current.parent
 	add_child(popup)
+	_adjust_modal_layer()
 	if target != null:
 		var target_position := global_to_local(target.local_to_global(Vector2.ZERO))
 		var x := target_position.x
@@ -206,8 +268,16 @@ func _close_popups_from(index: int) -> void:
 	for popup_index in range(_popup_stack.size() - 1, index - 1, -1):
 		var popup := _popup_stack[popup_index]
 		_popup_stack.remove_at(popup_index)
-		if popup != null and popup.parent == self:
-			remove_child(popup)
+		_close_popup(popup)
+
+
+func _close_popup(popup: FGUIObject) -> void:
+	if popup == null or popup.parent != self:
+		return
+	if popup is FGUIWindow:
+		hide_window(popup as FGUIWindow)
+	else:
+		remove_child(popup)
 
 
 func show_tooltips(message: String) -> void:
@@ -253,6 +323,29 @@ func hide_tooltips() -> void:
 	_tooltip_win = null
 
 
+func show_modal_wait(message: String = "") -> void:
+	var created := false
+	if _modal_wait_pane == null and FGUIConfig.global_modal_waiting != "":
+		_modal_wait_pane = FGUIPackage.create_object_from_url(FGUIConfig.global_modal_waiting)
+		created = _modal_wait_pane != null
+	if _modal_wait_pane == null:
+		return
+	_modal_wait_pane.set_xy(0.0, 0.0)
+	_modal_wait_pane.set_size(width, height)
+	if created:
+		_modal_wait_pane.add_relation(self, FGUIEnums.RELATION_SIZE)
+	_modal_wait_pane.set_text(message)
+	if _modal_wait_pane.parent != self:
+		add_child(_modal_wait_pane)
+	_adjust_modal_layer()
+
+
+func close_modal_wait() -> void:
+	if _modal_wait_pane != null and _modal_wait_pane.parent == self:
+		remove_child(_modal_wait_pane)
+	_adjust_modal_layer()
+
+
 func play_one_shot_sound(sound: Variant, volume_scale: float = 1.0) -> AudioStreamPlayer:
 	var stream: AudioStream
 	if sound is AudioStream:
@@ -271,7 +364,7 @@ func play_one_shot_sound(sound: Variant, volume_scale: float = 1.0) -> AudioStre
 		return null
 	var player := AudioStreamPlayer.new()
 	player.stream = stream
-	player.volume_db = linear_to_db(maxf(0.0001, volume_scale))
+	player.volume_db = linear_to_db(maxf(0.0001, volume_scale * self.volume_scale))
 	node.add_child(player)
 	player.finished.connect(player.queue_free)
 	player.play()
