@@ -113,9 +113,13 @@ var sorting_order: int:
 	get:
 		return _sorting_order
 	set(value):
-		_sorting_order = maxi(0, value)
+		var next_order := maxi(0, value)
+		if _sorting_order == next_order:
+			return
+		var previous_order := _sorting_order
+		_sorting_order = next_order
 		if parent != null:
-			parent.child_sorting_order_changed(self)
+			parent.child_sorting_order_changed(self, previous_order, next_order)
 var group: FGUIObject:
 	get:
 		return _group
@@ -744,6 +748,8 @@ func _handle_alpha_changed() -> void:
 func _handle_visible_changed() -> void:
 	if node != null:
 		node.visible = internal_visible2 and not bool(node.get_meta("fgui_mask_hidden", false))
+	if parent != null:
+		parent.child_state_changed(self)
 
 
 func _handle_touchable_changed() -> void:

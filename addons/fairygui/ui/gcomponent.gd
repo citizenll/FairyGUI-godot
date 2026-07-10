@@ -7,8 +7,8 @@ var transitions: Array = []
 var margin: FGUIMargin = FGUIMargin.new()
 var opaque: bool = false
 var track_bounds: bool = false
-var children_render_order: int = FGUIEnums.CHILDREN_RENDER_ASCENT
-var apex_index: int = 0
+var _children_render_order: int = FGUIEnums.CHILDREN_RENDER_ASCENT
+var _apex_index: int = 0
 var scroll_pane: FGUIScrollPane
 var hit_test_child: FGUIObject
 var _mask: FGUIObject
@@ -27,10 +27,30 @@ var reversed_mask: bool:
 var _building_display_list: bool = false
 var _bounds_changed: bool = false
 var _content_node: Control
+var _sorting_child_count: int = 0
 
 var num_children: int:
 	get:
 		return children.size()
+var children_render_order: int:
+	get:
+		return _children_render_order
+	set(value):
+		var next_order := clampi(value, FGUIEnums.CHILDREN_RENDER_ASCENT, FGUIEnums.CHILDREN_RENDER_ARCH)
+		if _children_render_order == next_order:
+			return
+		_children_render_order = next_order
+		_rebuild_native_display_list()
+var apex_index: int:
+	get:
+		return _apex_index
+	set(value):
+		var next_index := maxi(0, value)
+		if _apex_index == next_index:
+			return
+		_apex_index = next_index
+		if _children_render_order == FGUIEnums.CHILDREN_RENDER_ARCH:
+			_rebuild_native_display_list()
 var view_width: float:
 	get:
 		return scroll_pane.view_width if scroll_pane != null else width - margin.left - margin.right
@@ -82,12 +102,21 @@ func add_child_at(child: FGUIObject, index: int) -> FGUIObject:
 	if child == null:
 		push_error("FairyGUI child is null.")
 		return null
-	index = clampi(index, 0, children.size())
+	if child.parent == self:
+		set_child_index(child, index)
+		return child
 	if child.parent != null:
 		child.parent.remove_child(child)
+	var regular_child_count := children.size() - _sorting_child_count
+	if child.sorting_order != 0:
+		_sorting_child_count += 1
+		index = _get_insert_pos_for_sorting_child(child)
+	else:
+		index = clampi(index, 0, regular_child_count)
 	child.parent = self
 	children.insert(index, child)
 	_add_child_node(child, index)
+	set_bounds_changed_flag()
 	return child
 
 
@@ -98,6 +127,8 @@ func remove_child(child: FGUIObject, dispose_child: bool = false) -> FGUIObject:
 	if child == _mask:
 		set_mask(null)
 	children.remove_at(index)
+	if child.sorting_order != 0:
+		_sorting_child_count = maxi(0, _sorting_child_count - 1)
 	if child == hit_test_child:
 		hit_test_child = null
 	var container := _get_content_node()
@@ -105,8 +136,10 @@ func remove_child(child: FGUIObject, dispose_child: bool = false) -> FGUIObject:
 		FGUIToolSet.detach_color_filter(child.node, node)
 		container.remove_child(child.node)
 	child.parent = null
+	child.group = null
 	if dispose_child:
 		child.dispose()
+	set_bounds_changed_flag()
 	return child
 
 
@@ -132,10 +165,38 @@ func set_child_index(child: FGUIObject, index: int) -> void:
 	var old_index := children.find(child)
 	if old_index == -1:
 		return
-	children.remove_at(old_index)
-	index = clampi(index, 0, children.size())
-	children.insert(index, child)
-	_rebuild_native_display_list()
+	if child.sorting_order != 0:
+		return
+	var last_regular_index := children.size() - _sorting_child_count - 1
+	_set_child_index(child, old_index, clampi(index, 0, maxi(0, last_regular_index)))
+
+
+func set_child_index_before(child: FGUIObject, index: int) -> int:
+	var old_index := children.find(child)
+	if old_index == -1 or child.sorting_order != 0:
+		return old_index
+	var last_regular_index := children.size() - _sorting_child_count - 1
+	index = clampi(index, 0, maxi(0, last_regular_index))
+	if old_index < index:
+		index -= 1
+	return _set_child_index(child, old_index, index)
+
+
+func swap_children(child1: FGUIObject, child2: FGUIObject) -> void:
+	var index1 := children.find(child1)
+	var index2 := children.find(child2)
+	if index1 == -1 or index2 == -1 or index1 == index2:
+		return
+	swap_children_at(index1, index2)
+
+
+func swap_children_at(index1: int, index2: int) -> void:
+	if index1 < 0 or index2 < 0 or index1 >= children.size() or index2 >= children.size() or index1 == index2:
+		return
+	var child1: FGUIObject = children[index1]
+	var child2: FGUIObject = children[index2]
+	set_child_index(child1, index2)
+	set_child_index(child2, index1)
 
 
 func get_child_at(index: int) -> FGUIObject:
@@ -147,6 +208,20 @@ func get_child_at(index: int) -> FGUIObject:
 func get_child(child_name: String) -> FGUIObject:
 	for child in children:
 		if child.name == child_name:
+			return child
+	return null
+
+
+func get_visible_child(child_name: String) -> FGUIObject:
+	for child: FGUIObject in children:
+		if child.name == child_name and child.internal_visible and child.internal_visible2:
+			return child
+	return null
+
+
+func get_child_in_group(child_name: String, group: FGUIGroup) -> FGUIObject:
+	for child: FGUIObject in children:
+		if child.name == child_name and child.group == group:
 			return child
 	return null
 
@@ -174,6 +249,15 @@ func get_child_by_path(path: String) -> FGUIObject:
 	return result
 
 
+func is_ancestor_of(child: FGUIObject) -> bool:
+	var current := child.parent if child != null else null
+	while current != null:
+		if current == self:
+			return true
+		current = current.parent
+	return false
+
+
 func get_controller_at(index: int) -> FGUIController:
 	if index < 0 or index >= controllers.size():
 		return null
@@ -193,6 +277,16 @@ func add_controller(controller: FGUIController) -> void:
 	controller.parent = self
 	controllers.append(controller)
 	apply_controller(controller)
+
+
+func remove_controller(controller: FGUIController) -> void:
+	var index := controllers.find(controller)
+	if index == -1:
+		return
+	controllers.remove_at(index)
+	controller.parent = null
+	for child: FGUIObject in children:
+		child.handle_controller_changed(controller)
 
 
 func get_transition(transition_name: String) -> FGUITransition:
@@ -226,6 +320,8 @@ func apply_all_controllers() -> void:
 
 
 func ensure_bounds_correct() -> void:
+	for child: FGUIObject in children:
+		child.ensure_size_correct()
 	if _bounds_changed:
 		update_bounds()
 
@@ -274,8 +370,9 @@ func hit_test(view_point: Vector2, force_test: bool = false) -> FGUIObject:
 		var mask_hit := _mask.hit_test(view_point, true) != null
 		if (_reversed_mask and mask_hit) or (not _reversed_mask and not mask_hit):
 			return null
-	for index in range(children.size() - 1, -1, -1):
-		var child_hit: FGUIObject = (children[index] as FGUIObject).hit_test(view_point, force_test)
+	var display_children := _get_display_children()
+	for index in range(display_children.size() - 1, -1, -1):
+		var child_hit: FGUIObject = display_children[index].hit_test(view_point, force_test)
 		if child_hit != null:
 			return child_hit
 	if not opaque or outside_content:
@@ -286,26 +383,85 @@ func hit_test(view_point: Vector2, force_test: bool = false) -> FGUIObject:
 
 
 func set_bounds_changed_flag() -> void:
+	if scroll_pane == null and not track_bounds:
+		return
+	if _bounds_changed:
+		return
 	_bounds_changed = true
 
 
 func update_bounds() -> void:
 	_bounds_changed = false
-	if children.is_empty():
-		return
 	var max_pos := Vector2.ZERO
-	for child in children:
+	for child: FGUIObject in children:
 		max_pos.x = maxf(max_pos.x, child.x + child.width * absf(child._scale.x))
 		max_pos.y = maxf(max_pos.y, child.y + child.height * absf(child._scale.y))
 	if scroll_pane != null:
 		scroll_pane.set_content_size(max_pos.x, max_pos.y)
 
 
-func child_sorting_order_changed(_child: FGUIObject) -> void:
-	children.sort_custom(func(a: FGUIObject, b: FGUIObject) -> bool:
-		return a.sorting_order < b.sorting_order
-	)
+func child_sorting_order_changed(child: FGUIObject, old_value: int, new_value: int) -> void:
+	var old_index := children.find(child)
+	if old_index == -1:
+		return
+	if new_value == 0:
+		_sorting_child_count = maxi(0, _sorting_child_count - 1)
+		set_child_index(child, children.size())
+		return
+	if old_value == 0:
+		_sorting_child_count += 1
+	var target_index := _get_insert_pos_for_sorting_child(child)
+	if old_index < target_index:
+		target_index -= 1
+	_set_child_index(child, old_index, target_index)
+
+
+func child_state_changed(child: FGUIObject) -> void:
+	if _building_display_list or child == null:
+		return
+	if child is FGUIGroup:
+		for candidate: FGUIObject in children:
+			if candidate.group == child:
+				child_state_changed(candidate)
+		return
 	_rebuild_native_display_list()
+
+
+func _get_insert_pos_for_sorting_child(target: FGUIObject) -> int:
+	for index in children.size():
+		var child: FGUIObject = children[index]
+		if child != target and target.sorting_order < child.sorting_order:
+			return index
+	return children.size()
+
+
+func _set_child_index(child: FGUIObject, old_index: int, index: int) -> int:
+	index = clampi(index, 0, children.size() - 1)
+	if old_index == index:
+		return old_index
+	children.remove_at(old_index)
+	children.insert(index, child)
+	_rebuild_native_display_list()
+	set_bounds_changed_flag()
+	return index
+
+
+func _get_display_children() -> Array[FGUIObject]:
+	var result: Array[FGUIObject] = []
+	match _children_render_order:
+		FGUIEnums.CHILDREN_RENDER_DESCENT:
+			for index in range(children.size() - 1, -1, -1):
+				result.append(children[index])
+		FGUIEnums.CHILDREN_RENDER_ARCH:
+			var apex := clampi(_apex_index, 0, children.size())
+			for index in range(apex):
+				result.append(children[index])
+			for index in range(children.size() - 1, apex - 1, -1):
+				result.append(children[index])
+		_:
+			for child: FGUIObject in children:
+				result.append(child)
+	return result
 
 
 func construct_from_resource() -> void:
@@ -525,13 +681,12 @@ func _skip_relation_block(buffer: FGUIByteBuffer) -> void:
 		buffer.pos = next_pos
 
 
-func _add_child_node(child: FGUIObject, index: int) -> void:
+func _add_child_node(child: FGUIObject, _index: int) -> void:
 	var container := _get_content_node()
 	if container == null or child == null or child.node == null:
 		return
 	container.add_child(child.node)
-	if index >= 0 and index < container.get_child_count():
-		container.move_child(child.node, index)
+	_rebuild_native_display_list()
 	FGUIToolSet.refresh_color_filter(node, true)
 
 
@@ -589,9 +744,17 @@ func _rebuild_native_display_list() -> void:
 	var container := _get_content_node()
 	if container == null:
 		return
-	for child in children:
+	var display_children := _get_display_children()
+	for child: FGUIObject in display_children:
 		if child.node != null and child.node.get_parent() != container:
+			var previous_parent := child.node.get_parent()
+			if previous_parent != null:
+				previous_parent.remove_child(child.node)
 			container.add_child(child.node)
+	for index in display_children.size():
+		var child: FGUIObject = display_children[index]
+		if child.node != null and child.node.get_parent() == container:
+			container.move_child(child.node, index)
 
 
 func _get_content_node() -> Control:
@@ -603,6 +766,7 @@ func setup_scroll(buffer: FGUIByteBuffer) -> void:
 		scroll_pane = FGUIScrollPane.new(self)
 	scroll_pane.setup(buffer)
 	_content_node = scroll_pane.content
+	set_bounds_changed_flag()
 
 
 func _handle_size_changed() -> void:

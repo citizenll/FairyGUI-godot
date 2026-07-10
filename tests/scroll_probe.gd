@@ -219,7 +219,7 @@ func _initialize() -> void:
 	snap_pane.snap_to_item = true
 	var snap_end_count := {"value": 0}
 	snap_owner.on(FGUIEvents.SCROLL_END, func() -> void: snap_end_count["value"] += 1)
-	for item_x in [0.0, 100.0, 200.0]:
+	for item_x in [0.0, 100.0, 200.0, 320.0]:
 		var snap_item := FGUIObject.new()
 		snap_item.set_xy(item_x, 0.0)
 		snap_item.set_size(80.0, 40.0)
