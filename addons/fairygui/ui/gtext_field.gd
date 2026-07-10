@@ -783,6 +783,7 @@ func _replace_text_renderer(use_rich_text: bool) -> void:
 	var sibling_index := previous_node.get_index() if previous_node != null and native_parent != null else -1
 	var filter_values: Variant = previous_node.get_meta("_fgui_filter_values") if previous_node != null and previous_node.has_meta("_fgui_filter_values") else null
 	var filter_grayed := bool(previous_node.get_meta("_fgui_filter_gray")) if previous_node != null and previous_node.has_meta("_fgui_filter_gray") else false
+	var blend_mode := FGUIToolSet.get_blend_mode(previous_node)
 	var self_modulate := previous_node.self_modulate if previous_node != null else Color.WHITE
 	var mouse_filter := previous_node.mouse_filter if previous_node != null else Control.MOUSE_FILTER_IGNORE
 	if previous_node != null:
@@ -832,3 +833,4 @@ func _replace_text_renderer(use_rich_text: bool) -> void:
 		FGUIToolSet.set_color_filter(node, filter_values)
 	if filter_grayed or _grayed:
 		FGUIToolSet.set_color_filter(node, true)
+	FGUIToolSet.set_blend_mode(node, blend_mode)

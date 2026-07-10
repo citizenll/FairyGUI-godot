@@ -71,6 +71,16 @@ var grayed: bool:
 	set(value):
 		_grayed = value
 		_handle_grayed_changed()
+var blend_mode: int:
+	get:
+		return _blend_mode
+	set(value):
+		var next_mode := FGUIEnums.BLEND_ADD if value == FGUIEnums.BLEND_ADD else FGUIEnums.BLEND_NORMAL
+		if _blend_mode == next_mode:
+			return
+		_blend_mode = next_mode
+		if node != null:
+			FGUIToolSet.set_blend_mode(node, _blend_mode)
 var enabled: bool:
 	get:
 		return not _grayed and _touchable
@@ -287,6 +297,7 @@ var _alpha: float = 1.0
 var _visible: bool = true
 var _touchable: bool = true
 var _grayed: bool = false
+var _blend_mode: int = FGUIEnums.BLEND_NORMAL
 var _rotation: float = 0.0
 var _scale: Vector2 = Vector2.ONE
 var _pivot: Vector2 = Vector2.ZERO
@@ -500,7 +511,7 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 	visible = buffer.read_bool()
 	touchable = buffer.read_bool()
 	grayed = buffer.read_bool()
-	buffer.read_i8()
+	blend_mode = buffer.read_i8()
 	var filter := buffer.read_i8()
 	if filter == 1:
 		FGUIToolSet.set_color_filter(node, [buffer.read_float32(), buffer.read_float32(), buffer.read_float32(), buffer.read_float32()])

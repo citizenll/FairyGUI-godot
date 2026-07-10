@@ -9,7 +9,7 @@ This repository starts from the TypeScript `FairyGUI-layabox/source` runtime bec
 - Loads uncompressed FairyGUI `.fui` descriptors and raw-deflate compressed package bodies used by FairyGUI exports.
 - Parses package items, string tables, atlas sprite regions, component raw data, controllers, relations, gears, and child display lists.
 - Creates Godot controls for components, images, movie clips, text, rich text, input text, loaders, Loader3D adapters, graphs, groups, labels, buttons, progress bars, sliders, scroll bars, combo boxes, lists, trees, roots, windows, popups, and drag/drop helpers.
-- Parses and runs controller actions and common transition timelines for position, size, scale, pivot, alpha, rotation, color, visibility, animation state, text, icon, nested transitions, and hooks.
+- Parses and runs controller actions and common transition timelines for position, size, scale, pivot, alpha, rotation, color, visibility, animation state, text, icon, nested transitions, and hooks; exported additive blend mode is mapped to Godot canvas rendering.
 - Supports loader alignment/fill options, `FGUIConfig.loader_error_sign`, horizontal/vertical/Radial90/Radial180/Radial360 image fills, component loader targets, bitmap-font package parsing/rendering, packaged audio playback, pixel hit-test masks, and flow/pagination list layout.
 - `FGUILoader3D` supports external `PackedScene`, CanvasItem, Control, and Node3D content; package Spine/DragonBones content is connected through `FGUILoader3D.set_content_factory` so projects can choose their licensed Godot runtime integration.
 - Supports normal atlas regions through `AtlasTexture` and rotated/offset regions through generated `ImageTexture` sprites.
@@ -54,6 +54,7 @@ The repository is checked against Godot 4.7 Steam:
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --editor --import --path .
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/editor_preview_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/compression_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/blend_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/pixel_hit_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/relation_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/scroll_probe.gd

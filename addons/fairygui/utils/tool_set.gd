@@ -5,6 +5,10 @@ const _FILTER_VALUES_META := &"_fgui_filter_values"
 const _FILTER_GRAY_META := &"_fgui_filter_gray"
 const _FILTER_MATERIAL_META := &"_fgui_filter_material"
 const _FILTER_STACK_META := &"_fgui_filter_stack"
+const _BLEND_MODE_META := &"_fgui_blend_mode"
+const _BLEND_MATERIAL_META := &"_fgui_blend_material"
+const _BLEND_PREVIOUS_MATERIAL_META := &"_fgui_blend_previous_material"
+const _BLEND_PREVIOUS_PARENT_META := &"_fgui_blend_previous_parent_material"
 const _COLOR_FILTER_SHADER_CODE := """
 shader_type canvas_item;
 
@@ -57,7 +61,8 @@ void fragment() {
 }
 """
 
-static var _color_filter_shader: Shader
+static var _color_filter_shaders: Dictionary = {}
+static var _add_blend_material: CanvasItemMaterial
 
 
 static func starts_with(source: String, value: String, ignore_case: bool = false) -> bool:
@@ -184,6 +189,24 @@ static func set_color_filter(control: CanvasItem, color: Variant = null) -> void
 	refresh_color_filter(control)
 
 
+static func get_blend_mode(control: CanvasItem) -> int:
+	if control == null:
+		return FGUIEnums.BLEND_NORMAL
+	return int(control.get_meta(_BLEND_MODE_META, FGUIEnums.BLEND_NORMAL))
+
+
+static func set_blend_mode(control: CanvasItem, mode: int) -> void:
+	if control == null:
+		return
+	var normalized_mode := FGUIEnums.BLEND_ADD if mode == FGUIEnums.BLEND_ADD else FGUIEnums.BLEND_NORMAL
+	control.set_meta(_BLEND_MODE_META, normalized_mode)
+	if bool(control.get_meta(_FILTER_GRAY_META, false)) or control.has_meta(_FILTER_VALUES_META):
+		control.remove_meta(_FILTER_MATERIAL_META)
+		refresh_color_filter(control, true)
+	else:
+		_apply_direct_blend_mode(control)
+
+
 static func refresh_color_filter(control: CanvasItem, rebuild_tree: bool = false) -> void:
 	if control == null:
 		return
@@ -193,11 +216,12 @@ static func refresh_color_filter(control: CanvasItem, rebuild_tree: bool = false
 	if not grayed and not has_values:
 		_remove_filter_from_tree(control, owner_id)
 		control.remove_meta(_FILTER_MATERIAL_META)
+		_apply_direct_blend_mode(control)
 		return
 	var material: ShaderMaterial = control.get_meta(_FILTER_MATERIAL_META) if control.has_meta(_FILTER_MATERIAL_META) else null
 	if material == null:
 		material = ShaderMaterial.new()
-		material.shader = _get_color_filter_shader()
+		material.shader = _get_color_filter_shader(get_blend_mode(control))
 		control.set_meta(_FILTER_MATERIAL_META, material)
 		rebuild_tree = true
 	var values: Vector4 = control.get_meta(_FILTER_VALUES_META, Vector4.ZERO)
@@ -213,11 +237,43 @@ static func detach_color_filter(control: CanvasItem, filter_owner: CanvasItem) -
 	_remove_filter_from_tree(control, filter_owner.get_instance_id())
 
 
-static func _get_color_filter_shader() -> Shader:
-	if _color_filter_shader == null:
-		_color_filter_shader = Shader.new()
-		_color_filter_shader.code = _COLOR_FILTER_SHADER_CODE
-	return _color_filter_shader
+static func _get_color_filter_shader(blend_mode: int) -> Shader:
+	var normalized_mode := FGUIEnums.BLEND_ADD if blend_mode == FGUIEnums.BLEND_ADD else FGUIEnums.BLEND_NORMAL
+	if not _color_filter_shaders.has(normalized_mode):
+		var shader := Shader.new()
+		var render_mode := "\nrender_mode blend_add;" if normalized_mode == FGUIEnums.BLEND_ADD else ""
+		shader.code = _COLOR_FILTER_SHADER_CODE.replace("shader_type canvas_item;", "shader_type canvas_item;" + render_mode)
+		_color_filter_shaders[normalized_mode] = shader
+	return _color_filter_shaders[normalized_mode]
+
+
+static func _apply_direct_blend_mode(control: CanvasItem) -> void:
+	var blend_mode := get_blend_mode(control)
+	var blend_material: CanvasItemMaterial = control.get_meta(_BLEND_MATERIAL_META) if control.has_meta(_BLEND_MATERIAL_META) else null
+	if blend_mode == FGUIEnums.BLEND_ADD:
+		if blend_material == null:
+			control.set_meta(_BLEND_PREVIOUS_MATERIAL_META, control.material)
+			control.set_meta(_BLEND_PREVIOUS_PARENT_META, control.use_parent_material)
+			blend_material = _get_add_blend_material()
+			control.set_meta(_BLEND_MATERIAL_META, blend_material)
+		control.material = blend_material
+		control.use_parent_material = false
+		return
+	if blend_material == null:
+		return
+	if control.material == blend_material:
+		control.material = control.get_meta(_BLEND_PREVIOUS_MATERIAL_META, null)
+		control.use_parent_material = bool(control.get_meta(_BLEND_PREVIOUS_PARENT_META, false))
+	control.remove_meta(_BLEND_MATERIAL_META)
+	control.remove_meta(_BLEND_PREVIOUS_MATERIAL_META)
+	control.remove_meta(_BLEND_PREVIOUS_PARENT_META)
+
+
+static func _get_add_blend_material() -> CanvasItemMaterial:
+	if _add_blend_material == null:
+		_add_blend_material = CanvasItemMaterial.new()
+		_add_blend_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	return _add_blend_material
 
 
 static func _apply_filter_to_tree(node: Node, material: ShaderMaterial, owner_id: int, owner_root: CanvasItem) -> void:

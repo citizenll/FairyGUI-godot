@@ -35,6 +35,7 @@ The Godot source tree is still useful as the API reference for current Control, 
 ## Compatibility Notes
 
 - The editor importer turns `.fui` files into `FGUIPackageResource` assets. Imported packages are included in exported projects; `FileAccess` remains a fallback for direct raw loading.
+- FairyGUI's exported additive blend mode is mapped to Godot canvas-item additive blending and remains active with direct color-filter/gray shaders. Unsupported blend-mode codes fall back to normal blending.
 - `GObject` provides pivot-aware local/global point and rectangle transforms, cross-object/root-space conversion, disposal state, focus requests, parent-constrained fullscreen sizing, move/scale/resize/fade/rotation tween convenience methods, and reusable object/component hit testing while retaining physical node-local coordinates for input controls.
 - `FGUIGTween` is driven automatically from the Godot frame loop and supports scalar through four-value, color, path, shake, delay, repeat/yoyo, pause, snapping, target-property/callback, lookup, and kill workflows.
 - `FGUIPackage.branch` and `FGUIPackage.set_branch` update loaded package branch indices, so branch-specific resources are selected for newly constructed UI objects.
