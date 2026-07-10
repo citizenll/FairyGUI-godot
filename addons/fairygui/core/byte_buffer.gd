@@ -111,6 +111,16 @@ func read_s() -> Variant:
 	return string_table[index]
 
 
+func write_s(value: String) -> void:
+	var index := read_u16()
+	if index == STRING_NULL or index == STRING_EMPTY:
+		return
+	if index < 0 or index >= string_table.size():
+		push_error("FairyGUI string table index out of range: %s" % index)
+		return
+	string_table[index] = value
+
+
 func read_s_array(count: int) -> Array:
 	var result: Array = []
 	for i in count:

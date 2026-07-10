@@ -8,6 +8,23 @@ var _modal_layer: FGUIGraph
 var _popup_stack: Array[FGUIObject] = []
 var _tooltip_win: FGUIObject
 var _default_tooltip_win: FGUIObject
+var _focus_object: FGUIObject
+
+var focus: FGUIObject:
+	get:
+		if node != null and node.get_viewport() != null:
+			var focus_owner := node.get_viewport().gui_get_focus_owner()
+			var focused_object := FGUIToolSet.display_object_to_gobject(focus_owner)
+			if focused_object != null:
+				return focused_object
+		return _focus_object
+	set(value):
+		_focus_object = value
+		if value != null and value.node != null:
+			if value.node.is_inside_tree():
+				value.node.grab_focus()
+			else:
+				value.node.call_deferred("grab_focus")
 
 
 func _init() -> void:
@@ -90,6 +107,7 @@ func _handle_size_changed() -> void:
 
 func dispose() -> void:
 	_popup_stack.clear()
+	_focus_object = null
 	if _tooltip_win != null and _tooltip_win.parent == self:
 		remove_child(_tooltip_win)
 	_tooltip_win = null

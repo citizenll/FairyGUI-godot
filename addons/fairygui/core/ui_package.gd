@@ -2,6 +2,7 @@ class_name FGUIPackage
 extends RefCounted
 
 const MAGIC := 0x46475549
+const TranslationHelper := preload("res://addons/fairygui/utils/translation_helper.gd")
 
 static var _inst_by_id: Dictionary = {}
 static var _inst_by_name: Dictionary = {}
@@ -304,6 +305,9 @@ func _load_package(buffer: FGUIByteBuffer) -> void:
 		branch_included = count > 0
 
 	_read_items(buffer, index_table_pos, ver2, branch_included)
+	for item: FGUIPackageItem in items:
+		if item.type == FGUIEnums.PACKAGE_ITEM_COMPONENT:
+			TranslationHelper.translate_component(item)
 	_read_sprites(buffer, index_table_pos, ver2)
 	_read_pixel_hit_tests(buffer, index_table_pos)
 

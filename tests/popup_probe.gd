@@ -50,7 +50,16 @@ func _initialize() -> void:
 	if tooltip.parent != null:
 		_fail("GRoot did not hide a custom tooltip.")
 		return
+	var input := FGUITextInput.new()
+	input.set_size(60.0, 20.0)
+	ui_root.add_child(input)
+	ui_root.focus = input
+	await process_frame
+	if ui_root.focus != input or not input.line_edit.has_focus():
+		_fail("GRoot did not map focus to the Godot input control.")
+		return
 
+	input.dispose()
 	tooltip.dispose()
 	tooltip_owner.dispose()
 	submenu.dispose()

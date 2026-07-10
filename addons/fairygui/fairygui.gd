@@ -32,3 +32,4 @@ const DragDropManager := preload("res://addons/fairygui/ui/drag_drop_manager.gd"
 const AsyncOperation := preload("res://addons/fairygui/ui/async_operation.gd")
 const Transition := preload("res://addons/fairygui/ui/transition.gd")
 const RawInflate := preload("res://addons/fairygui/utils/raw_inflate.gd")
+const TranslationHelper := preload("res://addons/fairygui/utils/translation_helper.gd")
