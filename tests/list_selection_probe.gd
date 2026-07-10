@@ -25,6 +25,29 @@ func _initialize() -> void:
 	if list.get_selection() != [1, 3]:
 		_fail("Ctrl-click did not toggle a selected list item.")
 		return
+	list.select_reverse()
+	if list.get_selection() != [0, 2, 4]:
+		_fail("List select_reverse did not invert the selected item set.")
+		return
+	list.get_child_at(4).width = 50.0
+	if absf(list.get_max_item_width() - 50.0) > 0.01:
+		_fail("List get_max_item_width did not return the widest visible item.")
+		return
+	list.selection_mode = FGUIEnums.LIST_SELECTION_SINGLE
+	list.layout = FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL
+	list.column_count = 2
+	list.auto_resize_item = false
+	list.set_size(100.0, 100.0)
+	list.update_bounds()
+	list.selected_index = 1
+	list.handle_arrow_key(5)
+	if list.selected_index != 3:
+		_fail("List down-arrow navigation did not preserve the flow-layout column.")
+		return
+	list.handle_arrow_key(1)
+	if list.selected_index != 1:
+		_fail("List up-arrow navigation did not return to the preceding flow-layout row.")
+		return
 
 	list.selection_mode = FGUIEnums.LIST_SELECTION_MULTIPLE_SINGLE_CLICK
 	list.clear_selection()

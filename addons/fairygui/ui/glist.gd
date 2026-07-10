@@ -181,6 +181,99 @@ func select_none() -> void:
 	clear_selection()
 
 
+func select_reverse() -> void:
+	if selection_mode == FGUIEnums.LIST_SELECTION_NONE:
+		return
+	var last_selected := -1
+	for index in num_items:
+		var selected := not _selected_indices.has(index)
+		if selected:
+			_selected_indices.append(index)
+			last_selected = index
+		else:
+			_selected_indices.erase(index)
+		if _virtual:
+			_set_virtual_selection(index, selected)
+		else:
+			var obj := get_child_at(index)
+			if obj is FGUIButton:
+				obj.selected = selected
+	if last_selected >= 0:
+		_last_selected_index = last_selected
+		_update_selection_controller(last_selected)
+
+
+func get_max_item_width() -> float:
+	ensure_bounds_correct()
+	var result := 0.0
+	for child: FGUIObject in children:
+		if not fold_invisible_items or child.visible:
+			result = maxf(result, child.width)
+	return result
+
+
+func handle_arrow_key(direction: int) -> void:
+	var index := selected_index
+	if index < 0:
+		return
+	var target_index := -1
+	match layout:
+		FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN:
+			if direction == 1:
+				target_index = index - 1
+			elif direction == 5:
+				target_index = index + 1
+		FGUIEnums.LIST_LAYOUT_SINGLE_ROW:
+			if direction == 7:
+				target_index = index - 1
+			elif direction == 3:
+				target_index = index + 1
+		FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL, FGUIEnums.LIST_LAYOUT_PAGINATION:
+			if direction == 7:
+				target_index = index - 1
+			elif direction == 3:
+				target_index = index + 1
+			elif not _virtual:
+				target_index = _find_arrow_neighbor(index, direction, true)
+		FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL:
+			if direction == 1:
+				target_index = index - 1
+			elif direction == 5:
+				target_index = index + 1
+			elif not _virtual:
+				target_index = _find_arrow_neighbor(index, direction, false)
+	if target_index >= 0 and target_index < num_items:
+		clear_selection()
+		add_selection(target_index, true)
+
+
+func _find_arrow_neighbor(index: int, direction: int, vertical: bool) -> int:
+	var current := get_child_at(index)
+	if current == null:
+		return -1
+	var current_primary := current.y if vertical else current.x
+	var current_cross := current.x if vertical else current.y
+	var negative_direction := direction == 1 or direction == 7
+	var best_index := -1
+	var best_primary_distance := INF
+	var best_cross_distance := INF
+	for candidate_index in children.size():
+		if candidate_index == index:
+			continue
+		var candidate: FGUIObject = children[candidate_index]
+		var primary := candidate.y if vertical else candidate.x
+		if (negative_direction and primary >= current_primary) or (not negative_direction and primary <= current_primary):
+			continue
+		var primary_distance := absf(primary - current_primary)
+		var cross := candidate.x if vertical else candidate.y
+		var cross_distance := absf(cross - current_cross)
+		if primary_distance < best_primary_distance or (is_equal_approx(primary_distance, best_primary_distance) and cross_distance < best_cross_distance):
+			best_index = candidate_index
+			best_primary_distance = primary_distance
+			best_cross_distance = cross_distance
+	return best_index
+
+
 func resize_to_fit(item_count: int = 0, min_size: int = 0) -> void:
 	ensure_bounds_correct()
 	if layout == FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN:
