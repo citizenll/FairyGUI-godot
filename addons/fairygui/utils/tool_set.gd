@@ -131,6 +131,36 @@ static func display_object_to_gobject(node: Node) -> FGUIObject:
 	return null
 
 
+static func is_pointer_event(event: InputEvent) -> bool:
+	return event is InputEventMouse or event is InputEventScreenTouch or event is InputEventScreenDrag
+
+
+static func is_primary_pointer_press(event: InputEvent) -> bool:
+	return (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed) or (event is InputEventScreenTouch and event.pressed)
+
+
+static func is_primary_pointer_release(event: InputEvent) -> bool:
+	return (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed) or (event is InputEventScreenTouch and not event.pressed)
+
+
+static func is_pointer_motion(event: InputEvent) -> bool:
+	return event is InputEventMouseMotion or event is InputEventScreenDrag
+
+
+static func get_pointer_position(event: InputEvent) -> Vector2:
+	if event is InputEventMouse:
+		return event.global_position
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		return event.position
+	return Vector2.ZERO
+
+
+static func get_pointer_id(event: InputEvent) -> int:
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		return event.index
+	return -1
+
+
 static func set_color_filter(control: CanvasItem, color: Variant = null) -> void:
 	if control == null:
 		return

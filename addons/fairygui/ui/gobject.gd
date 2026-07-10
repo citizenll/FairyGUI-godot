@@ -145,6 +145,7 @@ var _event_listeners: Dictionary = {}
 var _gears: Dictionary = {}
 var _gear_locked: bool = false
 var _dragging: bool = false
+var _drag_touch_index: int = -1
 var _drag_start_mouse: Vector2 = Vector2.ZERO
 var _drag_start_position: Vector2 = Vector2.ZERO
 var draggable: bool = false
@@ -511,23 +512,25 @@ func _handle_grayed_changed() -> void:
 func _on_gui_input(event: InputEvent) -> void:
 	if not _touchable:
 		return
-	if event is InputEventMouse and pixel_hit_test != null and not pixel_hit_test.contains(event.position.x, event.position.y):
+	var pointer_position := FGUIToolSet.get_pointer_position(event)
+	if FGUIToolSet.is_pointer_event(event) and pixel_hit_test != null and not pixel_hit_test.contains(global_to_local(pointer_position).x, global_to_local(pointer_position).y):
 		return
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
-			_drag_start_mouse = event.global_position
-			_drag_start_position = node.global_position if node != null else Vector2.ZERO
-			if draggable:
-				_dragging = true
-				emit_event(FGUIEvents.DRAG_START, event)
+	if FGUIToolSet.is_primary_pointer_press(event):
+		_drag_touch_index = FGUIToolSet.get_pointer_id(event)
+		_drag_start_mouse = pointer_position
+		_drag_start_position = node.global_position if node != null else Vector2.ZERO
+		if draggable:
+			_dragging = true
+			emit_event(FGUIEvents.DRAG_START, event)
+	elif FGUIToolSet.is_primary_pointer_release(event) and _drag_touch_index == FGUIToolSet.get_pointer_id(event):
+		_drag_touch_index = -1
+		if _dragging:
+			_dragging = false
+			emit_event(FGUIEvents.DRAG_END, event)
 		else:
-			if _dragging:
-				_dragging = false
-				emit_event(FGUIEvents.DRAG_END, event)
-			else:
-				emit_event("click", event)
-	elif event is InputEventMouseMotion and _dragging and draggable and node != null:
-		var delta: Vector2 = event.global_position - _drag_start_mouse
+			emit_event("click", event)
+	elif FGUIToolSet.is_pointer_motion(event) and _dragging and _drag_touch_index == FGUIToolSet.get_pointer_id(event) and draggable and node != null:
+		var delta: Vector2 = pointer_position - _drag_start_mouse
 		node.global_position = _drag_start_position + delta
 		_x = node.position.x
 		_y = node.position.y

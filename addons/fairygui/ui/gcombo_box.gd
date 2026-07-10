@@ -146,7 +146,7 @@ func _update_selection_controller() -> void:
 
 func _on_gui_input(event: InputEvent) -> void:
 	super._on_gui_input(event)
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+	if FGUIToolSet.is_primary_pointer_release(event):
 		if dropdown != null:
 			FGUIRoot.get_inst().show_popup(dropdown, self, popup_direction)
 

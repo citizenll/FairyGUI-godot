@@ -158,7 +158,7 @@ func _layout_modal_wait_pane() -> void:
 
 
 func _on_gui_input(event: InputEvent) -> void:
-	if shown and bring_to_front_on_click and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+	if shown and bring_to_front_on_click and FGUIToolSet.is_primary_pointer_press(event):
 		bring_to_front()
 	super._on_gui_input(event)
 

@@ -480,10 +480,11 @@ func _add_child_node(child: FGUIObject, index: int) -> void:
 
 
 func _on_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouse and hit_test_child != null and not _contains_hit_test_child(event.global_position):
+	var pointer_position := FGUIToolSet.get_pointer_position(event)
+	if FGUIToolSet.is_pointer_event(event) and hit_test_child != null and not _contains_hit_test_child(pointer_position):
 		return
-	if event is InputEventMouse and _mask != null:
-		var is_in_mask := _contains_mask(event.global_position)
+	if FGUIToolSet.is_pointer_event(event) and _mask != null:
+		var is_in_mask := _contains_mask(pointer_position)
 		if (not _reversed_mask and not is_in_mask) or (_reversed_mask and is_in_mask):
 			return
 	super._on_gui_input(event)

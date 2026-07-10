@@ -26,6 +26,7 @@ var _selected_icon: String = ""
 var _selected: bool = false
 var _down_effect: int = 0
 var _down_effect_value: float = 0.8
+var _button_touch_index: int = -2
 
 var selected: bool:
 	get:
@@ -226,13 +227,15 @@ func set_prop(index: int, value: Variant) -> void:
 
 
 func _on_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
-			set_state(DOWN)
-		elif mode == FGUIEnums.BUTTON_COMMON:
+	if FGUIToolSet.is_primary_pointer_press(event):
+		_button_touch_index = FGUIToolSet.get_pointer_id(event)
+		set_state(DOWN)
+	elif FGUIToolSet.is_primary_pointer_release(event) and _button_touch_index == FGUIToolSet.get_pointer_id(event):
+		if mode == FGUIEnums.BUTTON_COMMON:
 			set_state(UP)
 	super._on_gui_input(event)
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+	if FGUIToolSet.is_primary_pointer_release(event) and _button_touch_index == FGUIToolSet.get_pointer_id(event):
+		_button_touch_index = -2
 		_handle_click(event)
 
 
