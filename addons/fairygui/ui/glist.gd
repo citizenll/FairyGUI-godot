@@ -8,6 +8,7 @@ var fold_invisible_items: bool = false
 var layout: int = FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN:
 	set(value):
 		layout = value
+		_virtual_size_layout_dirty = true
 		set_bounds_changed_flag()
 var line_count: int = 0
 var column_count: int = 0
@@ -27,6 +28,12 @@ var _num_items: int = 0
 var _selected_indices: Array[int] = []
 var _last_selected_index: int = -1
 var _virtual_item_size: Vector2 = Vector2.ZERO
+var _virtual_item_sizes: Array[Vector2] = []
+var _virtual_primary_prefix: Array[float] = []
+var _virtual_primary_total: float = 0.0
+var _virtual_cross_size: float = 0.0
+var _virtual_size_layout_dirty: bool = true
+var _virtual_size_refresh_queued: bool = false
 var _virtual_first_index: int = 0
 var _virtual_real_num_items: int = 0
 var _virtual_loop_position_initialized: bool = false
@@ -42,6 +49,7 @@ var num_items: int:
 				_num_items = next_count
 				_virtual_real_num_items = _num_items * 6 if _loop else _num_items
 				_virtual_loop_position_initialized = false
+				_virtual_size_layout_dirty = true
 				for index in _selected_indices.duplicate():
 					if index >= _num_items:
 						_selected_indices.erase(index)
@@ -207,6 +215,12 @@ func _set_virtual(loop: bool) -> void:
 	_virtual_first_index = 0
 	_virtual_loop_position_initialized = false
 	_virtual_item_size = Vector2.ZERO
+	_virtual_item_sizes.clear()
+	_virtual_primary_prefix.clear()
+	_virtual_primary_total = 0.0
+	_virtual_cross_size = 0.0
+	_virtual_size_layout_dirty = true
+	_virtual_size_refresh_queued = false
 	remove_children_to_pool()
 	if _loop:
 		scroll_pane.bounceback_effect = false
@@ -229,6 +243,8 @@ func refresh_virtual_list() -> void:
 		_refreshing_virtual = false
 		return
 	_ensure_virtual_item_size()
+	_ensure_virtual_item_sizes()
+	_ensure_virtual_size_layout()
 	_virtual_real_num_items = _num_items * 6 if _loop else _num_items
 	var layout_info := _get_virtual_layout_info(_virtual_real_num_items)
 	if layout_info.is_empty():
@@ -236,30 +252,43 @@ func refresh_virtual_list() -> void:
 		return
 	var horizontal := bool(layout_info["horizontal"])
 	var span := float(layout_info["primary_span"])
+	var variable_primary := bool(layout_info.get("variable_primary", false))
 	if scroll_pane != null:
 		scroll_pane.set_content_size(float(layout_info["content_width"]), float(layout_info["content_height"]))
 		if _loop:
-			_update_virtual_loop_position(horizontal, span)
+			_update_virtual_loop_position(horizontal, float(layout_info.get("loop_segment_span", float(_num_items) * span)))
 	var scroll_pos := scroll_pane.pos_x if horizontal and scroll_pane != null else (scroll_pane.pos_y if scroll_pane != null else 0.0)
-	var group_count := int(layout_info["group_count"])
-	var items_per_group := int(layout_info["items_per_group"])
-	var first_group := clampi(int(floorf(scroll_pos / span)), 0, maxi(0, group_count - 1))
-	_virtual_first_index = mini(_virtual_real_num_items - 1, first_group * items_per_group)
-	var visible_count := mini(_virtual_real_num_items - _virtual_first_index, (int(ceilf(float(layout_info["view_primary"]) / span)) + 2) * items_per_group)
+	var visible_count: int
+	if variable_primary:
+		_virtual_first_index = _get_virtual_first_physical_index(scroll_pos)
+		visible_count = _get_variable_visible_count(_virtual_first_index, scroll_pos, float(layout_info["view_primary"]))
+	else:
+		var group_count := int(layout_info["group_count"])
+		var items_per_group := int(layout_info["items_per_group"])
+		var first_group := clampi(int(floorf(scroll_pos / span)), 0, maxi(0, group_count - 1))
+		_virtual_first_index = mini(_virtual_real_num_items - 1, first_group * items_per_group)
+		visible_count = mini(_virtual_real_num_items - _virtual_first_index, (int(ceilf(float(layout_info["view_primary"]) / span)) + 2) * items_per_group)
+	var item_sizes_changed := false
 	for offset in visible_count:
 		var physical_index := _virtual_first_index + offset
 		var item_index := _physical_to_item_index(physical_index)
 		var url := item_provider.call(item_index) if item_provider.is_valid() else default_item
 		var obj := add_item_from_pool(str(url))
+		if obj != null and variable_primary:
+			_apply_cached_virtual_item_size(obj, item_index)
 		if obj != null and item_renderer.is_valid():
 			item_renderer.call(item_index, obj)
 		if obj != null:
+			if variable_primary and _record_virtual_item_size(item_index, obj):
+				item_sizes_changed = true
 			obj.data = item_index
 			if obj is FGUIButton:
 				obj.selected = _selected_indices.has(item_index)
 			var item_position := _get_virtual_item_position(physical_index, layout_info)
 			obj.set_xy(item_position.x, item_position.y)
 	_refreshing_virtual = false
+	if item_sizes_changed:
+		_queue_virtual_size_refresh()
 
 
 func scroll_to_view(index: int, animated: bool = false, set_first: bool = false) -> void:
@@ -267,6 +296,8 @@ func scroll_to_view(index: int, animated: bool = false, set_first: bool = false)
 		if index < 0 or index >= _num_items:
 			return
 		_ensure_virtual_item_size()
+		_ensure_virtual_item_sizes()
+		_ensure_virtual_size_layout()
 		if scroll_pane != null:
 			_virtual_real_num_items = _num_items * 6 if _loop else _num_items
 			var layout_info := _get_virtual_layout_info(_virtual_real_num_items)
@@ -274,8 +305,9 @@ func scroll_to_view(index: int, animated: bool = false, set_first: bool = false)
 				return
 			var horizontal := bool(layout_info["horizontal"])
 			var span := float(layout_info["primary_span"])
-			var physical_index := _nearest_physical_item_index(index, maxf(1.0, span), horizontal)
-			var target_position := floori(float(physical_index) / float(layout_info["items_per_group"])) * span
+			var variable_primary := bool(layout_info.get("variable_primary", false))
+			var physical_index := _nearest_variable_physical_item_index(index, horizontal) if variable_primary else _nearest_physical_item_index(index, maxf(1.0, span), horizontal)
+			var target_position := _get_virtual_primary_start(physical_index) if variable_primary else floori(float(physical_index) / float(layout_info["items_per_group"])) * span
 			if horizontal:
 				scroll_pane.set_pos(target_position, scroll_pane.pos_y, animated)
 			else:
@@ -558,6 +590,152 @@ func item_index_to_child_index(index: int) -> int:
 	return -1
 
 
+func _supports_variable_virtual_primary() -> bool:
+	return _virtual and (layout == FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN or layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW)
+
+
+func _ensure_virtual_item_sizes() -> void:
+	if not _supports_variable_virtual_primary():
+		return
+	while _virtual_item_sizes.size() < _num_items:
+		_virtual_item_sizes.append(_virtual_item_size)
+	if _virtual_item_sizes.size() > _num_items:
+		_virtual_item_sizes.resize(_num_items)
+	_virtual_size_layout_dirty = true if _virtual_primary_prefix.size() != _num_items else _virtual_size_layout_dirty
+
+
+func _ensure_virtual_size_layout() -> void:
+	if not _supports_variable_virtual_primary() or not _virtual_size_layout_dirty:
+		return
+	_virtual_primary_prefix.clear()
+	_virtual_primary_prefix.resize(_num_items)
+	_virtual_primary_total = 0.0
+	_virtual_cross_size = 0.0
+	var gap := float(column_gap if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else line_gap)
+	for index in _num_items:
+		_virtual_primary_prefix[index] = _virtual_primary_total
+		var item_size := _virtual_item_sizes[index]
+		var primary_size := maxf(1.0, item_size.x if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else item_size.y)
+		var cross_size := maxf(1.0, item_size.y if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else item_size.x)
+		_virtual_primary_total += primary_size
+		_virtual_cross_size = maxf(_virtual_cross_size, cross_size)
+		if index != _num_items - 1:
+			_virtual_primary_total += gap
+	_virtual_size_layout_dirty = false
+
+
+func _get_cached_virtual_item_size(item_index: int) -> Vector2:
+	if item_index >= 0 and item_index < _virtual_item_sizes.size():
+		return _virtual_item_sizes[item_index]
+	return _virtual_item_size
+
+
+func _apply_cached_virtual_item_size(obj: FGUIObject, item_index: int) -> void:
+	var item_size := _get_cached_virtual_item_size(item_index)
+	obj.set_size(item_size.x, item_size.y)
+
+
+func _record_virtual_item_size(item_index: int, obj: FGUIObject) -> bool:
+	if item_index < 0 or item_index >= _virtual_item_sizes.size():
+		return false
+	var next_size := Vector2(maxf(1.0, obj.width), maxf(1.0, obj.height))
+	if _virtual_item_sizes[item_index].is_equal_approx(next_size):
+		return false
+	_virtual_item_sizes[item_index] = next_size
+	_virtual_size_layout_dirty = true
+	if _loop:
+		_virtual_loop_position_initialized = false
+	return true
+
+
+func _queue_virtual_size_refresh() -> void:
+	if _virtual_size_refresh_queued:
+		return
+	_virtual_size_refresh_queued = true
+	call_deferred("_refresh_virtual_after_size_change")
+
+
+func _refresh_virtual_after_size_change() -> void:
+	_virtual_size_refresh_queued = false
+	if _virtual:
+		refresh_virtual_list()
+
+
+func _get_virtual_content_primary(_physical_count: int) -> float:
+	if _num_items <= 0:
+		return 0.0
+	if not _loop:
+		return _virtual_primary_total
+	var gap := float(column_gap if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else line_gap)
+	return maxf(0.0, _get_virtual_loop_segment_span() * 6.0 - gap)
+
+
+func _get_virtual_loop_segment_span() -> float:
+	var gap := float(column_gap if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else line_gap)
+	return _virtual_primary_total + gap
+
+
+func _get_virtual_primary_start(physical_index: int) -> float:
+	if _num_items <= 0:
+		return 0.0
+	var logical_index := _physical_to_item_index(physical_index)
+	if logical_index < 0 or logical_index >= _virtual_primary_prefix.size():
+		return 0.0
+	var copy_index := physical_index / _num_items if _loop else 0
+	return float(copy_index) * _get_virtual_loop_segment_span() + _virtual_primary_prefix[logical_index]
+
+
+func _get_virtual_primary_size(physical_index: int) -> float:
+	var item_size := _get_cached_virtual_item_size(_physical_to_item_index(physical_index))
+	return maxf(1.0, item_size.x if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else item_size.y)
+
+
+func _get_virtual_first_physical_index(position: float) -> int:
+	if _num_items <= 0:
+		return 0
+	var copy_index := 0
+	var local_position := maxf(0.0, position)
+	if _loop:
+		var segment_span := maxf(1.0, _get_virtual_loop_segment_span())
+		copy_index = clampi(int(floorf(local_position / segment_span)), 0, 5)
+		local_position -= float(copy_index) * segment_span
+	var low := 0
+	var high := _num_items
+	while low < high:
+		var mid := (low + high) / 2
+		if _virtual_primary_prefix[mid] <= local_position:
+			low = mid + 1
+		else:
+			high = mid
+	var logical_index := clampi(low - 1, 0, _num_items - 1)
+	return mini(_virtual_real_num_items - 1, copy_index * _num_items + logical_index)
+
+
+func _get_variable_visible_count(first_physical_index: int, scroll_position: float, view_primary: float) -> int:
+	var visible_end := scroll_position + maxf(1.0, view_primary) + maxf(1.0, _virtual_item_size.x if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else _virtual_item_size.y)
+	var count := 0
+	for physical_index in range(first_physical_index, _virtual_real_num_items):
+		if physical_index > first_physical_index and _get_virtual_primary_start(physical_index) > visible_end:
+			break
+		count += 1
+	return count
+
+
+func _nearest_variable_physical_item_index(item_index: int, horizontal: bool) -> int:
+	if not _loop or _num_items <= 0:
+		return item_index
+	var scroll_position := scroll_pane.pos_x if horizontal else scroll_pane.pos_y
+	var nearest := item_index
+	var nearest_distance := INF
+	for copy_index in 6:
+		var physical_index := item_index + copy_index * _num_items
+		var distance := absf(_get_virtual_primary_start(physical_index) - scroll_position)
+		if distance < nearest_distance:
+			nearest = physical_index
+			nearest_distance = distance
+	return nearest
+
+
 func _get_virtual_layout_info(item_count: int) -> Dictionary:
 	if item_count <= 0:
 		return {}
@@ -567,6 +745,49 @@ func _get_virtual_layout_info(item_count: int) -> Dictionary:
 	var cell_height := maxf(1.0, _virtual_item_size.y)
 	var horizontal_span := maxf(1.0, cell_width + float(column_gap))
 	var vertical_span := maxf(1.0, cell_height + float(line_gap))
+	if _supports_variable_virtual_primary():
+		var loop_segment_span := _get_virtual_loop_segment_span()
+		if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW:
+			return {
+				"layout": layout,
+				"horizontal": true,
+				"variable_primary": true,
+				"primary_span": horizontal_span,
+				"loop_segment_span": loop_segment_span,
+				"items_per_group": 1,
+				"group_count": item_count,
+				"view_primary": viewport_width,
+				"content_width": _get_virtual_content_primary(item_count),
+				"content_height": maxf(cell_height, _virtual_cross_size),
+				"cell_width": cell_width,
+				"cell_height": cell_height,
+				"horizontal_span": horizontal_span,
+				"vertical_span": vertical_span,
+				"columns": 1,
+				"rows": 1,
+				"view_width": viewport_width,
+				"view_height": viewport_height,
+			}
+		return {
+			"layout": FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN,
+			"horizontal": false,
+			"variable_primary": true,
+			"primary_span": vertical_span,
+			"loop_segment_span": loop_segment_span,
+			"items_per_group": 1,
+			"group_count": item_count,
+			"view_primary": viewport_height,
+			"content_width": maxf(cell_width, _virtual_cross_size),
+			"content_height": _get_virtual_content_primary(item_count),
+			"cell_width": cell_width,
+			"cell_height": cell_height,
+			"horizontal_span": horizontal_span,
+			"vertical_span": vertical_span,
+			"columns": 1,
+			"rows": 1,
+			"view_width": viewport_width,
+			"view_height": viewport_height,
+		}
 
 	match layout:
 		FGUIEnums.LIST_LAYOUT_SINGLE_ROW:
@@ -676,6 +897,8 @@ func _get_virtual_layout_info(item_count: int) -> Dictionary:
 
 func _get_virtual_item_position(physical_index: int, layout_info: Dictionary) -> Vector2:
 	var list_layout := int(layout_info["layout"])
+	if bool(layout_info.get("variable_primary", false)):
+		return Vector2(_get_virtual_primary_start(physical_index), 0.0) if list_layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else Vector2(0.0, _get_virtual_primary_start(physical_index))
 	var horizontal_span := float(layout_info["horizontal_span"])
 	var vertical_span := float(layout_info["vertical_span"])
 	match list_layout:
@@ -721,10 +944,10 @@ func _nearest_physical_item_index(item_index: int, span: float, horizontal: bool
 	return nearest
 
 
-func _update_virtual_loop_position(horizontal: bool, span: float) -> void:
+func _update_virtual_loop_position(horizontal: bool, segment_span: float) -> void:
 	if scroll_pane == null or _num_items <= 0:
 		return
-	var segment := _num_items * span
+	var segment := segment_span
 	if segment <= 0.0:
 		return
 	var max_position := maxf(0.0, (scroll_pane.content_width - scroll_pane.view_width) if horizontal else (scroll_pane.content_height - scroll_pane.view_height))

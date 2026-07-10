@@ -36,7 +36,7 @@ The Godot source tree is still useful as the API reference for current Control, 
 
 - The editor importer turns `.fui` files into `FGUIPackageResource` assets. Imported packages are included in exported projects; `FileAccess` remains a fallback for direct raw loading.
 - Compressed FairyGUI packages use the bundled raw-deflate implementation and are covered by the compression probe.
-- Uniform-size virtual lists support single-row, single-column, flow-horizontal, flow-vertical, and pagination layouts with pooled-item recycling, logical item renderer/provider indices, and visible selection state. Six-copy loop scrolling remains limited to single-row and single-column layouts; variable item measurements and loop mode for flow/pagination layouts are not implemented yet.
+- Virtual lists support single-row, single-column, flow-horizontal, flow-vertical, and pagination layouts with pooled-item recycling, logical item renderer/provider indices, and visible selection state. Single-row and single-column lists cache renderer-provided item sizes for variable primary-axis layout and six-copy loop scrolling. Flow/pagination layouts remain uniform-cell; loop mode remains limited to single-row and single-column layouts.
 - Multiple list selection supports ordinary replacement selection, Ctrl toggles, Shift ranges, and multiple-single-click toggles in both regular and virtual lists.
 - Text fields support template variables, line spacing, outline/shadow settings, and Both/Height/Ellipsis auto-size behavior through Godot labels. Text inputs support FairyGUI `restrict` character ranges, inverse ranges, and escaped literals.
 - Loaders preserve package MovieClip frame playback and propagate `playing`, `frame`, and `time_scale` to loaded movie content.

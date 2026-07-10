@@ -110,6 +110,92 @@ func _initialize() -> void:
 
 	list.dispose()
 
+	var variable_column := _create_virtual_list(
+		host,
+		Vector2(100.0, 100.0),
+		FGUIEnums.SCROLL_VERTICAL,
+		FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN,
+		Vector2(50.0, 20.0)
+	)
+	variable_column.auto_resize_item = false
+	variable_column.line_gap = 2
+	var column_heights := [20.0, 35.0, 25.0, 40.0]
+	variable_column.item_renderer = func(index: int, item: FGUIObject) -> void:
+		item.set_size(50.0, column_heights[index])
+	variable_column.set_virtual()
+	variable_column.num_items = column_heights.size()
+	await process_frame
+	await process_frame
+	if absf(variable_column.scroll_pane.content_height - 126.0) > 0.1:
+		_fail("Variable-height virtual column list content size is incorrect: %s" % variable_column.scroll_pane.content_height)
+		return
+	if not _expect_item_position(variable_column, 1, Vector2(0.0, 22.0), "variable column item 1"):
+		return
+	if not _expect_item_position(variable_column, 2, Vector2(0.0, 59.0), "variable column item 2"):
+		return
+	if not _expect_item_position(variable_column, 3, Vector2(0.0, 86.0), "variable column item 3"):
+		return
+	variable_column.scroll_to_view(3)
+	await process_frame
+	if variable_column.get_first_child_in_view() != 1:
+		_fail("Variable-height virtual column list did not use cached item positions for scroll_to_view.")
+		return
+	variable_column.dispose()
+
+	var variable_loop_row := _create_virtual_list(
+		host,
+		Vector2(100.0, 20.0),
+		FGUIEnums.SCROLL_HORIZONTAL,
+		FGUIEnums.LIST_LAYOUT_SINGLE_ROW,
+		Vector2(30.0, 20.0)
+	)
+	variable_loop_row.auto_resize_item = false
+	variable_loop_row.column_gap = 2
+	var row_widths := [30.0, 50.0, 20.0]
+	variable_loop_row.item_renderer = func(index: int, item: FGUIObject) -> void:
+		item.set_size(row_widths[index], 20.0)
+	variable_loop_row.set_virtual_and_loop()
+	variable_loop_row.num_items = row_widths.size()
+	await process_frame
+	await process_frame
+	if absf(variable_loop_row.scroll_pane.content_width - 634.0) > 0.1:
+		_fail("Variable-width loop list content size is incorrect: %s" % variable_loop_row.scroll_pane.content_width)
+		return
+	if absf(variable_loop_row.scroll_pane.pos_x - 318.0) > 1.1 or variable_loop_row.get_first_child_in_view() != 0:
+		_fail("Variable-width loop list did not recenter at the logical first item.")
+		return
+	variable_loop_row.scroll_to_view(2)
+	await process_frame
+	if variable_loop_row.get_first_child_in_view() != 2:
+		_fail("Variable-width loop list did not use cached widths for scroll_to_view.")
+		return
+	variable_loop_row.dispose()
+
+	var large_variable_column := _create_virtual_list(
+		host,
+		Vector2(100.0, 100.0),
+		FGUIEnums.SCROLL_VERTICAL,
+		FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN,
+		Vector2(50.0, 20.0)
+	)
+	large_variable_column.auto_resize_item = false
+	large_variable_column.line_gap = 1
+	large_variable_column.set_virtual()
+	large_variable_column.num_items = 10000
+	await process_frame
+	if large_variable_column.children.size() > 8 or large_variable_column.created_count > 8:
+		_fail("Large virtual list instantiated more item objects than its viewport requires.")
+		return
+	if absf(large_variable_column.scroll_pane.content_height - 209999.0) > 0.1:
+		_fail("Large virtual list content height is incorrect.")
+		return
+	large_variable_column.scroll_pane.set_pos(0.0, 105000.0)
+	await process_frame
+	if large_variable_column.get_first_child_in_view() != 5000 or large_variable_column.created_count > 8:
+		_fail("Large virtual list did not seek through cached item positions without extra allocations.")
+		return
+	large_variable_column.dispose()
+
 	var flow_horizontal := _create_virtual_list(
 		host,
 		Vector2(130.0, 20.0),
