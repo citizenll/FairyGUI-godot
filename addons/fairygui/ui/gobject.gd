@@ -84,6 +84,31 @@ var rotation: float:
 		_rotation = value
 		if node != null:
 			node.rotation_degrees = value
+var scale_x: float:
+	get:
+		return _scale.x
+	set(value):
+		set_scale(value, _scale.y)
+var scale_y: float:
+	get:
+		return _scale.y
+	set(value):
+		set_scale(_scale.x, value)
+var pivot_x: float:
+	get:
+		return _pivot.x
+	set(value):
+		set_pivot(value, _pivot.y, _pivot_as_anchor)
+var pivot_y: float:
+	get:
+		return _pivot.y
+	set(value):
+		set_pivot(_pivot.x, value, _pivot_as_anchor)
+var pivot_as_anchor: bool:
+	get:
+		return _pivot_as_anchor
+	set(value):
+		set_pivot(_pivot.x, _pivot.y, value)
 var sorting_order: int:
 	get:
 		return _sorting_order

@@ -86,6 +86,36 @@ func _initialize() -> void:
 		quit(1)
 		return
 
+	child.set_size(20.0, 20.0)
+	child.set_pivot(0.5, 0.5, true)
+	var property_transition := FGUITransition.new(owner)
+	property_transition._items.append({
+		"type": FGUITransition.ACTION_SIZE,
+		"time": 0.0,
+		"target_id": child.id,
+		"target": null,
+		"label": "partial_size",
+		"value": {"b1": false, "b2": true, "f1": 0.0, "f2": 45.0},
+		"tween_config": null,
+		"hook": Callable()
+	})
+	property_transition._items.append({
+		"type": FGUITransition.ACTION_PIVOT,
+		"time": 0.0,
+		"target_id": child.id,
+		"target": null,
+		"label": "pivot",
+		"value": {"b1": true, "b2": true, "f1": 0.25, "f2": 0.75},
+		"tween_config": null,
+		"hook": Callable()
+	})
+	property_transition.play()
+	await process_frame
+	if absf(child.width - 20.0) > 0.1 or absf(child.height - 45.0) > 0.1 or not child.pivot_as_anchor:
+		push_error("Transition property actions did not preserve partial size or pivot anchor state.")
+		quit(1)
+		return
+
 	var yoyo_transition := FGUITransition.new(owner)
 	yoyo_transition._items.append({
 		"type": FGUITransition.ACTION_XY,
@@ -355,6 +385,7 @@ func _initialize() -> void:
 
 	transition.dispose()
 	repeat_transition.dispose()
+	property_transition.dispose()
 	yoyo_transition.dispose()
 	speed_transition.dispose()
 	shake_transition.dispose()

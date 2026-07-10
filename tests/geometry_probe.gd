@@ -9,6 +9,12 @@ func _initialize() -> void:
 	var object := FGUIObject.new()
 	object.set_size(20.0, 10.0)
 	object.set_pivot(0.5, 0.5, true)
+	object.pivot_x = 0.25
+	object.pivot_y = 0.75
+	if not object.pivot_as_anchor or not is_equal_approx(object.pivot_x, 0.25) or not is_equal_approx(object.pivot_y, 0.75):
+		_fail("GObject pivot property accessors did not preserve the anchor state.")
+		return
+	object.set_pivot(0.5, 0.5, true)
 	object.set_xy(100.0, 50.0)
 	fgui_root.add_child(object)
 	await process_frame
@@ -26,6 +32,12 @@ func _initialize() -> void:
 	if not object._global_to_node_local(object.node.get_global_rect().position).is_equal_approx(Vector2.ZERO):
 		_fail("Physical node-local conversion did not preserve hit-test coordinates.")
 		return
+	object.scale_x = 1.5
+	object.scale_y = 0.5
+	if not is_equal_approx(object.scale_x, 1.5) or not is_equal_approx(object.scale_y, 0.5):
+		_fail("GObject scale property accessors did not update both axes.")
+		return
+	object.set_scale(1.0, 1.0)
 
 	object.request_focus()
 	if fgui_root.focus != object:

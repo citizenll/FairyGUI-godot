@@ -651,9 +651,11 @@ func _apply_value(item: Dictionary, source_value: Dictionary) -> void:
 			elif by:
 				target.y = vy
 		ACTION_SIZE:
-			target.set_size(float(value.get("f1", target.width)), float(value.get("f2", target.height)))
+			var target_width := float(value.get("f1", target.width)) if bool(value.get("b1", true)) else target.width
+			var target_height := float(value.get("f2", target.height)) if bool(value.get("b2", true)) else target.height
+			target.set_size(target_width, target_height)
 		ACTION_PIVOT:
-			target.set_pivot(float(value.get("f1", 0.0)), float(value.get("f2", 0.0)))
+			target.set_pivot(float(value.get("f1", 0.0)), float(value.get("f2", 0.0)), target.pivot_as_anchor)
 		ACTION_ALPHA:
 			target.alpha = float(value.get("f1", target.alpha))
 		ACTION_ROTATION:
