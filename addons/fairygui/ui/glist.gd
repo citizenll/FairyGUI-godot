@@ -25,6 +25,7 @@ var _virtual: bool = false
 var _loop: bool = false
 var _num_items: int = 0
 var _selected_indices: Array[int] = []
+var _last_selected_index: int = -1
 var _virtual_item_size: Vector2 = Vector2.ZERO
 var _virtual_first_index: int = 0
 var _virtual_real_num_items: int = 0
@@ -128,6 +129,7 @@ func add_selection(index: int, scroll_it_to_view: bool = false) -> void:
 		clear_selection()
 	if not _selected_indices.has(index):
 		_selected_indices.append(index)
+	_last_selected_index = index
 	if _virtual:
 		_set_virtual_selection(index, true)
 	else:
@@ -470,13 +472,59 @@ func _click_item(_event: Variant, item: FGUIObject) -> void:
 	var index := int(item.data) if _virtual and item.data != null else get_child_index(item)
 	if index == -1:
 		return
-	if selection_mode == FGUIEnums.LIST_SELECTION_SINGLE:
-		selected_index = index
-	elif _selected_indices.has(index):
-		remove_selection(index)
-	else:
-		add_selection(index, scroll_item_to_view_on_click)
+	_set_selection_on_event(index, item, _event)
+	if scroll_item_to_view_on_click:
+		scroll_to_view(index)
 	emit_event(FGUIEvents.CLICK_ITEM, item)
+
+
+func _set_selection_on_event(index: int, item: FGUIObject, event: Variant) -> void:
+	if not (item is FGUIButton) or selection_mode == FGUIEnums.LIST_SELECTION_NONE:
+		return
+	var shift_pressed: bool = false
+	var ctrl_pressed: bool = false
+	if event is InputEventWithModifiers:
+		shift_pressed = event.shift_pressed
+		ctrl_pressed = event.ctrl_pressed
+	var is_selected := _selected_indices.has(index)
+	if selection_mode == FGUIEnums.LIST_SELECTION_SINGLE:
+		if not is_selected:
+			_clear_selection_except(index)
+			add_selection(index)
+		_last_selected_index = index
+		if _selected_indices.has(index):
+			_update_selection_controller(index)
+		return
+
+	var preserve_last_index := false
+	if shift_pressed and not is_selected and _last_selected_index >= 0:
+		var selection_anchor := _last_selected_index
+		var start_index := mini(selection_anchor, index)
+		var end_index := mini(maxi(selection_anchor, index), num_items - 1)
+		for selection_index in range(start_index, end_index + 1):
+			add_selection(selection_index)
+		_last_selected_index = selection_anchor
+		preserve_last_index = true
+	elif ctrl_pressed or selection_mode == FGUIEnums.LIST_SELECTION_MULTIPLE_SINGLE_CLICK:
+		if is_selected:
+			remove_selection(index)
+		else:
+			add_selection(index)
+	else:
+		_clear_selection_except(index)
+		if not is_selected:
+			add_selection(index)
+
+	if not preserve_last_index:
+		_last_selected_index = index
+	if _selected_indices.has(index):
+		_update_selection_controller(index)
+
+
+func _clear_selection_except(index: int) -> void:
+	for selected_index_value in _selected_indices.duplicate():
+		if selected_index_value != index:
+			remove_selection(selected_index_value)
 
 
 func get_first_child_in_view() -> int:
