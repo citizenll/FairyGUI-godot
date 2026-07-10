@@ -192,6 +192,28 @@ func _initialize() -> void:
 		return
 	variable_loop_row.dispose()
 
+	var explicit_item_size_row := _create_virtual_list(
+		host,
+		Vector2(100.0, 20.0),
+		FGUIEnums.SCROLL_HORIZONTAL,
+		FGUIEnums.LIST_LAYOUT_SINGLE_ROW,
+		Vector2(50.0, 20.0)
+	)
+	explicit_item_size_row.auto_resize_item = false
+	explicit_item_size_row.set_virtual()
+	explicit_item_size_row.virtual_item_size = Vector2(30.0, 12.0)
+	explicit_item_size_row.num_items = 3
+	await process_frame
+	if not explicit_item_size_row.virtual_item_size.is_equal_approx(Vector2(30.0, 12.0)) or absf(explicit_item_size_row.scroll_pane.content_width - 90.0) > 0.1:
+		_fail("Virtual list virtual_item_size did not control the initial virtual cell dimensions.")
+		return
+	explicit_item_size_row.column_gap = 2
+	await process_frame
+	if absf(explicit_item_size_row.scroll_pane.content_width - 94.0) > 0.1:
+		_fail("Runtime virtual-list gap changes did not refresh content layout.")
+		return
+	explicit_item_size_row.dispose()
+
 	var large_variable_column := _create_virtual_list(
 		host,
 		Vector2(100.0, 100.0),

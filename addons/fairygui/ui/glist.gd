@@ -10,10 +10,32 @@ var layout: int = FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN:
 		layout = value
 		_virtual_size_layout_dirty = true
 		set_bounds_changed_flag()
-var line_count: int = 0
-var column_count: int = 0
-var line_gap: int = 0
-var column_gap: int = 0
+var line_count: int = 0:
+	set(value):
+		if line_count == value:
+			return
+		line_count = value
+		if layout == FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL or layout == FGUIEnums.LIST_LAYOUT_PAGINATION:
+			_request_layout_refresh()
+var column_count: int = 0:
+	set(value):
+		if column_count == value:
+			return
+		column_count = value
+		if layout == FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL or layout == FGUIEnums.LIST_LAYOUT_PAGINATION:
+			_request_layout_refresh()
+var line_gap: int = 0:
+	set(value):
+		if line_gap == value:
+			return
+		line_gap = value
+		_request_layout_refresh()
+var column_gap: int = 0:
+	set(value):
+		if column_gap == value:
+			return
+		column_gap = value
+		_request_layout_refresh()
 var align: int = FGUIEnums.ALIGN_LEFT:
 	set(value):
 		align = clampi(value, FGUIEnums.ALIGN_LEFT, FGUIEnums.ALIGN_RIGHT)
@@ -25,7 +47,12 @@ var vertical_align: int = FGUIEnums.VERT_ALIGN_TOP:
 var default_item: String = "":
 	set(value):
 		default_item = FGUIPackage.normalize_url(value)
-var auto_resize_item: bool = true
+var auto_resize_item: bool = true:
+	set(value):
+		if auto_resize_item == value:
+			return
+		auto_resize_item = value
+		_request_layout_refresh()
 var selection_mode: int = FGUIEnums.LIST_SELECTION_SINGLE
 var selection_controller: FGUIController
 var item_pool := FGUIObjectPool.new()
@@ -47,6 +74,21 @@ var _virtual_real_num_items: int = 0
 var _virtual_loop_position_initialized: bool = false
 var _refreshing_virtual: bool = false
 var _align_offset := Vector2.ZERO
+
+var virtual_item_size: Vector2:
+	get:
+		return _virtual_item_size
+	set(value):
+		if not _virtual:
+			return
+		var next_size := Vector2(maxf(1.0, value.x), maxf(1.0, value.y))
+		if _virtual_item_size.is_equal_approx(next_size):
+			return
+		_virtual_item_size = next_size
+		_virtual_item_sizes.clear()
+		_virtual_size_layout_dirty = true
+		_virtual_loop_position_initialized = false
+		refresh_virtual_list()
 
 var num_items: int:
 	get:
