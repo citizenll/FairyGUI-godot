@@ -10,6 +10,7 @@ var track_bounds: bool = false
 var children_render_order: int = FGUIEnums.CHILDREN_RENDER_ASCENT
 var apex_index: int = 0
 var scroll_pane: FGUIScrollPane
+var hit_test_child: FGUIObject
 
 var _building_display_list: bool = false
 var _bounds_changed: bool = false
@@ -41,6 +42,7 @@ func add_child(child: FGUIObject) -> FGUIObject:
 
 
 func dispose() -> void:
+	hit_test_child = null
 	for transition: FGUITransition in transitions:
 		transition.dispose()
 	transitions.clear()
@@ -76,6 +78,8 @@ func remove_child(child: FGUIObject, dispose_child: bool = false) -> FGUIObject:
 	if index == -1:
 		return child
 	children.remove_at(index)
+	if child == hit_test_child:
+		hit_test_child = null
 	var container := _get_content_node()
 	if child.node != null and child.node.get_parent() == container:
 		FGUIToolSet.detach_color_filter(child.node, node)
@@ -422,8 +426,8 @@ func _setup_component_metadata(buffer: FGUIByteBuffer, content_item: FGUIPackage
 				pixel_hit_test.scale_x = width / source_width
 			if source_height > 0.0:
 				pixel_hit_test.scale_y = height / source_height
-	elif child_hit_index != -1:
-		get_child_at(child_hit_index)
+	elif hit_offset_x != 0 and child_hit_index != -1:
+		hit_test_child = get_child_at(child_hit_index)
 
 
 func _setup_transitions(buffer: FGUIByteBuffer) -> void:
@@ -453,6 +457,22 @@ func _add_child_node(child: FGUIObject, index: int) -> void:
 	if index >= 0 and index < container.get_child_count():
 		container.move_child(child.node, index)
 	FGUIToolSet.refresh_color_filter(node, true)
+
+
+func _on_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouse and hit_test_child != null and not _contains_hit_test_child(event.global_position):
+		return
+	super._on_gui_input(event)
+
+
+func _contains_hit_test_child(global_position: Vector2) -> bool:
+	var child := hit_test_child
+	if child == null or child.node == null or not child.visible:
+		return false
+	var local_position := child.global_to_local(global_position)
+	if child.pixel_hit_test != null:
+		return child.pixel_hit_test.contains(local_position.x, local_position.y)
+	return Rect2(Vector2.ZERO, Vector2(child.width, child.height)).has_point(local_position)
 
 
 func _rebuild_native_display_list() -> void:
