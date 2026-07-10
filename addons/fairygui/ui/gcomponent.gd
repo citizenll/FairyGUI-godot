@@ -26,6 +26,7 @@ var reversed_mask: bool:
 
 var _building_display_list: bool = false
 var _bounds_changed: bool = false
+var _bounds_update_queued: bool = false
 var _content_node: Control
 var _sorting_child_count: int = 0
 var _applying_controller: FGUIController
@@ -97,6 +98,7 @@ func _create_display_object() -> void:
 
 
 func dispose() -> void:
+	_bounds_update_queued = false
 	set_mask(null)
 	hit_test_child = null
 	for transition: FGUITransition in transitions:
@@ -442,6 +444,16 @@ func set_bounds_changed_flag() -> void:
 	if _bounds_changed:
 		return
 	_bounds_changed = true
+	if not _bounds_update_queued:
+		_bounds_update_queued = true
+		call_deferred("_update_bounds_deferred")
+
+
+func _update_bounds_deferred() -> void:
+	_bounds_update_queued = false
+	if node == null or not _bounds_changed:
+		return
+	ensure_bounds_correct()
 
 
 func update_bounds() -> void:

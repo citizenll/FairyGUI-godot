@@ -54,6 +54,7 @@ The Godot source tree is still useful as the API reference for current Control, 
 - `FGUITranslationHelper.load_from_xml` parses FairyGUI translation XML. Load translations before adding packages so component text, prompts, list entries, controller text, labels, buttons, and combo boxes are localized during package construction.
 - Components support forward and reversed image/rectangle alpha masks. Forward masks use native `CanvasItem` clipping; reversed masks use a local Canvas shader and preserve texture alpha. Component input filtering follows mask bounds and configured pixel-hit tests.
 - Components expose `display_list_container` for custom native content and non-mutating `base_user_data` access for package extension metadata.
+- Component child-bound recalculation is coalesced to the end of the current frame, keeping ScrollPane content dimensions current after dynamic add, remove, move, or resize operations.
 - Controller display gears implement page visibility, secondary AND/OR display conditions, transition display locks, and grouped-child visibility propagation.
 - Controllers expose runtime page insertion/removal, silent selection changes, opposite-page selection, page ID/name lookup, and `FGUIEvents.STATE_CHANGED` listeners.
 - Groups support horizontal/vertical automatic bounds, grouped-child movement and alpha propagation, proportional resize distribution, main-grid minimum sizing, and invisible-child exclusion.
