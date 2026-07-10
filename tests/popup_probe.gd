@@ -60,7 +60,7 @@ func _initialize() -> void:
 	ui_root.add_child(input)
 	ui_root.focus = input
 	await process_frame
-	if ui_root.focus != input or not input.line_edit.has_focus():
+	if ui_root.focus != input or input.native_input == null or not input.native_input.has_focus():
 		_fail("GRoot did not map focus to the Godot input control.")
 		return
 

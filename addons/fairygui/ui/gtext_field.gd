@@ -59,7 +59,10 @@ var single_line: bool:
 	get:
 		return _single_line
 	set(value):
+		if _single_line == value:
+			return
 		_single_line = value
+		_on_single_line_changed()
 		_configure_label_layout()
 		if _bitmap_font != null:
 			_refresh_bitmap_text()
@@ -300,7 +303,7 @@ func _apply_font_size() -> void:
 		_set_effective_font_size(_font_size)
 	elif label is RichTextLabel:
 		label.add_theme_font_size_override("normal_font_size", _font_size)
-	elif label is LineEdit:
+	elif label is LineEdit or label is TextEdit:
 		label.add_theme_font_size_override("font_size", _font_size)
 
 
@@ -316,7 +319,7 @@ func _apply_font_color() -> void:
 		label.label_settings.font_color = _color
 	elif label is RichTextLabel:
 		label.add_theme_color_override("default_color", _color)
-	elif label is LineEdit:
+	elif label is LineEdit or label is TextEdit:
 		label.add_theme_color_override("font_color", _color)
 
 
@@ -324,7 +327,7 @@ func _apply_leading() -> void:
 	if label is Label:
 		_ensure_label_settings()
 		label.label_settings.line_spacing = _leading
-	elif label is RichTextLabel:
+	elif label is RichTextLabel or label is TextEdit:
 		label.add_theme_constant_override("line_separation", _leading)
 
 
@@ -333,7 +336,7 @@ func _apply_stroke() -> void:
 		_ensure_label_settings()
 		label.label_settings.outline_size = _stroke
 		label.label_settings.outline_color = _stroke_color
-	elif label is RichTextLabel or label is LineEdit:
+	elif label is RichTextLabel or label is LineEdit or label is TextEdit:
 		label.add_theme_constant_override("outline_size", _stroke)
 		label.add_theme_color_override("font_outline_color", _stroke_color)
 
@@ -343,6 +346,10 @@ func _apply_shadow() -> void:
 		_ensure_label_settings()
 		label.label_settings.shadow_color = _shadow_color
 		label.label_settings.shadow_offset = _shadow_offset
+	elif label is TextEdit:
+		label.add_theme_color_override("font_shadow_color", _shadow_color)
+		label.add_theme_constant_override("shadow_offset_x", roundi(_shadow_offset.x))
+		label.add_theme_constant_override("shadow_offset_y", roundi(_shadow_offset.y))
 
 
 func _configure_label_layout() -> void:
@@ -352,6 +359,10 @@ func _configure_label_layout() -> void:
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if wrap else TextServer.AUTOWRAP_OFF
 	label.clip_text = _auto_size == FGUIEnums.AUTOSIZE_ELLIPSIS
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if _auto_size == FGUIEnums.AUTOSIZE_ELLIPSIS else TextServer.OVERRUN_NO_TRIMMING
+
+
+func _on_single_line_changed() -> void:
+	pass
 
 
 func _update_text_size() -> void:

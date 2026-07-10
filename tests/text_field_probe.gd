@@ -102,6 +102,33 @@ func _initialize() -> void:
 
 	var input := FGUITextInput.new()
 	host.add_child(input.node)
+	if input.text_edit == null or input.line_edit != null:
+		_fail("Text inputs should use a native TextEdit when configured for multiline text.")
+		return
+	input.prompt_text = "Enter multiple lines"
+	input.text = "first\nsecond"
+	if input.text_edit.placeholder_text != "Enter multiple lines" or input.text_edit.text != "first\nsecond":
+		_fail("Multiline text inputs did not retain text or placeholder settings.")
+		return
+	input.single_line = true
+	if input.line_edit == null or input.text_edit != null or input.text != "first\nsecond":
+		_fail("Switching a text input to single-line mode did not preserve its content.")
+		return
+	input.password = true
+	if input.line_edit == null or not input.line_edit.secret:
+		_fail("Password inputs should use LineEdit secret rendering.")
+		return
+	input.password = false
+	input.single_line = false
+	if input.text_edit == null or input.line_edit != null:
+		_fail("Text inputs did not restore TextEdit after leaving password single-line mode.")
+		return
+	input.max_length = 4
+	input.restrict = ""
+	input._on_text_changed("12345")
+	if input.text != "1234" or input.text_edit.text != "1234":
+		_fail("Multiline inputs did not enforce max_length.")
+		return
 	input.restrict = "0-9"
 	input._on_text_changed("a1b2")
 	if input.text != "12":

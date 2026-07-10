@@ -84,6 +84,8 @@ func _draw() -> void:
 	elif mask_node is ColorRect:
 		var color_rect := mask_node as ColorRect
 		draw_rect(Rect2(Vector2.ZERO, color_rect.size), Color(1, 1, 1, color_rect.color.a * color_rect.modulate.a))
+	elif mask_node.has_method("get_mask_alpha"):
+		draw_rect(Rect2(Vector2.ZERO, mask_node.size), Color(1, 1, 1, float(mask_node.call("get_mask_alpha")) * mask_node.modulate.a))
 	else:
 		draw_rect(Rect2(Vector2.ZERO, mask_node.size), Color.WHITE)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
@@ -115,6 +117,8 @@ func _update_reversed_mask_material() -> void:
 	var alpha := mask_node.modulate.a * mask_node.self_modulate.a
 	if mask_node is ColorRect:
 		alpha *= (mask_node as ColorRect).color.a
+	elif mask_node.has_method("get_mask_alpha"):
+		alpha *= float(mask_node.call("get_mask_alpha"))
 	_reversed_mask_material.set_shader_parameter("mask_texture", mask_texture if mask_texture != null else _get_white_texture())
 	_reversed_mask_material.set_shader_parameter("mask_uses_texture", mask_texture != null)
 	_reversed_mask_material.set_shader_parameter("container_size", Vector2(maxf(1.0, size.x), maxf(1.0, size.y)))

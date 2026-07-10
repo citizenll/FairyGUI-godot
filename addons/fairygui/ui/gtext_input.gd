@@ -2,65 +2,78 @@ class_name FGUITextInput
 extends FGUITextField
 
 var line_edit: LineEdit
+var text_edit: TextEdit
+var _input_control: Control
+var _editable: bool = true
+var _prompt_text: String = ""
+var _max_length: int = 0
+var _password: bool = false
+var _keyboard_type: int = 0
+var _setting_input_text: bool = false
+
+var native_input: Control:
+	get:
+		return _input_control
 var editable: bool:
 	get:
-		return line_edit.editable if line_edit != null else true
+		return _editable
 	set(value):
-		if line_edit != null:
-			line_edit.editable = value
+		_editable = value
+		_apply_editable()
 var prompt_text: String:
 	get:
-		return line_edit.placeholder_text if line_edit != null else ""
+		return _prompt_text
 	set(value):
-		if line_edit != null:
-			line_edit.placeholder_text = value
+		_prompt_text = value
+		_apply_prompt_text()
 var max_length: int:
 	get:
-		return line_edit.max_length if line_edit != null else 0
+		return _max_length
 	set(value):
-		if line_edit != null:
-			line_edit.max_length = value
+		_max_length = maxi(0, value)
+		_apply_max_length()
 var password: bool:
 	get:
-		return line_edit.secret if line_edit != null else false
+		return _password
 	set(value):
-		if line_edit != null:
-			line_edit.secret = value
+		if _password == value:
+			return
+		_password = value
+		_ensure_input_control()
 var _restrict: String = ""
 var restrict: String:
 	get:
 		return _restrict
 	set(value):
 		_restrict = value
-var keyboard_type: int = 0:
+
+var keyboard_type: int:
+	get:
+		return _keyboard_type
 	set(value):
-		keyboard_type = value
-		if line_edit == null:
-			return
-		match value:
-			4:
-				line_edit.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
-			3:
-				line_edit.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_URL
-			_:
-				line_edit.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_DEFAULT
+		_keyboard_type = value
+		_apply_keyboard_type()
 
 
 func _create_display_object() -> void:
-	line_edit = LineEdit.new()
-	line_edit.mouse_filter = Control.MOUSE_FILTER_PASS
-	line_edit.text_changed.connect(_on_text_changed)
-	label = line_edit
-	node = line_edit
+	node = Control.new()
+	node.mouse_filter = Control.MOUSE_FILTER_PASS
+	node.focus_mode = Control.FOCUS_ALL
+	node.focus_entered.connect(_on_container_focus_entered)
+	_ensure_input_control()
 
 
 func _get_text() -> String:
-	return line_edit.text
+	if line_edit != null:
+		return line_edit.text
+	if text_edit != null:
+		return text_edit.text
+	return _text
 
 
 func _set_text(value: String) -> void:
 	_text = value
-	line_edit.text = value
+	_set_native_text(value)
 
 
 func _ensure_label_settings() -> void:
@@ -68,6 +81,8 @@ func _ensure_label_settings() -> void:
 
 
 func _apply_align() -> void:
+	if line_edit == null:
+		return
 	match align:
 		FGUIEnums.ALIGN_CENTER:
 			line_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -82,8 +97,12 @@ func _apply_valign() -> void:
 
 
 func request_focus() -> void:
-	if line_edit != null:
-		line_edit.grab_focus()
+	super.request_focus()
+	if _input_control != null:
+		if _input_control.is_inside_tree():
+			_input_control.grab_focus()
+		else:
+			_input_control.call_deferred("grab_focus")
 
 
 func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
@@ -107,19 +126,170 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 
 
 func _on_text_changed(new_text: String) -> void:
-	if _restrict == "":
-		_text = new_text
+	if _setting_input_text:
 		return
-	var filtered := ""
-	for i in new_text.length():
-		var ch := new_text.substr(i, 1)
-		if _is_restricted_character_allowed(new_text.unicode_at(i)):
-			filtered += ch
+	var filtered := _apply_input_limits(new_text)
 	if filtered != new_text:
-		var caret := line_edit.caret_column
-		line_edit.text = filtered
-		line_edit.caret_column = mini(caret, filtered.length())
+		var line_caret := line_edit.caret_column if line_edit != null else 0
+		var text_caret_line := text_edit.get_caret_line() if text_edit != null else 0
+		var text_caret_column := text_edit.get_caret_column() if text_edit != null else 0
+		_set_native_text(filtered)
+		if line_edit != null:
+			line_edit.caret_column = mini(line_caret, filtered.length())
+		elif text_edit != null:
+			_restore_text_edit_caret(text_caret_line, text_caret_column)
 	_text = filtered
+
+
+func _on_text_edit_changed(source: TextEdit) -> void:
+	if source == text_edit:
+		_on_text_changed(source.text)
+
+
+func _apply_input_limits(value: String) -> String:
+	var result := value
+	if _max_length > 0 and result.length() > _max_length:
+		result = result.substr(0, _max_length)
+	if _restrict == "":
+		return result
+	var filtered := ""
+	for i in result.length():
+		var ch := result.substr(i, 1)
+		if _is_restricted_character_allowed(result.unicode_at(i)):
+			filtered += ch
+	return filtered
+
+
+func _on_single_line_changed() -> void:
+	_ensure_input_control()
+
+
+func _handle_touchable_changed() -> void:
+	super._handle_touchable_changed()
+	if _input_control != null:
+		_input_control.mouse_filter = Control.MOUSE_FILTER_STOP if touchable else Control.MOUSE_FILTER_IGNORE
+
+
+func _ensure_input_control() -> void:
+	var use_multiline := not _single_line and not _password
+	if (use_multiline and text_edit != null) or (not use_multiline and line_edit != null):
+		_apply_input_settings()
+		return
+	var current_text := _get_text()
+	var restore_focus := _input_control != null and _input_control.has_focus()
+	_remove_input_control()
+	if use_multiline:
+		text_edit = TextEdit.new()
+		text_edit.text_changed.connect(_on_text_edit_changed.bind(text_edit))
+		text_edit.set_line_wrapping_mode(TextEdit.LINE_WRAPPING_BOUNDARY)
+		text_edit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_input_control = text_edit
+	else:
+		line_edit = LineEdit.new()
+		line_edit.text_changed.connect(_on_text_changed)
+		_input_control = line_edit
+	label = _input_control
+	node.add_child(_input_control)
+	_input_control.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_input_control.offset_left = 0.0
+	_input_control.offset_top = 0.0
+	_input_control.offset_right = 0.0
+	_input_control.offset_bottom = 0.0
+	_input_control.gui_input.connect(_on_gui_input)
+	_apply_input_settings()
+	_set_native_text(current_text)
+	if restore_focus:
+		_input_control.call_deferred("grab_focus")
+
+
+func _remove_input_control() -> void:
+	if _input_control == null:
+		return
+	var previous := _input_control
+	_input_control = null
+	line_edit = null
+	text_edit = null
+	label = null
+	if previous.get_parent() != null:
+		previous.get_parent().remove_child(previous)
+	if previous.is_inside_tree():
+		previous.queue_free()
+	else:
+		previous.free()
+
+
+func _apply_input_settings() -> void:
+	if _input_control == null:
+		return
+	_apply_editable()
+	_apply_prompt_text()
+	_apply_max_length()
+	_apply_keyboard_type()
+	if line_edit != null:
+		line_edit.secret = _password
+	_apply_font_size()
+	_apply_font_color()
+	_apply_leading()
+	_apply_stroke()
+	_apply_shadow()
+	_apply_align()
+	_apply_valign()
+	_handle_touchable_changed()
+
+
+func _apply_editable() -> void:
+	if line_edit != null:
+		line_edit.editable = _editable
+	elif text_edit != null:
+		text_edit.editable = _editable
+
+
+func _apply_prompt_text() -> void:
+	if line_edit != null:
+		line_edit.placeholder_text = _prompt_text
+	elif text_edit != null:
+		text_edit.placeholder_text = _prompt_text
+
+
+func _apply_max_length() -> void:
+	if line_edit != null:
+		line_edit.max_length = _max_length
+
+
+func _apply_keyboard_type() -> void:
+	if line_edit == null:
+		return
+	match _keyboard_type:
+		4:
+			line_edit.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
+		3:
+			line_edit.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_URL
+		_:
+			line_edit.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_DEFAULT
+
+
+func _set_native_text(value: String) -> void:
+	if _input_control == null:
+		return
+	_setting_input_text = true
+	if line_edit != null:
+		line_edit.text = value
+	elif text_edit != null:
+		text_edit.text = value
+	_setting_input_text = false
+
+
+func _restore_text_edit_caret(line: int, column: int) -> void:
+	if text_edit == null:
+		return
+	var caret_line := clampi(line, 0, maxi(0, text_edit.get_line_count() - 1))
+	text_edit.set_caret_line(caret_line, false)
+	text_edit.set_caret_column(mini(column, text_edit.get_line(caret_line).length()), false)
+
+
+func _on_container_focus_entered() -> void:
+	if _input_control != null and _input_control.is_inside_tree():
+		_input_control.call_deferred("grab_focus")
 
 
 func _is_restricted_character_allowed(codepoint: int) -> bool:
