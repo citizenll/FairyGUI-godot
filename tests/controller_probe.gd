@@ -39,6 +39,36 @@ func _initialize() -> void:
 	if controller.page_count != 0 or controller.selected_index != -1:
 		_fail("Controller clear_pages did not reset selection.")
 		return
+
+	var radio_parent := FGUIComponent.new()
+	root.add_child(radio_parent.node)
+	var radio_controller := FGUIController.new()
+	radio_controller.name = "radio"
+	radio_controller.auto_radio_group_depth = true
+	radio_controller.add_page("first")
+	radio_controller.add_page("second")
+	radio_parent.add_controller(radio_controller)
+	var first_radio := FGUIButton.new()
+	first_radio.mode = FGUIEnums.BUTTON_RADIO
+	first_radio.related_controller = radio_controller
+	first_radio.related_page_id = radio_controller.get_page_id(0)
+	var spacer := FGUIObject.new()
+	var second_radio := FGUIButton.new()
+	second_radio.mode = FGUIEnums.BUTTON_RADIO
+	second_radio.related_controller = radio_controller
+	second_radio.related_page_id = radio_controller.get_page_id(1)
+	radio_parent.add_child(first_radio)
+	radio_parent.add_child(spacer)
+	radio_parent.add_child(second_radio)
+	first_radio.selected = true
+	if radio_parent.get_child_at(2) != first_radio:
+		_fail("Auto radio group depth did not move the selected button in front of its group.")
+		return
+	second_radio.selected = true
+	if radio_parent.get_child_at(2) != second_radio:
+		_fail("Auto radio group depth did not update when the selected page changed.")
+		return
+	radio_parent.dispose()
 	parent.controllers.append(controller)
 	parent.dispose()
 	if controller.parent != null or controller.has_event_listener(FGUIEvents.STATE_CHANGED):

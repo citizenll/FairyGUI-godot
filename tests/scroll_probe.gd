@@ -76,6 +76,22 @@ func _initialize() -> void:
 	if absf(pane.pos_x - 420.0) > 1.5:
 		_fail("Animated scroll_to_view did not reach the target offset: %s" % pane.pos_x)
 		return
+	var pane_child := FGUIObject.new()
+	pane_child.set_xy(20.0, 0.0)
+	pane_child.set_size(30.0, 20.0)
+	owner.add_child(pane_child)
+	pane.set_pos(0.0, 0.0)
+	if not owner.is_child_in_view(pane_child) or owner.get_first_child_in_view() != 0:
+		_fail("Component view queries did not use the ScrollPane viewport at the origin.")
+		return
+	pane.set_pos(300.0, 0.0)
+	if owner.is_child_in_view(pane_child) or owner.get_first_child_in_view() != -1:
+		_fail("Component view queries did not use the ScrollPane scroll offset.")
+		return
+	pane.scroll_to_view(Rect2(560.0, 0.0, 20.0, 20.0), false, true)
+	if absf(pane.pos_x - 560.0) > 1.5:
+		_fail("ScrollPane did not accept a Rect2 target for scroll_to_view: %s" % pane.pos_x)
+		return
 
 	var parent := FGUIComponent.new()
 	host.add_child(parent.node)

@@ -84,8 +84,6 @@ func setup(buffer: FGUIByteBuffer) -> void:
 				action.setup(buffer)
 				actions.append(action)
 			buffer.pos = next_pos
-	if auto_radio_group_depth:
-		pass
 	_selected_index = home_page_index if page_ids.size() > 0 else -1
 
 

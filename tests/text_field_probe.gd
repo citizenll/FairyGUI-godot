@@ -34,6 +34,10 @@ func _initialize() -> void:
 	if field.get_prop(FGUIEnums.OBJECT_PROP_OUTLINE_COLOR) != field.stroke_color:
 		_fail("Outline color property was not exposed to gears.")
 		return
+	field.ensure_size_correct()
+	if field.text_width <= 0.0 or field.text_height <= 0.0:
+		_fail("Text fields did not expose measured text dimensions.")
+		return
 
 	field.set_size(80, 16)
 	field.auto_size = FGUIEnums.AUTOSIZE_ELLIPSIS
@@ -79,6 +83,10 @@ func _initialize() -> void:
 	if bitmap_field._bitmap_nodes.size() != 3 or bitmap_field.height < 21.0 or bitmap_field._bitmap_nodes[2].position.y < 11.0:
 		_fail("Bitmap text did not wrap into lines and auto-size its height.")
 		return
+	bitmap_field.ensure_size_correct()
+	if bitmap_field.text_width <= 0.0 or bitmap_field.text_height < 21.0:
+		_fail("Bitmap text fields did not expose measured text dimensions.")
+		return
 	bitmap_field.auto_size = FGUIEnums.AUTOSIZE_NONE
 	bitmap_field.single_line = true
 	bitmap_field.letter_spacing = 0
@@ -113,6 +121,10 @@ func _initialize() -> void:
 	await process_frame
 	if rich_field.width <= 0.0 or rich_field.height <= 0.0 or not rich_field.label.fit_content:
 		_fail("Rich text fields did not auto-size to their content.")
+		return
+	rich_field.ensure_size_correct()
+	if rich_field.text_width <= 0.0 or rich_field.text_height <= 0.0:
+		_fail("Rich text fields did not expose measured text dimensions.")
 		return
 	if rich_field.label.horizontal_alignment != HORIZONTAL_ALIGNMENT_CENTER or rich_field.label.vertical_alignment != VERTICAL_ALIGNMENT_BOTTOM:
 		_fail("Rich text fields did not apply horizontal and vertical alignment.")

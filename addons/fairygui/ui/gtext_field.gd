@@ -125,6 +125,13 @@ var _text: String = ""
 var _font_name: String = ""
 var _bitmap_font: FGUIBitmapFont
 var _bitmap_nodes: Array[TextureRect] = []
+var _bitmap_text_size := Vector2.ZERO
+var text_width: float:
+	get:
+		return _get_text_content_size().x
+var text_height: float:
+	get:
+		return _get_text_content_size().y
 
 
 func _create_display_object() -> void:
@@ -211,6 +218,13 @@ func get_text() -> String:
 
 func set_text(value: String) -> void:
 	_set_text(value)
+
+
+func ensure_size_correct() -> void:
+	if _bitmap_font != null:
+		_refresh_bitmap_text()
+	elif label is Label or label is RichTextLabel:
+		_update_text_size()
 
 
 func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
@@ -490,6 +504,7 @@ func _render_bitmap_text(value: String) -> void:
 	for line: Dictionary in lines:
 		max_width = maxf(max_width, float(line["width"]))
 	var total_height := maxf(line_height, float(lines.size()) * line_height + float(maxi(0, lines.size() - 1) * _leading))
+	_bitmap_text_size = Vector2(max_width, total_height)
 	_updating_text_size = true
 	if _auto_size == FGUIEnums.AUTOSIZE_BOTH:
 		set_size(max_width, total_height)
@@ -531,3 +546,13 @@ func _render_bitmap_text(value: String) -> void:
 func _refresh_bitmap_text() -> void:
 	if _bitmap_font != null and not _updating_text_size:
 		_render_bitmap_text(_parse_template(get_text()) if _template_vars_enabled else get_text())
+
+
+func _get_text_content_size() -> Vector2:
+	if _bitmap_font != null:
+		return _bitmap_text_size
+	if label is RichTextLabel:
+		return Vector2(label.get_content_width(), label.get_content_height())
+	if label != null:
+		return label.get_minimum_size()
+	return Vector2.ZERO

@@ -48,6 +48,8 @@ var selected: bool:
 		if related_controller != null and parent != null and not parent._building_display_list:
 			if _selected:
 				related_controller.selected_page_id = related_page_id
+				if related_controller.auto_radio_group_depth:
+					parent.adjust_radio_group_depth(self, related_controller)
 			elif mode == FGUIEnums.BUTTON_CHECK and related_controller.selected_page_id == related_page_id:
 				related_controller.selected_index = -1
 var title: String:

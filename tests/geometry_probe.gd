@@ -111,6 +111,21 @@ func _initialize() -> void:
 	if replace_parent.get_child_at(0) != before or replace_parent.get_child_at(1) != replacement or replace_parent.get_child_at(2) != after:
 		_fail("GObject add_before_me or add_after_me did not preserve child ordering.")
 		return
+	var clipped_parent := FGUIComponent.new()
+	clipped_parent.set_size(100.0, 100.0)
+	clipped_parent.node.clip_contents = true
+	fgui_root.add_child(clipped_parent)
+	var clipped_child := FGUIObject.new()
+	clipped_child.set_xy(90.0, 10.0)
+	clipped_child.set_size(20.0, 20.0)
+	clipped_parent.add_child(clipped_child)
+	if not clipped_parent.is_child_in_view(clipped_child) or clipped_parent.get_first_child_in_view() != 0:
+		_fail("Component clipped-view queries did not include partially visible children.")
+		return
+	clipped_child.set_xy(120.0, 10.0)
+	if clipped_parent.is_child_in_view(clipped_child) or clipped_parent.get_first_child_in_view() != -1:
+		_fail("Component clipped-view queries did not exclude offscreen children.")
+		return
 
 	object.tween_move(Vector2(20.0, 30.0), 0.04)
 	await create_timer(0.1).timeout

@@ -28,6 +28,7 @@ var _building_display_list: bool = false
 var _bounds_changed: bool = false
 var _content_node: Control
 var _sorting_child_count: int = 0
+var _applying_controller: FGUIController
 
 var num_children: int:
 	get:
@@ -304,9 +305,29 @@ func get_transition_at(index: int) -> FGUITransition:
 
 
 func apply_controller(controller: FGUIController) -> void:
+	_applying_controller = controller
 	for child in children:
 		child.handle_controller_changed(controller)
+	_applying_controller = null
 	controller.run_actions()
+
+
+func adjust_radio_group_depth(object: FGUIObject, controller: FGUIController) -> void:
+	if object == null or controller == null:
+		return
+	var object_index := -1
+	var last_radio_index := -1
+	for index in children.size():
+		var child: FGUIObject = children[index]
+		if child == object:
+			object_index = index
+		elif child is FGUIButton and (child as FGUIButton).related_controller == controller:
+			last_radio_index = index
+	if object_index < 0 or object_index >= last_radio_index:
+		return
+	if _applying_controller != null:
+		children[last_radio_index].handle_controller_changed(_applying_controller)
+	swap_children_at(object_index, last_radio_index)
 
 
 func handle_controller_changed(controller: FGUIController) -> void:
@@ -329,6 +350,23 @@ func ensure_bounds_correct() -> void:
 
 func ensure_size_correct() -> void:
 	ensure_bounds_correct()
+
+
+func is_child_in_view(child: FGUIObject) -> bool:
+	if child == null:
+		return false
+	if scroll_pane != null:
+		return scroll_pane.is_child_in_view(child)
+	if node != null and node.clip_contents:
+		return child.x + child.width >= 0.0 and child.x <= width and child.y + child.height >= 0.0 and child.y <= height
+	return true
+
+
+func get_first_child_in_view() -> int:
+	for index in children.size():
+		if is_child_in_view(children[index]):
+			return index
+	return -1
 
 
 func get_snapping_position(x_value: float, y_value: float) -> Vector2:

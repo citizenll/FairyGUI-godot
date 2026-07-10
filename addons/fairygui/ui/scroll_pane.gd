@@ -191,19 +191,27 @@ func set_content_size(width: float, height: float) -> void:
 	set_pos(pos_x, pos_y)
 
 
-func scroll_to_view(obj: FGUIObject, animated: bool = false, set_first: bool = false) -> void:
-	if obj == null or container == null:
+func scroll_to_view(target: Variant, animated: bool = false, set_first: bool = false) -> void:
+	if target == null or container == null:
+		return
+	var rect := Rect2()
+	if target is FGUIObject:
+		var object := target as FGUIObject
+		rect = Rect2(object.x, object.y, object.width, object.height)
+	elif target is Rect2:
+		rect = target
+	else:
 		return
 	var target_x := pos_x
 	var target_y := pos_y
-	if set_first or obj.x < pos_x:
-		target_x = obj.x
-	elif obj.x + obj.width > pos_x + view_width:
-		target_x = obj.x + obj.width - view_width
-	if set_first or obj.y < pos_y:
-		target_y = obj.y
-	elif obj.y + obj.height > pos_y + view_height:
-		target_y = obj.y + obj.height - view_height
+	if set_first or rect.position.x < pos_x:
+		target_x = rect.position.x
+	elif rect.end.x > pos_x + view_width:
+		target_x = rect.end.x - view_width
+	if set_first or rect.position.y < pos_y:
+		target_y = rect.position.y
+	elif rect.end.y > pos_y + view_height:
+		target_y = rect.end.y - view_height
 	set_pos(target_x, target_y, animated)
 
 
