@@ -284,6 +284,60 @@ func center(restraint: bool = false) -> void:
 		add_relation(target, FGUIEnums.RELATION_MIDDLE_MIDDLE)
 
 
+func make_full_screen(restraint: bool = true) -> void:
+	var target: FGUIObject = parent if parent != null else FGUIRoot.inst
+	if target == null:
+		return
+	set_xy(0.0, 0.0)
+	set_size(target.width, target.height)
+	if restraint:
+		add_relation(target, FGUIEnums.RELATION_SIZE)
+
+
+func tween_move(end_value: Vector2, duration: float) -> FGUIGTweener:
+	return FGUIGTween.to2(x, y, end_value.x, end_value.y, duration).set_target(self, Callable(self, "set_xy"))
+
+
+func tween_move_x(end_value: float, duration: float) -> FGUIGTweener:
+	return FGUIGTween.to(x, end_value, duration).set_target(self, "x")
+
+
+func tween_move_y(end_value: float, duration: float) -> FGUIGTweener:
+	return FGUIGTween.to(y, end_value, duration).set_target(self, "y")
+
+
+func tween_scale(end_value: Vector2, duration: float) -> FGUIGTweener:
+	return FGUIGTween.to2(_scale.x, _scale.y, end_value.x, end_value.y, duration).set_target(self, Callable(self, "set_scale"))
+
+
+func tween_scale_x(end_value: float, duration: float) -> FGUIGTweener:
+	return FGUIGTween.to(_scale.x, end_value, duration).set_target(self, Callable(self, "_set_tween_scale_x"))
+
+
+func tween_scale_y(end_value: float, duration: float) -> FGUIGTweener:
+	return FGUIGTween.to(_scale.y, end_value, duration).set_target(self, Callable(self, "_set_tween_scale_y"))
+
+
+func tween_resize(end_value: Vector2, duration: float) -> FGUIGTweener:
+	return FGUIGTween.to2(width, height, end_value.x, end_value.y, duration).set_target(self, Callable(self, "set_size"))
+
+
+func tween_fade(end_value: float, duration: float) -> FGUIGTweener:
+	return FGUIGTween.to(alpha, end_value, duration).set_target(self, "alpha")
+
+
+func tween_rotate(end_value: float, duration: float) -> FGUIGTweener:
+	return FGUIGTween.to(rotation, end_value, duration).set_target(self, "rotation")
+
+
+func _set_tween_scale_x(value: float) -> void:
+	set_scale(value, _scale.y)
+
+
+func _set_tween_scale_y(value: float) -> void:
+	set_scale(_scale.x, value)
+
+
 func construct_from_resource() -> void:
 	pass
 

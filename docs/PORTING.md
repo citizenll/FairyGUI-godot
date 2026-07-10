@@ -35,7 +35,7 @@ The Godot source tree is still useful as the API reference for current Control, 
 ## Compatibility Notes
 
 - The editor importer turns `.fui` files into `FGUIPackageResource` assets. Imported packages are included in exported projects; `FileAccess` remains a fallback for direct raw loading.
-- `GObject` provides pivot-aware local/global point and rectangle transforms, cross-object/root-space conversion, disposal state, and focus requests while retaining physical node-local coordinates for hit testing and input controls.
+- `GObject` provides pivot-aware local/global point and rectangle transforms, cross-object/root-space conversion, disposal state, focus requests, parent-constrained fullscreen sizing, and move/scale/resize/fade/rotation tween convenience methods while retaining physical node-local coordinates for hit testing and input controls.
 - `FGUIGTween` is driven automatically from the Godot frame loop and supports scalar through four-value, color, path, shake, delay, repeat/yoyo, pause, snapping, target-property/callback, lookup, and kill workflows.
 - `FGUIPackage.branch` and `FGUIPackage.set_branch` update loaded package branch indices, so branch-specific resources are selected for newly constructed UI objects.
 - `FGUIRoot.content_scale_factor` derives `FGUIRoot.content_scale_level`; package items use configured 2x, 3x, and 4x high-resolution variants when available.

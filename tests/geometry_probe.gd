@@ -35,6 +35,33 @@ func _initialize() -> void:
 	if not fgui_root.transform_point(transformed, object).is_equal_approx(Vector2(5.0, 5.0)):
 		_fail("GObject transform_point did not round-trip between coordinate spaces.")
 		return
+	var full_parent := FGUIComponent.new()
+	full_parent.set_size(320.0, 180.0)
+	fgui_root.add_child(full_parent)
+	var full_screen := FGUIObject.new()
+	full_parent.add_child(full_screen)
+	full_screen.make_full_screen()
+	if not Vector2(full_screen.width, full_screen.height).is_equal_approx(Vector2(320.0, 180.0)):
+		_fail("GObject make_full_screen did not fill its parent.")
+		return
+	full_parent.set_size(400.0, 200.0)
+	if not Vector2(full_screen.width, full_screen.height).is_equal_approx(Vector2(400.0, 200.0)):
+		_fail("GObject make_full_screen did not retain its size relation.")
+		return
+
+	object.tween_move(Vector2(20.0, 30.0), 0.04)
+	await create_timer(0.1).timeout
+	if not Vector2(object.x, object.y).is_equal_approx(Vector2(20.0, 30.0)):
+		_fail("GObject tween_move did not use the GTween runtime.")
+		return
+	object.tween_scale(Vector2(2.0, 3.0), 0.04)
+	object.tween_resize(Vector2(40.0, 30.0), 0.04)
+	object.tween_fade(0.4, 0.04)
+	object.tween_rotate(45.0, 0.04)
+	await create_timer(0.1).timeout
+	if not object.node.scale.is_equal_approx(Vector2(2.0, 3.0)) or not Vector2(object.width, object.height).is_equal_approx(Vector2(40.0, 30.0)) or absf(object.alpha - 0.4) > 0.01 or absf(object.rotation - 45.0) > 0.01:
+		_fail("GObject tween convenience methods did not update their target properties.")
+		return
 
 	fgui_root.dispose()
 	host.queue_free()
