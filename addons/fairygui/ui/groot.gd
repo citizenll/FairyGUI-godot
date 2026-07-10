@@ -32,7 +32,7 @@ var focus: FGUIObject:
 		return _focus_object
 	set(value):
 		_focus_object = value
-		if value != null and value.node != null:
+		if value != null and value.node != null and value.node.focus_mode != Control.FOCUS_NONE:
 			if value.node.is_inside_tree():
 				value.node.grab_focus()
 			else:

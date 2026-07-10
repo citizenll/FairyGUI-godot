@@ -31,6 +31,56 @@ func _initialize() -> void:
 	if not Vector2(draggable.x, draggable.y).is_equal_approx(Vector2(25.0, 20.0)) or drag_counts["start"] != 1 or drag_counts["move"] != 1 or drag_counts["end"] != 1:
 		_fail("Draggable objects did not handle screen drag events.")
 		return
+	var bounded_drag := FGUIObject.new()
+	bounded_drag.set_size(20.0, 20.0)
+	bounded_drag.set_xy(10.0, 10.0)
+	bounded_drag.drag_bounds = Rect2(0.0, 0.0, 40.0, 35.0)
+	bounded_drag.draggable = true
+	host.add_child(bounded_drag.node)
+	bounded_drag._on_gui_input(_screen_touch(Vector2(15.0, 15.0), true, 5))
+	bounded_drag._on_gui_input(_screen_drag(Vector2(80.0, 90.0), 5))
+	bounded_drag._on_gui_input(_screen_touch(Vector2(80.0, 90.0), false, 5))
+	if not Vector2(bounded_drag.x, bounded_drag.y).is_equal_approx(Vector2(20.0, 15.0)):
+		_fail("Drag bounds did not constrain the object position: %s,%s" % [bounded_drag.x, bounded_drag.y])
+		return
+	var threshold_drag := FGUIObject.new()
+	threshold_drag.set_size(20.0, 20.0)
+	threshold_drag.draggable = true
+	host.add_child(threshold_drag.node)
+	var threshold_counts := {"start": 0, "click": 0}
+	threshold_drag.on(FGUIEvents.DRAG_START, func(_event: Variant) -> void: threshold_counts["start"] += 1)
+	threshold_drag.on("click", func(_event: Variant) -> void: threshold_counts["click"] += 1)
+	threshold_drag._on_gui_input(_screen_touch(Vector2(5.0, 5.0), true, 6))
+	threshold_drag._on_gui_input(_screen_drag(Vector2(10.0, 10.0), 6))
+	threshold_drag._on_gui_input(_screen_touch(Vector2(10.0, 10.0), false, 6))
+	if threshold_counts["start"] != 0 or threshold_counts["click"] != 1:
+		_fail("Touch drag threshold did not preserve click behavior.")
+		return
+	var fgui_root := FGUIRoot.new()
+	fgui_root.set_size(240.0, 120.0)
+	host.add_child(fgui_root.node)
+	var drag_source := FGUIObject.new()
+	drag_source.set_size(20.0, 20.0)
+	fgui_root.add_child(drag_source)
+	var drop_target := FGUIObject.new()
+	drop_target.set_xy(100.0, 0.0)
+	drop_target.set_size(50.0, 40.0)
+	fgui_root.add_child(drop_target)
+	var drop_capture := {"payload": {}}
+	drop_target.on(FGUIEvents.DROP, func(payload: Variant) -> void: drop_capture["payload"] = payload as Dictionary)
+	await process_frame
+	drag_source._on_gui_input(_screen_touch(Vector2(10.0, 10.0), true, 7))
+	var drag_drop := FGUIDragDropManager.get_inst()
+	drag_drop.start_drag(drag_source, "", {"id": "probe"}, 7)
+	if not drag_drop.dragging or not drag_drop.drag_agent.dragging:
+		_fail("DragDropManager did not attach and start the drag agent.")
+		return
+	drag_drop.drag_agent._on_global_drag_input(_screen_drag(Vector2(110.0, 10.0), 7))
+	drag_drop.drag_agent._on_global_drag_input(_screen_touch(Vector2(110.0, 10.0), false, 7))
+	var drop_payload: Dictionary = drop_capture["payload"]
+	if drag_drop.dragging or drop_payload.get("data", {}).get("id", "") != "probe" or drop_payload.get("source") != drag_source:
+		_fail("DragDropManager did not dispatch the drop payload to the target: %s" % drop_payload)
+		return
 
 	var slider := FGUISlider.new()
 	slider.set_size(100.0, 20.0)
@@ -66,7 +116,11 @@ func _initialize() -> void:
 
 	component.dispose()
 	slider.dispose()
+	threshold_drag.dispose()
+	bounded_drag.dispose()
 	draggable.dispose()
+	drag_drop.dispose()
+	fgui_root.dispose()
 	button.dispose()
 	host.queue_free()
 	await process_frame
