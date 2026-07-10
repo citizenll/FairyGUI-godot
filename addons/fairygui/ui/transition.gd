@@ -33,6 +33,12 @@ var time_scale: float:
 		return _time_scale
 	set(value):
 		_time_scale = maxf(0.0001, value)
+		for tween in _active_tweens:
+			if is_instance_valid(tween):
+				tween.set_speed_scale(_time_scale)
+		for transition: FGUITransition in _active_child_transitions:
+			if is_instance_valid(transition):
+				transition.time_scale = _time_scale
 
 var total_duration: float:
 	get:
@@ -53,6 +59,7 @@ var _owner_base: Vector2 = Vector2.ZERO
 var _on_complete: Callable
 var _play_id: int = 0
 var _active_tweens: Array[Tween] = []
+var _active_child_transitions: Array[FGUITransition] = []
 
 
 func _init(p_owner: FGUIComponent = null) -> void:
@@ -81,7 +88,7 @@ func set_auto_play(value: bool, times: int = -1, delay: float = 0.0) -> void:
 		stop(false, true)
 
 
-func stop(set_to_complete: bool = false, process_callback: bool = false) -> void:
+func stop(set_to_complete: bool = true, process_callback: bool = false) -> void:
 	if not playing:
 		return
 	_play_id += 1
@@ -91,6 +98,11 @@ func stop(set_to_complete: bool = false, process_callback: bool = false) -> void
 		if is_instance_valid(tween):
 			tween.kill()
 	_active_tweens.clear()
+	var child_transitions := _active_child_transitions.duplicate()
+	_active_child_transitions.clear()
+	for transition: FGUITransition in child_transitions:
+		if is_instance_valid(transition):
+			transition.stop(set_to_complete, false)
 	if set_to_complete:
 		_apply_complete_state()
 	var callback := _on_complete
@@ -110,6 +122,9 @@ func set_paused(value: bool) -> void:
 			tween.pause()
 		else:
 			tween.play()
+	for transition: FGUITransition in _active_child_transitions:
+		if is_instance_valid(transition):
+			transition.set_paused(value)
 
 
 func dispose() -> void:
@@ -300,13 +315,27 @@ func _play(on_complete: Callable, times: int, delay: float, start_time: float, e
 
 
 func _start_after_delay(token: int, delay: float) -> void:
-	if delay > 0.0 and _has_tree():
-		await owner.node.get_tree().create_timer(delay / _time_scale).timeout
 	if token != _play_id or not playing:
 		return
 	if not _has_tree():
 		_apply_complete_state()
 		_finish_playback(token)
+		return
+	if delay > 0.0:
+		var delay_tween := _make_tween()
+		if delay_tween == null:
+			_apply_complete_state()
+			_finish_playback(token)
+			return
+		delay_tween.tween_interval(delay)
+		delay_tween.finished.connect(Callable(self, "_on_start_delay_finished").bind(token, delay_tween))
+		return
+	_internal_play(token)
+
+
+func _on_start_delay_finished(token: int, tween: Tween) -> void:
+	_active_tweens.erase(tween)
+	if token != _play_id or not playing:
 		return
 	_internal_play(token)
 
@@ -324,7 +353,7 @@ func _internal_play(token: int) -> void:
 		if _schedule_item(item, token):
 			scheduled += 1
 	if scheduled == 0:
-		_finish_playback(token)
+		_check_all_complete(token)
 
 
 func _schedule_item(item: Dictionary, token: int) -> bool:
@@ -360,9 +389,9 @@ func _schedule_item(item: Dictionary, token: int) -> bool:
 		if tween == null:
 			return false
 		if delay > 0.0:
-			tween.tween_interval(delay / _time_scale)
+			tween.tween_interval(delay)
 		tween.tween_callback(Callable(self, "_call_hook").bind(item, false))
-		tween.tween_method(Callable(self, "_apply_tween_elapsed").bind(item, start_value, end_value), offset, offset + play_duration, play_duration / _time_scale)
+		tween.tween_method(Callable(self, "_apply_tween_elapsed").bind(item, start_value, end_value), offset, offset + play_duration, play_duration)
 		if total_span < INF and offset + play_duration >= total_span - 0.0001:
 			tween.tween_callback(Callable(self, "_call_hook").bind(item, true))
 		tween.finished.connect(Callable(self, "_on_item_tween_finished").bind(token, tween))
@@ -377,7 +406,7 @@ func _schedule_item(item: Dictionary, token: int) -> bool:
 	var delayed := _make_tween()
 	if delayed == null:
 		return false
-	delayed.tween_interval((action_time - _start_time) / _time_scale)
+	delayed.tween_interval(action_time - _start_time)
 	delayed.tween_callback(Callable(self, "_on_delayed_item").bind(item, token))
 	delayed.finished.connect(Callable(self, "_on_item_tween_finished").bind(token, delayed))
 	return true
@@ -389,6 +418,7 @@ func _make_tween() -> Tween:
 	var tween := owner.node.create_tween()
 	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	tween.set_trans(Tween.TRANS_LINEAR)
+	tween.set_speed_scale(_time_scale)
 	_active_tweens.append(tween)
 	return tween
 
@@ -405,11 +435,11 @@ func _schedule_infinite_tween_cycle(item: Dictionary, token: int, delay: float, 
 	if tween == null:
 		return false
 	if delay > 0.0:
-		tween.tween_interval(delay / _time_scale)
+		tween.tween_interval(delay)
 	if call_start_hook:
 		tween.tween_callback(Callable(self, "_call_hook").bind(item, false))
 	var segment_duration := maxf(0.0001, next_offset - offset)
-	tween.tween_method(Callable(self, "_apply_tween_elapsed").bind(item, start_value, end_value), offset, next_offset, segment_duration / _time_scale)
+	tween.tween_method(Callable(self, "_apply_tween_elapsed").bind(item, start_value, end_value), offset, next_offset, segment_duration)
 	tween.finished.connect(Callable(self, "_on_infinite_tween_cycle_finished").bind(token, tween, item, next_offset, start_value, end_value))
 	return true
 
@@ -425,8 +455,14 @@ func _on_item_tween_finished(token: int, tween: Tween) -> void:
 	_active_tweens.erase(tween)
 	if token != _play_id or not playing:
 		return
-	if _active_tweens.is_empty():
-		_finish_playback(token)
+	_check_all_complete(token)
+
+
+func _on_child_transition_finished(token: int, transition: FGUITransition) -> void:
+	_active_child_transitions.erase(transition)
+	if token != _play_id or not playing:
+		return
+	_check_all_complete(token)
 
 
 func _on_infinite_tween_cycle_finished(token: int, tween: Tween, item: Dictionary, next_offset: float, start_value: Dictionary, end_value: Dictionary) -> void:
@@ -434,6 +470,13 @@ func _on_infinite_tween_cycle_finished(token: int, tween: Tween, item: Dictionar
 	if token != _play_id or not playing:
 		return
 	_schedule_infinite_tween_cycle(item, token, 0.0, next_offset, start_value, end_value, false)
+
+
+func _check_all_complete(token: int) -> void:
+	if token != _play_id or not playing:
+		return
+	if _active_tweens.is_empty() and _active_child_transitions.is_empty():
+		_finish_playback(token)
 
 
 func _finish_playback(token: int) -> void:
@@ -454,18 +497,38 @@ func _finish_playback(token: int) -> void:
 
 
 func _resolve_targets() -> void:
-	for item in _items:
+	for i in _items.size():
+		var item: Dictionary = _items[i]
 		var target_id := String(item.get("target_id", ""))
 		if target_id == "":
 			item["target"] = owner
 		else:
 			item["target"] = owner.get_child_by_id(target_id) if owner != null else null
-		if item["target"] != null and item["type"] == ACTION_TRANSITION:
+		if item["type"] != ACTION_TRANSITION:
+			continue
+		var value: Dictionary = item["value"]
+		value["stop_time"] = -1.0
+		var nested_transition: FGUITransition = null
+		if item["target"] != null:
 			var target: FGUIObject = item["target"]
 			if target is FGUIComponent:
 				var component := target as FGUIComponent
-				var trans: FGUITransition = component.get_transition(String(item["value"].get("trans_name", "")))
-				item["value"]["trans"] = null if trans == self else trans
+				nested_transition = component.get_transition(String(value.get("trans_name", "")))
+				if nested_transition == self:
+					nested_transition = null
+		if nested_transition != null and int(value.get("play_times", 1)) == 0:
+			var found_start := false
+			for j in range(i - 1, -1, -1):
+				var previous: Dictionary = _items[j]
+				if previous["type"] == ACTION_TRANSITION and previous["value"].get("trans") == nested_transition:
+					previous["value"]["stop_time"] = float(item["time"]) - float(previous["time"])
+					found_start = true
+					break
+			if found_start:
+				nested_transition = null
+			else:
+				value["stop_time"] = 0.0
+		value["trans"] = nested_transition
 
 
 func _apply_tween_variant(value: Variant, item: Dictionary) -> void:
@@ -530,21 +593,35 @@ func _apply_value(item: Dictionary, source_value: Dictionary) -> void:
 				if root_object != null:
 					root_object.play_one_shot_sound(String(value.get("sound", "")), float(value.get("volume", 1.0)))
 		ACTION_TRANSITION:
-			if playing and value.get("trans") != null:
-				var trans: FGUITransition = value["trans"]
-				trans.time_scale = _time_scale
-				trans.play(Callable(), int(value.get("play_times", 1)), 0.0)
+			_play_nested_transition(item, value)
 		ACTION_SHAKE:
 			var offset := Vector2(float(value.get("offset_x", 0.0)), float(value.get("offset_y", 0.0)))
 			var last := Vector2(float(value.get("last_offset_x", 0.0)), float(value.get("last_offset_y", 0.0)))
 			target.set_xy(target.x - last.x + offset.x, target.y - last.y + offset.y)
 			source_value["last_offset_x"] = offset.x
 			source_value["last_offset_y"] = offset.y
+		ACTION_COLOR_FILTER:
+			FGUIToolSet.set_color_filter(target.node, [value.get("f1", 0.0), value.get("f2", 0.0), value.get("f3", 0.0), value.get("f4", 0.0)])
 		ACTION_TEXT:
 			target.set_text(String(value.get("text", "")))
 		ACTION_ICON:
 			target.set_icon(String(value.get("text", "")))
 	target._gear_locked = false
+
+
+func _play_nested_transition(item: Dictionary, value: Dictionary) -> void:
+	if not playing or value.get("trans") == null:
+		return
+	var transition: FGUITransition = value["trans"]
+	var start_time := maxf(0.0, _start_time - float(item.get("time", 0.0)))
+	var end_time := _end_time - float(item.get("time", 0.0)) if _end_time >= 0.0 else -1.0
+	var stop_time := float(value.get("stop_time", -1.0))
+	if stop_time >= 0.0 and (end_time < 0.0 or end_time > stop_time):
+		end_time = stop_time
+	var token := _play_id
+	_active_child_transitions.append(transition)
+	transition.time_scale = _time_scale
+	transition._play(Callable(self, "_on_child_transition_finished").bind(token, transition), int(value.get("play_times", 1)), 0.0, start_time, end_time, _reversed)
 
 
 func _apply_complete_state() -> void:

@@ -78,6 +78,7 @@ func remove_child(child: FGUIObject, dispose_child: bool = false) -> FGUIObject:
 	children.remove_at(index)
 	var container := _get_content_node()
 	if child.node != null and child.node.get_parent() == container:
+		FGUIToolSet.detach_color_filter(child.node, node)
 		container.remove_child(child.node)
 	child.parent = null
 	if dispose_child:
@@ -443,6 +444,7 @@ func _add_child_node(child: FGUIObject, index: int) -> void:
 	container.add_child(child.node)
 	if index >= 0 and index < container.get_child_count():
 		container.move_child(child.node, index)
+	FGUIToolSet.refresh_color_filter(node, true)
 
 
 func _rebuild_native_display_list() -> void:

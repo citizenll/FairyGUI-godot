@@ -278,7 +278,7 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 	buffer.read_i8()
 	var filter := buffer.read_i8()
 	if filter == 1:
-		buffer.skip(16)
+		FGUIToolSet.set_color_filter(node, [buffer.read_float32(), buffer.read_float32(), buffer.read_float32(), buffer.read_float32()])
 	var user_data = buffer.read_s()
 	if user_data != null:
 		data = user_data
