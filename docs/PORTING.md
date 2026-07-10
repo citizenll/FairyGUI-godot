@@ -40,4 +40,5 @@ The Godot source tree is still useful as the API reference for current Control, 
 - Text fields support template variables, line spacing, outline/shadow settings, and Both/Height/Ellipsis auto-size behavior through Godot labels.
 - Components support forward image/rectangle alpha masks through native `CanvasItem` clipping, including matching component input filtering. Reversed masks are not implemented yet.
 - Scroll panes provide header/footer lock layout and top/bottom navigation. Native touch overscroll and pull-release events are not implemented yet.
+- Tree nodes support dynamic insertion, removal, reordering, selection, and single-click folder expansion with pooled cell refreshes.
 - Scale9, common widgets, list layout, scroll containers, bitmap fonts, audio, and pixel hit testing are present. Complex transition timelines, very large virtual lists, rendering comparison, and performance still require commercial-freeze parity work.
