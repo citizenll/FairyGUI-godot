@@ -11,6 +11,18 @@ var children_render_order: int = FGUIEnums.CHILDREN_RENDER_ASCENT
 var apex_index: int = 0
 var scroll_pane: FGUIScrollPane
 var hit_test_child: FGUIObject
+var _mask: FGUIObject
+var _reversed_mask: bool = false
+var mask: FGUIObject:
+	get:
+		return _mask
+	set(value):
+		set_mask(value, _reversed_mask)
+var reversed_mask: bool:
+	get:
+		return _reversed_mask
+	set(value):
+		set_mask(_mask, value)
 
 var _building_display_list: bool = false
 var _bounds_changed: bool = false
@@ -41,7 +53,13 @@ func add_child(child: FGUIObject) -> FGUIObject:
 	return add_child_at(child, children.size())
 
 
+func _create_display_object() -> void:
+	node = FGUIMaskContainer.new()
+	node.mouse_filter = Control.MOUSE_FILTER_PASS
+
+
 func dispose() -> void:
+	set_mask(null)
 	hit_test_child = null
 	for transition: FGUITransition in transitions:
 		transition.dispose()
@@ -77,6 +95,8 @@ func remove_child(child: FGUIObject, dispose_child: bool = false) -> FGUIObject:
 	var index := children.find(child)
 	if index == -1:
 		return child
+	if child == _mask:
+		set_mask(null)
 	children.remove_at(index)
 	if child == hit_test_child:
 		hit_test_child = null
@@ -414,7 +434,7 @@ func _setup_component_metadata(buffer: FGUIByteBuffer, content_item: FGUIPackage
 	opaque = buffer.read_bool()
 	var mask_id := buffer.read_i16()
 	if mask_id != -1:
-		buffer.read_bool()
+		set_mask(get_child_at(mask_id), buffer.read_bool())
 	var hit_test_id = buffer.read_s()
 	var hit_offset_x := buffer.read_i32()
 	var child_hit_index := buffer.read_i32()
@@ -462,6 +482,8 @@ func _add_child_node(child: FGUIObject, index: int) -> void:
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouse and hit_test_child != null and not _contains_hit_test_child(event.global_position):
 		return
+	if event is InputEventMouse and _mask != null and not _reversed_mask and not _contains_mask(event.global_position):
+		return
 	super._on_gui_input(event)
 
 
@@ -473,6 +495,35 @@ func _contains_hit_test_child(global_position: Vector2) -> bool:
 	if child.pixel_hit_test != null:
 		return child.pixel_hit_test.contains(local_position.x, local_position.y)
 	return Rect2(Vector2.ZERO, Vector2(child.width, child.height)).has_point(local_position)
+
+
+func set_mask(value: FGUIObject, reversed: bool = false) -> void:
+	if _mask == value and _reversed_mask == reversed:
+		return
+	if _mask != null:
+		_mask.off(FGUIEvents.XY_CHANGED, Callable(self, "_refresh_mask"))
+		_mask.off(FGUIEvents.SIZE_CHANGED, Callable(self, "_refresh_mask"))
+	_mask = value
+	_reversed_mask = reversed
+	if _mask != null:
+		_mask.on(FGUIEvents.XY_CHANGED, Callable(self, "_refresh_mask"))
+		_mask.on(FGUIEvents.SIZE_CHANGED, Callable(self, "_refresh_mask"))
+	if node is FGUIMaskContainer:
+		(node as FGUIMaskContainer).set_mask(_mask, _reversed_mask)
+
+
+func _refresh_mask(_event: Variant = null) -> void:
+	if node is FGUIMaskContainer:
+		(node as FGUIMaskContainer).refresh_mask()
+
+
+func _contains_mask(global_position: Vector2) -> bool:
+	if _mask == null or _mask.node == null or not _mask.visible:
+		return false
+	var local_position := _mask.global_to_local(global_position)
+	if _mask.pixel_hit_test != null:
+		return _mask.pixel_hit_test.contains(local_position.x, local_position.y)
+	return Rect2(Vector2.ZERO, Vector2(_mask.width, _mask.height)).has_point(local_position)
 
 
 func _rebuild_native_display_list() -> void:

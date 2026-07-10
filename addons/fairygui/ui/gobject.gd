@@ -495,7 +495,7 @@ func _handle_alpha_changed() -> void:
 
 func _handle_visible_changed() -> void:
 	if node != null:
-		node.visible = _visible and _internal_visible
+		node.visible = _visible and _internal_visible and not bool(node.get_meta("fgui_mask_hidden", false))
 
 
 func _handle_touchable_changed() -> void:
