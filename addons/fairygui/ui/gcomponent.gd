@@ -482,8 +482,10 @@ func _add_child_node(child: FGUIObject, index: int) -> void:
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouse and hit_test_child != null and not _contains_hit_test_child(event.global_position):
 		return
-	if event is InputEventMouse and _mask != null and not _reversed_mask and not _contains_mask(event.global_position):
-		return
+	if event is InputEventMouse and _mask != null:
+		var is_in_mask := _contains_mask(event.global_position)
+		if (not _reversed_mask and not is_in_mask) or (_reversed_mask and is_in_mask):
+			return
 	super._on_gui_input(event)
 
 

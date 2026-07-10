@@ -38,7 +38,7 @@ The Godot source tree is still useful as the API reference for current Control, 
 - Compressed FairyGUI packages use the bundled raw-deflate implementation and are covered by the compression probe.
 - Uniform-size virtual lists support single-row, single-column, flow-horizontal, flow-vertical, and pagination layouts with pooled-item recycling, logical item renderer/provider indices, and visible selection state. Six-copy loop scrolling remains limited to single-row and single-column layouts; variable item measurements and loop mode for flow/pagination layouts are not implemented yet.
 - Text fields support template variables, line spacing, outline/shadow settings, and Both/Height/Ellipsis auto-size behavior through Godot labels.
-- Components support forward image/rectangle alpha masks through native `CanvasItem` clipping, including matching component input filtering. Reversed masks are not implemented yet.
+- Components support forward and reversed image/rectangle alpha masks. Forward masks use native `CanvasItem` clipping; reversed masks use a local Canvas shader and preserve texture alpha. Component input filtering follows mask bounds and configured pixel-hit tests.
 - Scroll panes provide header/footer lock layout, top/bottom navigation, edge-drag `PULL_DOWN_RELEASE`/`PULL_UP_RELEASE` events, and `SCROLL_END` for completed pointer drags. Godot's native elastic overscroll animation is not replicated yet.
 - Tree nodes support dynamic insertion, removal, reordering, selection, and single-click folder expansion with pooled cell refreshes.
 - Windows attach through `GRoot`, preserve init/show/hide lifecycle callbacks, support content panes, close controls, modal root overlays, ordering, and modal-wait pane ownership.
