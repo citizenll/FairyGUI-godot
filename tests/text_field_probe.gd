@@ -70,6 +70,37 @@ func _initialize() -> void:
 	if field.label.label_settings.font_size != 20:
 		_fail("Leaving Shrink auto-size did not restore the requested font size.")
 		return
+	var ubb_field := FGUITextField.new()
+	host.add_child(ubb_field.node)
+	ubb_field.font_size = 17
+	ubb_field.color = Color(0.3, 0.6, 0.2)
+	ubb_field.text = "[b]Bold[/b] [color=#ff0000]Red[/color]"
+	var plain_node := ubb_field.node
+	ubb_field.ubb_enabled = true
+	await process_frame
+	if not (ubb_field.label is RichTextLabel) or ubb_field.node != ubb_field.label or ubb_field.node.get_parent() != host:
+		_fail("UBB-enabled text fields did not replace their renderer while preserving the display parent.")
+		return
+	if is_instance_valid(plain_node) or ubb_field.label.get_parsed_text() != "Bold Red":
+		_fail("UBB-enabled text fields did not dispose the plain renderer or parse BBCode content.")
+		return
+	if ubb_field.label.get_theme_font_size("normal_font_size") != 17 or ubb_field.label.get_theme_color("default_color") != ubb_field.color:
+		_fail("UBB-enabled text fields did not retain existing font styling.")
+		return
+	ubb_field.ubb_enabled = false
+	if not (ubb_field.label is Label) or ubb_field.label.text != "[b]Bold[/b] [color=#ff0000]Red[/color]":
+		_fail("Disabling UBB did not restore a plain text renderer and raw text content.")
+		return
+	var filtered_ubb_field := FGUITextField.new()
+	host.add_child(filtered_ubb_field.node)
+	var filter_values := Vector4(0.1, -0.2, 0.3, -0.4)
+	FGUIToolSet.set_color_filter(filtered_ubb_field.node, filter_values)
+	filtered_ubb_field.grayed = true
+	filtered_ubb_field.ubb_enabled = true
+	var filtered_material := filtered_ubb_field.node.material as ShaderMaterial
+	if filtered_material == null or filtered_material.get_shader_parameter("fgui_filter") != filter_values or not bool(filtered_material.get_shader_parameter("fgui_grayed")):
+		_fail("UBB renderer changes did not preserve combined color-filter and grayed state.")
+		return
 	var bitmap_field := FGUITextField.new()
 	host.add_child(bitmap_field.node)
 	bitmap_field._bitmap_font = _make_bitmap_font()
@@ -193,6 +224,10 @@ func _initialize() -> void:
 	if input.text_edit == null or input.line_edit != null:
 		_fail("Text inputs did not restore TextEdit after leaving password single-line mode.")
 		return
+	input.ubb_enabled = true
+	if input.text_edit == null or input.label != input.text_edit:
+		_fail("Text input UBB settings should not replace the native input control.")
+		return
 	if input.text_edit.get_theme_font_size("font_size") != 18 or input.text_edit.get_theme_color("font_color") != input.color:
 		_fail("Text inputs did not preserve font styling when switching back to multiline mode.")
 		return
@@ -227,6 +262,8 @@ func _initialize() -> void:
 	input.dispose()
 	rich_field.dispose()
 	bitmap_field.dispose()
+	ubb_field.dispose()
+	filtered_ubb_field.dispose()
 	field.dispose()
 	host.queue_free()
 	await process_frame

@@ -14,6 +14,7 @@ var _shadow_color: Color = Color(0, 0, 0, 0)
 var _shadow_offset: Vector2 = Vector2.ZERO
 var _template_vars: Dictionary = {}
 var _template_vars_enabled: bool = false
+var _ubb_enabled: bool = false
 var _updating_text_size: bool = false
 var _effective_font_size: int = 14
 var font_size: int:
@@ -94,6 +95,15 @@ var shadow_offset: Vector2:
 	set(value):
 		_shadow_offset = value
 		_apply_shadow()
+var ubb_enabled: bool:
+	get:
+		return _ubb_enabled
+	set(value):
+		if _ubb_enabled == value:
+			return
+		_ubb_enabled = value
+		_ensure_text_renderer()
+		_apply_display_text()
 var template_vars: Variant:
 	get:
 		return _template_vars if _template_vars_enabled else null
@@ -166,9 +176,50 @@ func _apply_display_text() -> void:
 	if _bitmap_font != null:
 		_render_bitmap_text(value)
 		return
+	if label is RichTextLabel and _ubb_enabled:
+		_set_rich_text_content(value)
+		return
 	if label != null:
 		label.text = value
 	_update_text_size()
+
+
+func _set_rich_text_content(value: String) -> void:
+	if not (label is RichTextLabel):
+		return
+	var parsed := FGUIUBBParser.default_parser.parse(value) if FGUIUBBParser.default_parser != null else value
+	var image_regex := RegEx.new()
+	image_regex.compile("(?i)\\[img\\](ui://[^\\[]+)\\[/img\\]")
+	var first_match := image_regex.search(parsed)
+	if first_match == null:
+		label.text = parsed
+		_update_text_size()
+		return
+	label.clear()
+	var cursor := 0
+	var current_match := first_match
+	while current_match != null:
+		var start := current_match.get_start()
+		var end := current_match.get_end()
+		if start > cursor:
+			label.append_text(parsed.substr(cursor, start - cursor))
+		_append_package_image(current_match.get_string(1))
+		cursor = end
+		current_match = image_regex.search(parsed, cursor)
+	if cursor < parsed.length():
+		label.append_text(parsed.substr(cursor))
+	_update_text_size()
+
+
+func _append_package_image(url: String) -> void:
+	var item := FGUIPackage.get_item_by_url(url)
+	if item == null:
+		return
+	item = item.get_branch().get_high_resolution()
+	item.load()
+	if item.texture == null:
+		return
+	label.add_image(item.texture, item.width, item.height)
 
 
 func _parse_template(template: String) -> String:
@@ -241,7 +292,7 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 	_apply_valign()
 	leading = buffer.read_i16()
 	letter_spacing = buffer.read_i16()
-	buffer.read_bool()
+	ubb_enabled = buffer.read_bool()
 	auto_size = buffer.read_i8()
 	buffer.read_bool()
 	buffer.read_bool()
@@ -264,6 +315,7 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 			var font_asset: Variant = font_item.owner.get_item_asset(font_item)
 			if font_asset is FGUIBitmapFont:
 				_bitmap_font = font_asset
+				_ensure_text_renderer()
 				if label != null:
 					label.text = ""
 
@@ -556,3 +608,68 @@ func _get_text_content_size() -> Vector2:
 	if label != null:
 		return label.get_minimum_size()
 	return Vector2.ZERO
+
+
+func _ensure_text_renderer() -> void:
+	if self is FGUITextInput:
+		return
+	var use_rich_text := _bitmap_font == null and (_ubb_enabled or self is FGUIRichTextField)
+	if use_rich_text == (label is RichTextLabel):
+		return
+	_replace_text_renderer(use_rich_text)
+
+
+func _replace_text_renderer(use_rich_text: bool) -> void:
+	var previous_node := node
+	var native_parent := previous_node.get_parent() if previous_node != null else null
+	var sibling_index := previous_node.get_index() if previous_node != null and native_parent != null else -1
+	var filter_values: Variant = previous_node.get_meta("_fgui_filter_values") if previous_node != null and previous_node.has_meta("_fgui_filter_values") else null
+	var filter_grayed := bool(previous_node.get_meta("_fgui_filter_gray")) if previous_node != null and previous_node.has_meta("_fgui_filter_gray") else false
+	var self_modulate := previous_node.self_modulate if previous_node != null else Color.WHITE
+	var mouse_filter := previous_node.mouse_filter if previous_node != null else Control.MOUSE_FILTER_IGNORE
+	if previous_node != null:
+		previous_node.remove_meta("fgui_owner")
+		if native_parent != null:
+			native_parent.remove_child(previous_node)
+		previous_node.free()
+	if use_rich_text:
+		label = RichTextLabel.new()
+		label.bbcode_enabled = true
+		label.fit_content = true
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	else:
+		label = Label.new()
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		label.clip_text = false
+		label.label_settings = LabelSettings.new()
+	node = label
+	node.set_meta("fgui_owner", self)
+	node.name = name if name != "" else id
+	node.gui_input.connect(_on_gui_input)
+	node.mouse_entered.connect(_on_mouse_entered)
+	node.mouse_exited.connect(_on_mouse_exited)
+	if native_parent != null:
+		native_parent.add_child(node)
+		if sibling_index >= 0:
+			native_parent.move_child(node, sibling_index)
+	node.self_modulate = self_modulate
+	node.mouse_filter = mouse_filter
+	node.tooltip_text = _tooltips if FGUIConfig.tooltips_win == "" else ""
+	node.scale = _scale
+	node.pivot_offset = Vector2(_width * _pivot.x, _height * _pivot.y)
+	node.size = Vector2(_width, _height)
+	_handle_xy_changed()
+	_handle_alpha_changed()
+	_handle_visible_changed()
+	_apply_font_size()
+	_apply_font_color()
+	_apply_leading()
+	_apply_stroke()
+	_apply_shadow()
+	_apply_align()
+	_apply_valign()
+	_configure_label_layout()
+	if filter_values != null:
+		FGUIToolSet.set_color_filter(node, filter_values)
+	if filter_grayed or _grayed:
+		FGUIToolSet.set_color_filter(node, true)
