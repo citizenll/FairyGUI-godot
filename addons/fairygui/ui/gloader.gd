@@ -1,7 +1,10 @@
 class_name FGUILoader
 extends FGUIObject
 
+const FillRenderer := preload("res://addons/fairygui/ui/fill_renderer.gd")
+
 var texture_rect: TextureRect
+var fill_renderer
 var content_component: FGUIComponent
 var content_movie_clip: FGUIMovieClip
 var content_item: FGUIPackageItem
@@ -59,10 +62,24 @@ var color: Color = Color.WHITE:
 		color = value
 		if texture_rect != null:
 			texture_rect.modulate = value
-var fill_method: int = FGUIEnums.FILL_NONE
-var fill_origin: int = 0
-var fill_clockwise: bool = true
-var fill_amount: float = 1.0
+		if fill_renderer != null:
+			fill_renderer.modulate = value
+var fill_method: int = FGUIEnums.FILL_NONE:
+	set(value):
+		fill_method = value
+		_apply_fill()
+var fill_origin: int = 0:
+	set(value):
+		fill_origin = value
+		_apply_fill()
+var fill_clockwise: bool = true:
+	set(value):
+		fill_clockwise = value
+		_apply_fill()
+var fill_amount: float = 1.0:
+	set(value):
+		fill_amount = clampf(value, 0.0, 1.0)
+		_apply_fill()
 
 var _url: String = ""
 var _updating_layout: bool = false
@@ -90,6 +107,10 @@ func _create_display_object() -> void:
 	texture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	texture_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	node.add_child(texture_rect)
+	fill_renderer = FillRenderer.new()
+	fill_renderer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fill_renderer.visible = false
+	node.add_child(fill_renderer)
 
 
 func dispose() -> void:
@@ -230,6 +251,8 @@ func update_layout() -> void:
 	else:
 		texture_rect.position = position
 		texture_rect.size = target_size
+		fill_renderer.position = position
+		fill_renderer.size = target_size
 
 
 func _load_url() -> void:
@@ -254,7 +277,7 @@ func _load_from_package(item_url: String) -> void:
 	source_height = content_item.height
 	match content_item.type:
 		FGUIEnums.PACKAGE_ITEM_IMAGE, FGUIEnums.PACKAGE_ITEM_ATLAS:
-			texture_rect.texture = content_item.texture
+			_set_texture(content_item.texture)
 			if texture_rect.texture == null:
 				_set_error_state()
 			else:
@@ -295,14 +318,14 @@ func _load_external(path: String) -> void:
 		return
 	var resource := load(path)
 	if resource is Texture2D:
-		texture_rect.texture = resource
+		_set_texture(resource)
 		source_width = resource.get_width()
 		source_height = resource.get_height()
 		update_layout()
 		return
 	var image := Image.load_from_file(path)
 	if image != null and not image.is_empty():
-		texture_rect.texture = ImageTexture.create_from_image(image)
+		_set_texture(ImageTexture.create_from_image(image))
 		source_width = image.get_width()
 		source_height = image.get_height()
 		update_layout()
@@ -313,8 +336,7 @@ func _load_external(path: String) -> void:
 func _clear_content() -> void:
 	_cancel_external_request()
 	if texture_rect != null:
-		texture_rect.texture = null
-		texture_rect.visible = true
+		_set_texture(null)
 	if content_component != null:
 		content_component.dispose()
 		content_component = null
@@ -366,7 +388,7 @@ func _on_http_request_completed(result: int, response_code: int, _headers: Packe
 	if texture == null:
 		_set_error_state()
 		return
-	texture_rect.texture = texture
+	_set_texture(texture)
 	source_width = texture.get_width()
 	source_height = texture.get_height()
 	update_layout()
@@ -406,6 +428,23 @@ func _decode_external_texture(data: PackedByteArray, source: String) -> Texture2
 func _set_error_state() -> void:
 	if show_error_sign:
 		push_warning("FairyGUI loader content not found or unsupported: %s" % url)
+
+
+func _set_texture(texture: Texture2D) -> void:
+	if texture_rect == null:
+		return
+	texture_rect.texture = texture
+	_apply_fill()
+
+
+func _apply_fill() -> void:
+	if texture_rect == null or fill_renderer == null:
+		return
+	var use_fill := fill_method != FGUIEnums.FILL_NONE and texture_rect.texture != null
+	texture_rect.visible = not use_fill
+	fill_renderer.visible = use_fill
+	fill_renderer.modulate = color
+	fill_renderer.configure(texture_rect.texture, fill_method, fill_origin, fill_clockwise, fill_amount)
 
 
 func _handle_size_changed() -> void:

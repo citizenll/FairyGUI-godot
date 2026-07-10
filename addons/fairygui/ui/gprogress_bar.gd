@@ -63,15 +63,27 @@ func update(new_value: float) -> void:
 	var full_height := height - _bar_max_height_delta
 	var fill_percent := 1.0 - percent if reverse else percent
 	if _bar_object_h != null:
-		_bar_object_h.width = round(full_width * percent)
-		if reverse:
-			_bar_object_h.x = _bar_start_x + (full_width - _bar_object_h.width)
+		if not _set_fill_amount(_bar_object_h, fill_percent):
+			_bar_object_h.width = round(full_width * percent)
+			if reverse:
+				_bar_object_h.x = _bar_start_x + (full_width - _bar_object_h.width)
 	if _bar_object_v != null:
-		_bar_object_v.height = round(full_height * percent)
-		if reverse:
-			_bar_object_v.y = _bar_start_y + (full_height - _bar_object_v.height)
+		if not _set_fill_amount(_bar_object_v, fill_percent):
+			_bar_object_v.height = round(full_height * percent)
+			if reverse:
+				_bar_object_v.y = _bar_start_y + (full_height - _bar_object_v.height)
 	if _ani_object != null:
 		_ani_object.set_prop(FGUIEnums.OBJECT_PROP_FRAME, int(fill_percent * 100.0))
+
+
+func _set_fill_amount(bar: FGUIObject, percent: float) -> bool:
+	if bar is FGUIImage and (bar as FGUIImage).fill_method != FGUIEnums.FILL_NONE:
+		(bar as FGUIImage).fill_amount = percent
+		return true
+	if bar is FGUILoader and (bar as FGUILoader).fill_method != FGUIEnums.FILL_NONE:
+		(bar as FGUILoader).fill_amount = percent
+		return true
+	return false
 
 
 func setup_after_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
