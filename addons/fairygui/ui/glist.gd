@@ -120,12 +120,23 @@ var selected_index: int:
 			add_selection(value, false)
 
 
+func _init() -> void:
+	super._init()
+	track_bounds = true
+	opaque = true
+
+
 func dispose() -> void:
 	item_renderer = Callable()
 	item_provider = Callable()
 	selection_controller = null
 	item_pool.clear()
 	super.dispose()
+
+
+func _handle_size_changed() -> void:
+	super._handle_size_changed()
+	_request_layout_refresh()
 
 
 func add_child_at(child: FGUIObject, index: int) -> FGUIObject:
