@@ -5,9 +5,12 @@ const SCROLL_TWEEN_DURATION := 0.3
 const INERTIA_MIN_VELOCITY := 60.0
 const INERTIA_MIN_DURATION := 0.12
 const INERTIA_MAX_DURATION := 0.8
+const ELASTIC_RESISTANCE := 0.45
+const ELASTIC_RETURN_DURATION := 0.22
 
 var owner: FGUIComponent
 var container: ScrollContainer
+var _content_host: Control
 var content: Control
 var scroll_type: int = FGUIEnums.SCROLL_BOTH
 var scroll_bar_display: int = FGUIEnums.SCROLLBAR_VISIBLE
@@ -50,6 +53,8 @@ var _pull_down_distance: float = 0.0
 var _pull_up_distance: float = 0.0
 var _scroll_tween: Tween
 var _tweening_scroll: bool = false
+var _elastic_offset := Vector2.ZERO
+var _elastic_tween: Tween
 
 
 func _init(p_owner: FGUIComponent = null) -> void:
@@ -183,10 +188,14 @@ func setup(buffer: FGUIByteBuffer) -> void:
 func set_content_size(width: float, height: float) -> void:
 	content_width = maxf(0.0, width)
 	content_height = maxf(0.0, height)
-	_layout_scroll_bars()
+	var next_size := Vector2(content_width, content_height)
+	if _content_host != null:
+		_content_host.custom_minimum_size = next_size
+		_content_host.size = next_size
 	if content != null:
-		content.custom_minimum_size = Vector2(content_width, content_height)
-		content.size = Vector2(content_width, content_height)
+		content.custom_minimum_size = next_size
+		content.size = next_size
+	_layout_scroll_bars()
 	_sync_native_ranges()
 	set_pos(pos_x, pos_y)
 
@@ -216,6 +225,7 @@ func scroll_to_view(target: Variant, animated: bool = false, set_first: bool = f
 
 
 func set_pos(x: float, y: float, animated: bool = false) -> void:
+	_clear_elastic_offset()
 	if page_mode:
 		x = roundf(x / maxf(view_width, 1.0)) * maxf(view_width, 1.0)
 		y = roundf(y / maxf(view_height, 1.0)) * maxf(view_height, 1.0)
@@ -354,6 +364,7 @@ func is_child_in_view(obj: FGUIObject) -> bool:
 
 
 func cancel_dragging() -> void:
+	_clear_elastic_offset()
 	_pointer_dragging = false
 	_pointer_dragged = false
 	_drag_touch_index = -1
@@ -400,6 +411,7 @@ func on_owner_size_changed() -> void:
 
 func dispose() -> void:
 	_cancel_scroll_tween()
+	_cancel_elastic_tween()
 	page_controller = null
 	header_locked_size = 0.0
 	footer_locked_size = 0.0
@@ -421,6 +433,7 @@ func dispose() -> void:
 		else:
 			container.free()
 	container = null
+	_content_host = null
 	content = null
 	owner = null
 
@@ -432,10 +445,14 @@ func _create_nodes() -> void:
 	container.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 	container.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 	container.size = Vector2(owner.width, owner.height)
+	_content_host = Control.new()
+	_content_host.name = "ContentHost"
+	_content_host.mouse_filter = Control.MOUSE_FILTER_PASS
+	container.add_child(_content_host)
 	content = Control.new()
 	content.name = "Content"
 	content.mouse_filter = Control.MOUSE_FILTER_PASS
-	container.add_child(content)
+	_content_host.add_child(content)
 	container.gui_input.connect(_on_container_gui_input)
 	container.get_h_scroll_bar().value_changed.connect(func(_value: float) -> void: _on_native_scroll())
 	container.get_v_scroll_bar().value_changed.connect(func(_value: float) -> void: _on_native_scroll())
@@ -644,6 +661,7 @@ func _handle_mouse_wheel(event: InputEvent) -> bool:
 
 
 func _begin_pull_gesture(pointer_position: Vector2, touch_index: int) -> void:
+	_cancel_elastic_tween()
 	_pointer_dragging = true
 	_pointer_dragged = false
 	_drag_touch_index = touch_index
@@ -664,8 +682,12 @@ func _track_pull_gesture(pointer_position: Vector2) -> void:
 		_pointer_dragged = true
 	if scroll_type != FGUIEnums.SCROLL_HORIZONTAL:
 		_track_pull_axis(delta.y, pos_y, maxf(0.0, content_height - view_height))
+		if bounceback_effect:
+			_track_elastic_axis(delta.y, pos_y, maxf(0.0, content_height - view_height), false)
 	if scroll_type != FGUIEnums.SCROLL_VERTICAL:
 		_track_pull_axis(delta.x, pos_x, maxf(0.0, content_width - view_width))
+		if bounceback_effect:
+			_track_elastic_axis(delta.x, pos_x, maxf(0.0, content_width - view_width), true)
 
 
 func _track_pull_axis(delta: float, position: float, max_position: float) -> void:
@@ -684,6 +706,72 @@ func _track_pull_axis(delta: float, position: float, max_position: float) -> voi
 		_pull_up_distance = maxf(0.0, _pull_up_distance - delta)
 
 
+func _track_elastic_axis(delta: float, position: float, max_position: float, horizontal: bool) -> void:
+	if is_zero_approx(delta):
+		return
+	var offset := _elastic_offset.x if horizontal else _elastic_offset.y
+	var edge_epsilon := 0.5
+	var at_start := position <= edge_epsilon
+	var at_end := position >= max_position - edge_epsilon
+	var view_length := view_width if horizontal else view_height
+	var resistance := ELASTIC_RESISTANCE / (1.0 + absf(offset) / maxf(1.0, view_length))
+	var next_offset := offset
+	if offset > 0.0 or (at_start and delta > 0.0):
+		next_offset = maxf(0.0, offset + delta * resistance)
+	elif offset < 0.0 or (at_end and delta < 0.0):
+		next_offset = minf(0.0, offset + delta * resistance)
+	else:
+		return
+	var next := _elastic_offset
+	if horizontal:
+		next.x = next_offset
+	else:
+		next.y = next_offset
+	_set_elastic_offset(next)
+
+
+func _set_elastic_offset(value: Vector2) -> void:
+	if _elastic_offset.is_equal_approx(value):
+		return
+	_elastic_offset = value
+	if content != null:
+		content.position = value
+
+
+func _start_elastic_return() -> void:
+	if _elastic_offset.is_zero_approx():
+		return
+	_cancel_elastic_tween()
+	if owner == null or owner.node == null or not owner.node.is_inside_tree():
+		_set_elastic_offset(Vector2.ZERO)
+		return
+	var tween := owner.node.create_tween()
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	_elastic_tween = tween
+	tween.tween_method(Callable(self, "_set_elastic_offset"), _elastic_offset, Vector2.ZERO, ELASTIC_RETURN_DURATION)
+	tween.finished.connect(Callable(self, "_on_elastic_return_finished").bind(tween))
+
+
+func _on_elastic_return_finished(tween: Tween) -> void:
+	if tween != _elastic_tween:
+		return
+	_elastic_tween = null
+	_set_elastic_offset(Vector2.ZERO)
+
+
+func _cancel_elastic_tween() -> void:
+	if _elastic_tween != null and is_instance_valid(_elastic_tween):
+		_elastic_tween.kill()
+	_elastic_tween = null
+
+
+func _clear_elastic_offset() -> void:
+	_cancel_elastic_tween()
+	_set_elastic_offset(Vector2.ZERO)
+
+
 func _end_pull_gesture() -> void:
 	if not _pointer_dragging:
 		return
@@ -698,6 +786,7 @@ func _end_pull_gesture() -> void:
 		var duration := _get_inertia_duration(_drag_velocity) if not inertia_disabled else SCROLL_TWEEN_DURATION
 		_start_scroll_tween(target, duration)
 		defer_scroll_end = _scroll_tween != null
+	_start_elastic_return()
 	if owner != null:
 		if _pull_down_distance > threshold:
 			owner.emit_event(FGUIEvents.PULL_DOWN_RELEASE)

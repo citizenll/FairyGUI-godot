@@ -60,6 +60,7 @@ The repository is checked against Godot 4.7 Steam:
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/pixel_hit_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/relation_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/scroll_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/elastic_scroll_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/virtual_list_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/text_field_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/loader_probe.gd
