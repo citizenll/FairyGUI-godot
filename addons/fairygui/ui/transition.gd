@@ -132,6 +132,8 @@ func set_paused(value: bool) -> void:
 
 func dispose() -> void:
 	stop(false, false)
+	_on_complete = Callable()
+	_active_child_transitions.clear()
 	for item in _items:
 		item["target"] = null
 		item["hook"] = Callable()
@@ -139,6 +141,7 @@ func dispose() -> void:
 			item["tween_config"]["end_hook"] = Callable()
 	_items.clear()
 	raw_items = _items
+	owner = null
 
 
 func set_value(label: String, a: Variant = null, b: Variant = null, c: Variant = null, d: Variant = null) -> void:

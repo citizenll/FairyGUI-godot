@@ -41,6 +41,17 @@ var value: String:
 		selected_index = values.find(next_value)
 
 
+func dispose() -> void:
+	if dropdown != null:
+		dropdown.dispose()
+		dropdown = null
+	_list = null
+	_title_object = null
+	_icon_object = null
+	selection_controller = null
+	super.dispose()
+
+
 func construct_extension(buffer: FGUIByteBuffer) -> void:
 	_title_object = get_child("title")
 	_icon_object = get_child("icon")

@@ -14,6 +14,13 @@ func _init(resource_url: String = "") -> void:
 			list = content_pane.get_child("list") as FGUIList
 
 
+func dispose() -> void:
+	if content_pane != null:
+		content_pane.dispose()
+	content_pane = null
+	list = null
+
+
 func add_item(caption: String, callback: Callable = Callable()) -> FGUIObject:
 	if list == null:
 		return null

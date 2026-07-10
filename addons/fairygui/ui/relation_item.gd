@@ -77,6 +77,7 @@ func dispose() -> void:
 	_release_ref_target()
 	_target = null
 	defs.clear()
+	owner = null
 
 
 func _apply_on_xy_changed(def: Dictionary, dx: float, dy: float) -> void:

@@ -441,8 +441,19 @@ func remove_from_parent() -> void:
 
 func dispose() -> void:
 	remove_from_parent()
-	relations.dispose()
+	if relations != null:
+		relations.dispose()
+		relations = null
+	for gear: FGUIGearBase in _gears.values():
+		gear.dispose()
+	_gears.clear()
+	_event_listeners.clear()
+	_group = null
+	pixel_hit_test = null
+	package_item = null
+	data = null
 	if node != null:
+		node.remove_meta("fgui_owner")
 		if node.is_inside_tree():
 			node.queue_free()
 		else:

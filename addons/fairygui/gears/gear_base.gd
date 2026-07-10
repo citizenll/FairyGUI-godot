@@ -36,6 +36,12 @@ func _init(p_owner: FGUIObject = null) -> void:
 	owner = p_owner
 
 
+func dispose() -> void:
+	controller = null
+	owner = null
+	tween_config.clear()
+
+
 func setup(buffer: FGUIByteBuffer) -> void:
 	var controller_index := buffer.read_i16()
 	if controller_index >= 0 and owner != null and owner.parent != null:

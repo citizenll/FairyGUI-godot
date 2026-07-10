@@ -27,6 +27,18 @@ func _init(has_child: bool = false, node_data: Variant = null, node_res_url: Str
 	res_url = node_res_url
 
 
+func dispose() -> void:
+	for child: FGUITreeNode in children.duplicate():
+		child.dispose()
+	children.clear()
+	if cell != null and cell.data == self:
+		cell.data = null
+	cell = null
+	parent = null
+	data = null
+	res_url = ""
+
+
 func add_child(child: FGUITreeNode) -> FGUITreeNode:
 	return add_child_at(child, children.size())
 

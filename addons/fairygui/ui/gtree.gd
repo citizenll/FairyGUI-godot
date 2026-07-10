@@ -12,6 +12,14 @@ func _init() -> void:
 	root_node.expanded = true
 
 
+func dispose() -> void:
+	if root_node != null:
+		root_node.dispose()
+		root_node = null
+	tree_node_render = Callable()
+	super.dispose()
+
+
 func get_root_node() -> FGUITreeNode:
 	return root_node
 

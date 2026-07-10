@@ -47,6 +47,8 @@ func dispose() -> void:
 	for item in items:
 		item.dispose()
 	items.clear()
+	handling = null
+	owner = null
 
 
 func on_owner_size_changed(delta_width: float, delta_height: float, apply_pivot: bool) -> void:
