@@ -8,7 +8,7 @@ func get_object(url: String) -> FGUIObject:
 	url = FGUIPackage.normalize_url(url)
 	var list: Array = _pool.get(url, [])
 	if not list.is_empty():
-		return list.pop_back()
+		return list.pop_front()
 	return FGUIPackage.create_object_from_url(url)
 
 

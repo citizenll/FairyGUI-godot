@@ -261,7 +261,7 @@ func construct_from_resource() -> void:
 	construct_from_resource2([], 0)
 
 
-func construct_from_resource2(_object_pool: Array = [], _pool_index: int = 0) -> void:
+func construct_from_resource2(object_pool: Array = [], pool_index: int = 0) -> void:
 	if package_item == null:
 		return
 	var content_item := package_item.get_branch()
@@ -310,7 +310,7 @@ func construct_from_resource2(_object_pool: Array = [], _pool_index: int = 0) ->
 
 	_building_display_list = true
 	_setup_controllers(buffer)
-	_setup_children(buffer, content_item)
+	_setup_children(buffer, content_item, object_pool, pool_index)
 	_setup_component_relations(buffer)
 	_setup_children_relations(buffer)
 	_setup_children_after_add(buffer)
@@ -369,29 +369,34 @@ func _setup_controllers(buffer: FGUIByteBuffer) -> void:
 		buffer.pos = next_pos
 
 
-func _setup_children(buffer: FGUIByteBuffer, content_item: FGUIPackageItem) -> void:
+func _setup_children(buffer: FGUIByteBuffer, content_item: FGUIPackageItem, object_pool: Array = [], pool_index: int = 0) -> void:
 	if not buffer.seek(0, 2):
 		return
 	var count := buffer.read_i16()
 	for i in count:
 		var data_len := buffer.read_i16()
 		var cur_pos := buffer.pos
-		buffer.seek(cur_pos, 0)
-		var object_type := buffer.read_i8()
-		var src = buffer.read_s()
-		var pkg_id = buffer.read_s()
+		var child: FGUIObject = null
+		var pooled_index := pool_index + i
+		if pooled_index >= 0 and pooled_index < object_pool.size():
+			child = object_pool[pooled_index]
+		else:
+			buffer.seek(cur_pos, 0)
+			var object_type := buffer.read_i8()
+			var src = buffer.read_s()
+			var pkg_id = buffer.read_s()
 
-		var item: FGUIPackageItem = null
-		if src != null:
-			var pkg: FGUIPackage = FGUIPackage.get_by_id(pkg_id) if pkg_id != null else content_item.owner
-			if pkg != null:
-				item = pkg.get_item_by_id(src)
+			var item: FGUIPackageItem = null
+			if src != null:
+				var pkg: FGUIPackage = FGUIPackage.get_by_id(pkg_id) if pkg_id != null else content_item.owner
+				if pkg != null:
+					item = pkg.get_item_by_id(src)
 
-		var child: FGUIObject = FGUIObjectFactory.new_object_from_item(item) if item != null else FGUIObjectFactory.new_object(object_type)
+			child = FGUIObjectFactory.new_object_from_item(item) if item != null else FGUIObjectFactory.new_object(object_type)
+			if item != null and child != null:
+				child.construct_from_resource()
 		if child == null:
 			child = FGUIObject.new()
-		if item != null:
-			child.construct_from_resource()
 
 		child._under_construct = true
 		child.setup_before_add(buffer, cur_pos)

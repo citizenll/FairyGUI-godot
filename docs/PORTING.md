@@ -48,5 +48,5 @@ The Godot source tree is still useful as the API reference for current Control, 
 - Tree nodes support dynamic insertion, removal, reordering, selection, and single-click folder expansion with pooled cell refreshes.
 - Windows attach through `GRoot`, preserve init/show/hide lifecycle callbacks, support content panes, close controls, modal root overlays, ordering, and modal-wait pane ownership.
 - Transition XY paths support straight, quadratic/cubic Bezier, and Catmull-Rom segments with FairyGUI-compatible start offsets. Skew actions remain intentionally out of scope for the current milestone.
-- Async object creation defers completion to the next frame and supports cancellation. Time-sliced construction of a single very large component is not implemented yet.
+- `FGUIAsyncOperation` collects package display lists, builds package objects against `FGUIConfig.frame_time_for_async_ui_construction`, reuses prebuilt component/list children, defers completion to a frame boundary, and disposes pending work on cancellation.
 - Scale9, common widgets, list layout, scroll containers, bitmap fonts, audio, and pixel hit testing are present. Complex transition timelines, very large virtual lists, rendering comparison, and performance still require commercial-freeze parity work.
