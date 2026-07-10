@@ -143,6 +143,9 @@ var drag_bounds: Variant:
 var dragging: bool:
 	get:
 		return dragging_object == self
+var is_disposed: bool:
+	get:
+		return node == null
 var source_width: float = 0.0
 var source_height: float = 0.0
 var init_width: float = 0.0
@@ -469,11 +472,57 @@ func check_gear_display() -> void:
 
 
 func global_to_local(point: Vector2) -> Vector2:
-	return node.get_global_transform().affine_inverse() * point if node != null else point
+	var local := _global_to_node_local(point)
+	if _pivot_as_anchor:
+		local -= Vector2(_width * _pivot.x, _height * _pivot.y)
+	return local
 
 
 func local_to_global(point: Vector2) -> Vector2:
-	return node.get_global_transform() * point if node != null else point
+	var local := point
+	if _pivot_as_anchor:
+		local += Vector2(_width * _pivot.x, _height * _pivot.y)
+	return node.get_global_transform() * local if node != null else local
+
+
+func local_to_global_rect(rect: Rect2) -> Rect2:
+	var start := local_to_global(rect.position)
+	var end := local_to_global(rect.end)
+	return Rect2(start, end - start).abs()
+
+
+func global_to_local_rect(rect: Rect2) -> Rect2:
+	var start := global_to_local(rect.position)
+	var end := global_to_local(rect.end)
+	return Rect2(start, end - start).abs()
+
+
+func transform_point(point: Vector2, target_space: FGUIObject) -> Vector2:
+	return target_space.global_to_local(local_to_global(point)) if target_space != null else point
+
+
+func transform_rect(rect: Rect2, target_space: FGUIObject) -> Rect2:
+	return target_space.global_to_local_rect(local_to_global_rect(rect)) if target_space != null else rect
+
+
+func local_to_root(point: Vector2) -> Vector2:
+	var root_object := root
+	return transform_point(point, root_object) if root_object != null else point
+
+
+func root_to_local(point: Vector2) -> Vector2:
+	var root_object := root
+	return root_object.transform_point(point, self) if root_object != null else point
+
+
+func request_focus() -> void:
+	var root_object := root
+	if root_object != null:
+		root_object.focus = self
+
+
+func _global_to_node_local(point: Vector2) -> Vector2:
+	return node.get_global_transform().affine_inverse() * point if node != null else point
 
 
 func on(event_name: String, callable: Callable) -> void:
@@ -546,6 +595,8 @@ func remove_from_parent() -> void:
 
 
 func dispose() -> void:
+	if is_disposed:
+		return
 	stop_drag()
 	remove_from_parent()
 	if relations != null:
@@ -622,8 +673,10 @@ func _on_gui_input(event: InputEvent) -> void:
 	if FGUIToolSet.is_pointer_event(event):
 		_last_pointer_position = pointer_position
 		_has_last_pointer_position = true
-	if FGUIToolSet.is_pointer_event(event) and pixel_hit_test != null and not pixel_hit_test.contains(global_to_local(pointer_position).x, global_to_local(pointer_position).y):
-		return
+	if FGUIToolSet.is_pointer_event(event) and pixel_hit_test != null:
+		var hit_position := _global_to_node_local(pointer_position)
+		if not pixel_hit_test.contains(hit_position.x, hit_position.y):
+			return
 	if FGUIToolSet.is_primary_pointer_press(event):
 		_drag_touch_index = FGUIToolSet.get_pointer_id(event)
 		_drag_start_mouse = pointer_position

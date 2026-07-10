@@ -98,7 +98,7 @@ func _on_grip_drag_move(_event: Variant = null) -> void:
 func _on_bar_click(event: Variant = null) -> void:
 	if target == null or _grip == null or _bar == null or not (event is InputEvent):
 		return
-	var local_position := _bar.global_to_local(FGUIToolSet.get_pointer_position(event))
+	var local_position := _bar._global_to_node_local(FGUIToolSet.get_pointer_position(event))
 	if vertical:
 		if local_position.y < _grip.y - _bar.y:
 			target.scroll_up(4.0)

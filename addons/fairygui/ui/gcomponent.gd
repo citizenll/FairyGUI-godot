@@ -528,7 +528,7 @@ func _contains_hit_test_child(global_position: Vector2) -> bool:
 	var child := hit_test_child
 	if child == null or child.node == null or not child.visible:
 		return false
-	var local_position := child.global_to_local(global_position)
+	var local_position := child._global_to_node_local(global_position)
 	if child.pixel_hit_test != null:
 		return child.pixel_hit_test.contains(local_position.x, local_position.y)
 	return Rect2(Vector2.ZERO, Vector2(child.width, child.height)).has_point(local_position)
@@ -557,7 +557,7 @@ func _refresh_mask(_event: Variant = null) -> void:
 func _contains_mask(global_position: Vector2) -> bool:
 	if _mask == null or _mask.node == null or not _mask.visible:
 		return false
-	var local_position := _mask.global_to_local(global_position)
+	var local_position := _mask._global_to_node_local(global_position)
 	if _mask.pixel_hit_test != null:
 		return _mask.pixel_hit_test.contains(local_position.x, local_position.y)
 	return Rect2(Vector2.ZERO, Vector2(_mask.width, _mask.height)).has_point(local_position)

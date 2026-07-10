@@ -35,6 +35,7 @@ The Godot source tree is still useful as the API reference for current Control, 
 ## Compatibility Notes
 
 - The editor importer turns `.fui` files into `FGUIPackageResource` assets. Imported packages are included in exported projects; `FileAccess` remains a fallback for direct raw loading.
+- `GObject` provides pivot-aware local/global point and rectangle transforms, cross-object/root-space conversion, disposal state, and focus requests while retaining physical node-local coordinates for hit testing and input controls.
 - `FGUIPackage.branch` and `FGUIPackage.set_branch` update loaded package branch indices, so branch-specific resources are selected for newly constructed UI objects.
 - `FGUIRoot.content_scale_factor` derives `FGUIRoot.content_scale_level`; package items use configured 2x, 3x, and 4x high-resolution variants when available.
 - Compressed FairyGUI packages use the bundled raw-deflate implementation and are covered by the compression probe.

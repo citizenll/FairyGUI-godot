@@ -34,7 +34,7 @@ func construct_extension(buffer: FGUIByteBuffer) -> void:
 func _on_grip_drag_move(event: Variant = null) -> void:
 	if not can_drag:
 		return
-	var local := global_to_local(FGUIToolSet.get_pointer_position(event)) if event is InputEvent else Vector2.ZERO
+	var local := _global_to_node_local(FGUIToolSet.get_pointer_position(event)) if event is InputEvent else Vector2.ZERO
 	var percent := local.x / maxf(1.0, width) if _bar_object_h != null else local.y / maxf(1.0, height)
 	if reverse:
 		percent = 1.0 - percent
@@ -44,7 +44,7 @@ func _on_grip_drag_move(event: Variant = null) -> void:
 func _on_gui_input(event: InputEvent) -> void:
 	super._on_gui_input(event)
 	if change_on_click and FGUIToolSet.is_primary_pointer_press(event):
-		var local := global_to_local(FGUIToolSet.get_pointer_position(event))
+		var local := _global_to_node_local(FGUIToolSet.get_pointer_position(event))
 		var percent := local.x / maxf(1.0, width) if _bar_object_h != null else local.y / maxf(1.0, height)
 		if reverse:
 			percent = 1.0 - percent
