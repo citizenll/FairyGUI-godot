@@ -47,13 +47,34 @@ func _initialize() -> void:
 	pane.page_controller = page_controller
 	page_controller.selected_index = 1
 	pane.handle_controller_changed(page_controller)
-	await process_frame
+	await create_timer(0.4).timeout
 	if absf(pane.pos_x - pane.view_width) > 1.5:
 		_fail("Page controller did not move the horizontal ScrollPane: %s" % pane.pos_x)
 		return
 	pane.set_current_page_x(2)
 	if page_controller.selected_index != 2:
 		_fail("ScrollPane did not update its page controller.")
+		return
+	pane.page_mode = false
+	pane.set_pos(0.0, 0.0)
+	pane.set_pos(120.0, 0.0, true)
+	await create_timer(0.4).timeout
+	if absf(pane.pos_x - 120.0) > 1.5:
+		_fail("Animated ScrollPane positioning did not reach the requested offset: %s" % pane.pos_x)
+		return
+	pane.set_pos(300.0, 0.0, true)
+	pane.set_pos(45.0, 0.0)
+	await create_timer(0.35).timeout
+	if absf(pane.pos_x - 45.0) > 1.5:
+		_fail("Immediate ScrollPane positioning did not cancel an active animation: %s" % pane.pos_x)
+		return
+	var view_target := FGUIObject.new()
+	view_target.set_xy(420.0, 0.0)
+	view_target.set_size(20.0, 20.0)
+	pane.scroll_to_view(view_target, true, true)
+	await create_timer(0.4).timeout
+	if absf(pane.pos_x - 420.0) > 1.5:
+		_fail("Animated scroll_to_view did not reach the target offset: %s" % pane.pos_x)
 		return
 
 	var parent := FGUIComponent.new()
@@ -106,7 +127,6 @@ func _initialize() -> void:
 		_fail("ComboBox did not update its selection controller.")
 		return
 
-	pane.page_mode = false
 	pane.scroll_type = FGUIEnums.SCROLL_VERTICAL
 	pane._configure_native_scroll_modes()
 	pane.set_content_size(100, 600)
@@ -188,12 +208,38 @@ func _initialize() -> void:
 	if release_counts["down"] != 1 or release_counts["up"] != 1 or release_counts["end"] != 3:
 		_fail("ScrollPane dispatched a pull release below the drag threshold.")
 		return
+	var snap_owner := FGUIComponent.new()
+	snap_owner.set_size(100.0, 50.0)
+	host.add_child(snap_owner.node)
+	var snap_pane := FGUIScrollPane.new(snap_owner)
+	snap_owner.scroll_pane = snap_pane
+	snap_pane.scroll_type = FGUIEnums.SCROLL_HORIZONTAL
+	snap_pane._configure_native_scroll_modes()
+	snap_pane.set_content_size(400.0, 50.0)
+	snap_pane.snap_to_item = true
+	var snap_end_count := {"value": 0}
+	snap_owner.on(FGUIEvents.SCROLL_END, func() -> void: snap_end_count["value"] += 1)
+	for item_x in [0.0, 100.0, 200.0]:
+		var snap_item := FGUIObject.new()
+		snap_item.set_xy(item_x, 0.0)
+		snap_item.set_size(80.0, 40.0)
+		snap_owner.add_child(snap_item)
+	snap_pane.set_pos(160.0, 0.0)
+	snap_pane._begin_pull_gesture(Vector2.ZERO, -1)
+	snap_pane._track_pull_gesture(Vector2(1.0, 0.0))
+	snap_pane._end_pull_gesture()
+	await create_timer(0.4).timeout
+	if absf(snap_pane.pos_x - 200.0) > 1.5 or snap_end_count["value"] != 1:
+		_fail("ScrollPane snap-to-item did not finish at the nearest component item exactly once: pos=%s end=%s" % [snap_pane.pos_x, snap_end_count["value"]])
+		return
 
 	scroll_bar.dispose()
+	snap_owner.dispose()
 	pull_owner.dispose()
 	controls_parent.dispose()
 	parent.dispose()
 	owner.dispose()
+	view_target.dispose()
 	host.queue_free()
 	await process_frame
 	quit(0)

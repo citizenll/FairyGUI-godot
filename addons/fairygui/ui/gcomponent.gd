@@ -234,6 +234,35 @@ func ensure_size_correct() -> void:
 	ensure_bounds_correct()
 
 
+func get_snapping_position(x_value: float, y_value: float) -> Vector2:
+	return get_snapping_position_with_dir(x_value, y_value, 0, 0)
+
+
+func get_snapping_position_with_dir(x_value: float, y_value: float, _x_dir: int, _y_dir: int) -> Vector2:
+	if children.is_empty():
+		return Vector2.ZERO
+	ensure_bounds_correct()
+	return Vector2(_snap_axis_position(x_value, false), _snap_axis_position(y_value, true))
+
+
+func _snap_axis_position(value: float, vertical: bool) -> float:
+	if is_zero_approx(value):
+		return value
+	var previous: FGUIObject = null
+	for child: FGUIObject in children:
+		var position := child.y if vertical else child.x
+		if value < position:
+			if previous == null:
+				return 0.0
+			var previous_position := previous.y if vertical else previous.x
+			var previous_size := previous.actual_height if vertical else previous.actual_width
+			return previous_position if value < previous_position + previous_size * 0.5 else position
+		previous = child
+	if previous == null:
+		return 0.0
+	return previous.y if vertical else previous.x
+
+
 func set_bounds_changed_flag() -> void:
 	_bounds_changed = true
 

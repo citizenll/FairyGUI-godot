@@ -1,6 +1,8 @@
 class_name FGUIScrollPane
 extends RefCounted
 
+const SCROLL_TWEEN_DURATION := 0.3
+
 var owner: FGUIComponent
 var container: ScrollContainer
 var content: Control
@@ -36,6 +38,8 @@ var _drag_touch_index: int = -1
 var _last_drag_position := Vector2.ZERO
 var _pull_down_distance: float = 0.0
 var _pull_up_distance: float = 0.0
+var _scroll_tween: Tween
+var _tweening_scroll: bool = false
 
 
 func _init(p_owner: FGUIComponent = null) -> void:
@@ -130,7 +134,7 @@ func set_content_size(width: float, height: float) -> void:
 	set_pos(pos_x, pos_y)
 
 
-func scroll_to_view(obj: FGUIObject, _animated: bool = false, set_first: bool = false) -> void:
+func scroll_to_view(obj: FGUIObject, animated: bool = false, set_first: bool = false) -> void:
 	if obj == null or container == null:
 		return
 	var target_x := pos_x
@@ -143,18 +147,65 @@ func scroll_to_view(obj: FGUIObject, _animated: bool = false, set_first: bool = 
 		target_y = obj.y
 	elif obj.y + obj.height > pos_y + view_height:
 		target_y = obj.y + obj.height - view_height
-	set_pos(target_x, target_y)
+	set_pos(target_x, target_y, animated)
 
 
-func set_pos(x: float, y: float, _animated: bool = false) -> void:
+func set_pos(x: float, y: float, animated: bool = false) -> void:
 	if page_mode:
 		x = roundf(x / maxf(view_width, 1.0)) * maxf(view_width, 1.0)
 		y = roundf(y / maxf(view_height, 1.0)) * maxf(view_height, 1.0)
+	var target := Vector2(_clamp_x(x), _clamp_y(y))
+	if animated and _can_animate_scroll(target):
+		_start_scroll_tween(target)
+		return
+	_cancel_scroll_tween()
+	_set_pos_immediate(target)
+
+
+func _set_pos_immediate(value: Vector2) -> void:
 	_suppress_native_scroll = true
-	pos_x = _clamp_x(x)
-	pos_y = _clamp_y(y)
+	pos_x = value.x
+	pos_y = value.y
 	_suppress_native_scroll = false
 	_on_native_scroll()
+
+
+func _can_animate_scroll(target: Vector2) -> bool:
+	return container != null and owner != null and owner.node != null and owner.node.is_inside_tree() and not Vector2(pos_x, pos_y).is_equal_approx(target)
+
+
+func _start_scroll_tween(target: Vector2) -> void:
+	_cancel_scroll_tween()
+	if owner == null or owner.node == null:
+		_set_pos_immediate(target)
+		return
+	var tween := owner.node.create_tween()
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	_scroll_tween = tween
+	tween.tween_method(Callable(self, "_set_pos_from_tween"), Vector2(pos_x, pos_y), target, SCROLL_TWEEN_DURATION)
+	tween.finished.connect(Callable(self, "_on_scroll_tween_finished").bind(tween))
+
+
+func _set_pos_from_tween(value: Vector2) -> void:
+	_tweening_scroll = true
+	_set_pos_immediate(value)
+	_tweening_scroll = false
+
+
+func _on_scroll_tween_finished(tween: Tween) -> void:
+	if tween != _scroll_tween:
+		return
+	_scroll_tween = null
+	if owner != null:
+		owner.emit_event(FGUIEvents.SCROLL_END)
+
+
+func _cancel_scroll_tween() -> void:
+	if _scroll_tween != null and is_instance_valid(_scroll_tween):
+		_scroll_tween.kill()
+	_scroll_tween = null
 
 
 func set_perc_x(value: float, animated: bool = false) -> void:
@@ -261,6 +312,7 @@ func on_owner_size_changed() -> void:
 
 
 func dispose() -> void:
+	_cancel_scroll_tween()
 	page_controller = null
 	header_locked_size = 0.0
 	footer_locked_size = 0.0
@@ -441,6 +493,8 @@ func _clamp_y(value: float) -> float:
 func _on_native_scroll() -> void:
 	if _suppress_native_scroll or _handling_scroll:
 		return
+	if _scroll_tween != null and not _tweening_scroll:
+		_cancel_scroll_tween()
 	_handling_scroll = true
 	_update_scroll_bars()
 	_update_page_controller()
@@ -452,6 +506,8 @@ func _on_native_scroll() -> void:
 
 
 func _on_container_gui_input(event: InputEvent) -> void:
+	if (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed) or (event is InputEventScreenTouch and event.pressed):
+		_cancel_scroll_tween()
 	if not touch_effect:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
@@ -516,12 +572,22 @@ func _end_pull_gesture() -> void:
 	if not _pointer_dragged:
 		return
 	var threshold := maxf(0.0, FGUIConfig.touch_drag_sensitivity)
+	var defer_scroll_end := false
+	if page_mode:
+		set_pos(pos_x, pos_y, true)
+		defer_scroll_end = _scroll_tween != null
+	elif snap_to_item and owner != null:
+		var snapped := owner.get_snapping_position(pos_x, pos_y)
+		if not snapped.is_equal_approx(Vector2(pos_x, pos_y)):
+			set_pos(snapped.x, snapped.y, true)
+			defer_scroll_end = _scroll_tween != null
 	if owner != null:
 		if _pull_down_distance > threshold:
 			owner.emit_event(FGUIEvents.PULL_DOWN_RELEASE)
 		elif _pull_up_distance > threshold:
 			owner.emit_event(FGUIEvents.PULL_UP_RELEASE)
-		owner.emit_event(FGUIEvents.SCROLL_END)
+		if not defer_scroll_end:
+			owner.emit_event(FGUIEvents.SCROLL_END)
 	_pull_down_distance = 0.0
 	_pull_up_distance = 0.0
 	_pointer_dragged = false
