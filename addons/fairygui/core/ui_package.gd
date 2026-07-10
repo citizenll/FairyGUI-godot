@@ -14,6 +14,7 @@ var name: String = ""
 var res_key: String = ""
 var custom_id: String = ""
 var branch_index: int = -1
+var source_hash: String = ""
 var items: Array = []
 var dependencies: Array = []
 var branches: Array = []
@@ -27,13 +28,14 @@ static func add_package(package_path: String, desc_data: PackedByteArray = Packe
 	var normalized := _normalize_package_path(package_path)
 	var bytes := desc_data
 	if bytes.is_empty():
-		bytes = FileAccess.get_file_as_bytes(normalized["file_path"])
+		bytes = _load_package_bytes(normalized["file_path"])
 		if bytes.is_empty():
 			push_error("FairyGUI package not found or empty: %s" % normalized["file_path"])
 			return null
 
 	var pkg := FGUIPackage.new()
 	pkg.res_key = normalized["res_key"]
+	pkg.source_hash = _hash_bytes(bytes)
 	pkg._load_package(FGUIByteBuffer.new(bytes))
 	_inst_by_id[pkg.id] = pkg
 	_inst_by_name[pkg.name] = pkg
@@ -57,10 +59,19 @@ static func remove_package(package_id_or_name: String) -> void:
 		push_error("Unknown FairyGUI package: %s" % package_id_or_name)
 		return
 
-	_inst_by_id.erase(pkg.id)
-	_inst_by_name.erase(pkg.name)
-	_inst_by_id.erase(pkg.res_key)
-	if pkg.custom_id != "":
+	remove_package_instance(pkg)
+
+
+static func remove_package_instance(pkg: FGUIPackage) -> void:
+	if pkg == null:
+		return
+	if _inst_by_id.get(pkg.id) == pkg:
+		_inst_by_id.erase(pkg.id)
+	if _inst_by_name.get(pkg.name) == pkg:
+		_inst_by_name.erase(pkg.name)
+	if _inst_by_id.get(pkg.res_key) == pkg:
+		_inst_by_id.erase(pkg.res_key)
+	if pkg.custom_id != "" and _inst_by_id.get(pkg.custom_id) == pkg:
 		_inst_by_id.erase(pkg.custom_id)
 	pkg.dispose()
 
@@ -159,6 +170,7 @@ func dispose() -> void:
 	_items_by_id.clear()
 	_items_by_name.clear()
 	_sprites.clear()
+	source_hash = ""
 
 
 func create_object(resource_name: String, user_class: Variant = null) -> FGUIObject:
@@ -580,6 +592,23 @@ static func _normalize_package_path(path: String) -> Dictionary:
 		file_path += ".fui"
 	var res_key := file_path.substr(0, file_path.length() - 4)
 	return {"file_path": file_path, "res_key": res_key}
+
+
+static func _load_package_bytes(file_path: String) -> PackedByteArray:
+	if ResourceLoader.exists(file_path):
+		var imported := ResourceLoader.load(file_path)
+		if imported != null and imported.has_method("get_package_data"):
+			var imported_data: Variant = imported.call("get_package_data")
+			if imported_data is PackedByteArray and not imported_data.is_empty():
+				return imported_data
+	return FileAccess.get_file_as_bytes(file_path)
+
+
+static func _hash_bytes(bytes: PackedByteArray) -> String:
+	var context := HashingContext.new()
+	context.start(HashingContext.HASH_SHA256)
+	context.update(bytes)
+	return context.finish().hex_encode()
 
 
 static func _string_or_empty(value: Variant) -> String:

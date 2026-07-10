@@ -1,0 +1,15 @@
+[remap]
+
+importer="fairygui.package"
+importer_version=4
+type="Resource"
+uid="uid://dr2jsks6oajcj"
+path="res://.godot/imported/ModalWaiting.fui-5d41d4aa317fb7bdcb58e493ac772ba5.res"
+
+[deps]
+
+source_file="res://examples/assets/ui/ModalWaiting.fui"
+dest_files=["res://.godot/imported/ModalWaiting.fui-5d41d4aa317fb7bdcb58e493ac772ba5.res"]
+
+[params]
+

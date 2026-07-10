@@ -1,0 +1,2 @@
+# Godot emits an empty line after the [params] section of import metadata.
+*.fui.import whitespace=-blank-at-eof

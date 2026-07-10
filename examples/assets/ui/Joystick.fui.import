@@ -1,0 +1,15 @@
+[remap]
+
+importer="fairygui.package"
+importer_version=4
+type="Resource"
+uid="uid://xdhk11yjjjug"
+path="res://.godot/imported/Joystick.fui-59528d8e937a9e09fbb9883b5bfa34fd.res"
+
+[deps]
+
+source_file="res://examples/assets/ui/Joystick.fui"
+dest_files=["res://.godot/imported/Joystick.fui-59528d8e937a9e09fbb9883b5bfa34fd.res"]
+
+[params]
+

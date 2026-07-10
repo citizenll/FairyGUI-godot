@@ -1,0 +1,15 @@
+[remap]
+
+importer="fairygui.package"
+importer_version=4
+type="Resource"
+uid="uid://entif5mytcdj"
+path="res://.godot/imported/VirtualList.fui-80bbfce4cfdc632cd4789a9d97053d43.res"
+
+[deps]
+
+source_file="res://examples/assets/ui/VirtualList.fui"
+dest_files=["res://.godot/imported/VirtualList.fui-80bbfce4cfdc632cd4789a9d97053d43.res"]
+
+[params]
+

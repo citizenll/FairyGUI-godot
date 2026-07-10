@@ -28,23 +28,43 @@ var view := pkg.create_object("Main")
 add_child(view.node)
 ```
 
-For exported games, make sure `*.fui` is included in Godot's non-resource export filters.
+## Editor Workflow
+
+Enable the FairyGUI addon in Project Settings, then attach
+`res://addons/fairygui/ui/fui_view.gd` to an empty `Control` or create an
+`FGUIView` node. The Inspector exposes a typed `Package` property: drag a
+`.fui` file onto it and select the component from `Component Name`.
+
+The addon imports `.fui` files into an `FGUIPackageResource`, creates an
+in-editor preview, and instantiates the same component at runtime. An empty
+`Control` sizes itself to the package component by default. Set
+`match_control_size` when the package should instead fill a pre-sized Control.
+
+Open `examples/editor_preview/fui_preview.tscn` to see the setup. The
+generated `*.fui.import` files should be kept with project source so Godot can
+preserve imported-resource UIDs across machines and exports.
 
 ## Verification
 
-The repository is checked against the local Godot 4.5.2 build:
+The repository is checked against Godot 4.7 Steam:
 
 ```powershell
-& 'C:\toolkit\godot4-custom\bin\godot.windows.4.5.2.exe' --headless --check-only --script res://addons/fairygui/fairygui.gd
-& 'C:\toolkit\godot4-custom\bin\godot.windows.4.5.2.exe' --headless --script res://tests/compression_probe.gd
-& 'C:\toolkit\godot4-custom\bin\godot.windows.4.5.2.exe' --headless --script res://tests/pixel_hit_probe.gd
-& 'C:\toolkit\godot4-custom\bin\godot.windows.4.5.2.exe' --headless --script res://tests/transition_probe.gd
-& 'C:\toolkit\godot4-custom\bin\godot.windows.4.5.2.exe' --headless --script res://tests/smoke_test.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --check-only --script res://addons/fairygui/fairygui.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --editor --import --path .
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/editor_preview_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --editor --script res://tests/editor_hint_preview_probe.gd --path .
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/compression_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/pixel_hit_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/relation_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/scroll_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/transition_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/leak_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/smoke_test.gd
 ```
 
 ## Commercial Readiness
 
-This is still a pure-GDScript port in progress, not a certified drop-in replacement for every FairyGUI runtime feature. The current milestone is suitable for loading real packages and validating Godot integration. Before shipping a commercial product on it, finish parity testing for complex transition timelines, very large virtual lists, editor import/export filters, and large UI performance.
+This is still a pure-GDScript port in progress, not a certified drop-in replacement for every FairyGUI runtime feature. The current milestone is suitable for loading real packages, using `.fui` resources from the Inspector, and validating Godot integration. Before shipping a commercial product on it, finish parity testing for complex transition timelines, very large virtual lists, visual comparison, and large UI performance.
 
 ## License
 

@@ -1,0 +1,15 @@
+[remap]
+
+importer="fairygui.package"
+importer_version=4
+type="Resource"
+uid="uid://blvtc01v14kd5"
+path="res://.godot/imported/ListEffect.fui-83927f95e1b28491156ec2322afb04be.res"
+
+[deps]
+
+source_file="res://examples/assets/ui/ListEffect.fui"
+dest_files=["res://.godot/imported/ListEffect.fui-83927f95e1b28491156ec2322afb04be.res"]
+
+[params]
+

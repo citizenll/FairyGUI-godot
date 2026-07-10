@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://addons/fairygui/ui/fui_view.gd" id="1_view"]
+[ext_resource type="Resource" path="res://examples/assets/ui/Basics.fui" id="2_package"]
+
+[node name="FUIPreview" type="Control"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 0.0
+offset_bottom = 0.0
+script = ExtResource("1_view")
+package = ExtResource("2_package")

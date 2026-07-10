@@ -1,0 +1,15 @@
+[remap]
+
+importer="fairygui.package"
+importer_version=4
+type="Resource"
+uid="uid://danmn7y6ewovv"
+path="res://.godot/imported/HitTest.fui-12414b4524dee80526238e0a28c7571e.res"
+
+[deps]
+
+source_file="res://examples/assets/ui/HitTest.fui"
+dest_files=["res://.godot/imported/HitTest.fui-12414b4524dee80526238e0a28c7571e.res"]
+
+[params]
+

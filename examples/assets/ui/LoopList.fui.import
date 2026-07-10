@@ -1,0 +1,15 @@
+[remap]
+
+importer="fairygui.package"
+importer_version=4
+type="Resource"
+uid="uid://dpun3ono0x6yi"
+path="res://.godot/imported/LoopList.fui-6db7564de7426c39221a1898c73e6624.res"
+
+[deps]
+
+source_file="res://examples/assets/ui/LoopList.fui"
+dest_files=["res://.godot/imported/LoopList.fui-6db7564de7426c39221a1898c73e6624.res"]
+
+[params]
+

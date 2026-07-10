@@ -30,10 +30,10 @@ The Godot source tree is still useful as the API reference for current Control, 
 3. Controllers, gears, relations.
 4. Button/list/scroll pane behavior.
 5. Transitions and tweening.
-6. Editor importer and validation.
+6. Editor importer, typed package resources, in-editor preview, and validation.
 
 ## Compatibility Notes
 
-- `.fui` files are read with `FileAccess`, so exported games must include them in non-resource export filters.
-- Compressed packages are only best-effort until raw deflate behavior is verified in Godot. FairyGUI's Laya runtime uses raw deflate; Godot's built-in deflate path may expect a zlib wrapper depending on the engine build.
-- Scale9, common widgets, list layout, and basic scroll containers are present. Virtual-list recycling, transition timelines, bitmap fonts, audio, and pixel hit testing still require parity work before a commercial freeze.
+- The editor importer turns `.fui` files into `FGUIPackageResource` assets. Imported packages are included in exported projects; `FileAccess` remains a fallback for direct raw loading.
+- Compressed FairyGUI packages use the bundled raw-deflate implementation and are covered by the compression probe.
+- Scale9, common widgets, list layout, scroll containers, bitmap fonts, audio, and pixel hit testing are present. Complex transition timelines, very large virtual lists, rendering comparison, and performance still require commercial-freeze parity work.

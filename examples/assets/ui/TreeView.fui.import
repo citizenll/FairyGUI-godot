@@ -1,0 +1,15 @@
+[remap]
+
+importer="fairygui.package"
+importer_version=4
+type="Resource"
+uid="uid://blu7pp1v0x7kt"
+path="res://.godot/imported/TreeView.fui-6b8bb50c3fcd1a04a180e917076313fc.res"
+
+[deps]
+
+source_file="res://examples/assets/ui/TreeView.fui"
+dest_files=["res://.godot/imported/TreeView.fui-6b8bb50c3fcd1a04a180e917076313fc.res"]
+
+[params]
+

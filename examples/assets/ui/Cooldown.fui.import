@@ -1,0 +1,15 @@
+[remap]
+
+importer="fairygui.package"
+importer_version=4
+type="Resource"
+uid="uid://bloj1oqd3dhkw"
+path="res://.godot/imported/Cooldown.fui-e9753bcc1529bbd03a7c0f592311b11a.res"
+
+[deps]
+
+source_file="res://examples/assets/ui/Cooldown.fui"
+dest_files=["res://.godot/imported/Cooldown.fui-e9753bcc1529bbd03a7c0f592311b11a.res"]
+
+[params]
+

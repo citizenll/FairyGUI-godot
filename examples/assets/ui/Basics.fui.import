@@ -1,0 +1,15 @@
+[remap]
+
+importer="fairygui.package"
+importer_version=4
+type="Resource"
+uid="uid://vbym8wjtwsmg"
+path="res://.godot/imported/Basics.fui-fad9eb4999c07bac890b56dbfc884aa4.res"
+
+[deps]
+
+source_file="res://examples/assets/ui/Basics.fui"
+dest_files=["res://.godot/imported/Basics.fui-fad9eb4999c07bac890b56dbfc884aa4.res"]
+
+[params]
+

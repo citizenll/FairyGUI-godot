@@ -1,0 +1,15 @@
+[remap]
+
+importer="fairygui.package"
+importer_version=4
+type="Resource"
+uid="uid://c4ldmtv1v3jb3"
+path="res://.godot/imported/Transition.fui-0cbdcf4c5a7f2315482917186f29069f.res"
+
+[deps]
+
+source_file="res://examples/assets/ui/Transition.fui"
+dest_files=["res://.godot/imported/Transition.fui-0cbdcf4c5a7f2315482917186f29069f.res"]
+
+[params]
+

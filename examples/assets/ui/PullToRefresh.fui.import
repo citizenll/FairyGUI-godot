@@ -1,0 +1,15 @@
+[remap]
+
+importer="fairygui.package"
+importer_version=4
+type="Resource"
+uid="uid://dgqxylctope8c"
+path="res://.godot/imported/PullToRefresh.fui-0c13a9804fbc540b5c6a6db6db749e61.res"
+
+[deps]
+
+source_file="res://examples/assets/ui/PullToRefresh.fui"
+dest_files=["res://.godot/imported/PullToRefresh.fui-0c13a9804fbc540b5c6a6db6db749e61.res"]
+
+[params]
+
