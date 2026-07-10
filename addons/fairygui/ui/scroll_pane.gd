@@ -22,6 +22,7 @@ var inertia_disabled: bool = false
 var deceleration_rate: float = FGUIConfig.default_scroll_deceleration_rate
 var mouse_wheel_enabled: bool = true
 var mouse_wheel_step: float = FGUIConfig.default_scroll_step * 2.0
+var _scroll_step: float = FGUIConfig.default_scroll_step
 var mask_disabled: bool = false
 var floating: bool = false
 var dont_clip_margin: bool = false
@@ -73,6 +74,53 @@ var pos_y: float:
 	set(value):
 		if container != null:
 			container.scroll_vertical = int(_clamp_y(value))
+
+
+var hz_scroll_bar: FGUIScrollBar:
+	get:
+		return horizontal_scroll_bar
+
+
+var vt_scroll_bar: FGUIScrollBar:
+	get:
+		return vertical_scroll_bar
+
+
+var scroll_step: float:
+	get:
+		return _scroll_step
+	set(value):
+		_scroll_step = value if value > 0.0 else FGUIConfig.default_scroll_step
+		mouse_wheel_step = _scroll_step * 2.0
+
+
+var is_dragged: bool:
+	get:
+		return _pointer_dragged
+
+
+var perc_x: float:
+	get:
+		return pos_x / maxf(content_width - view_width, 1.0)
+	set(value):
+		set_perc_x(value)
+
+
+var perc_y: float:
+	get:
+		return pos_y / maxf(content_height - view_height, 1.0)
+	set(value):
+		set_perc_y(value)
+
+
+var scrolling_pos_x: float:
+	get:
+		return pos_x
+
+
+var scrolling_pos_y: float:
+	get:
+		return pos_y
 
 
 var view_width: float:
@@ -171,6 +219,14 @@ func set_pos(x: float, y: float, animated: bool = false) -> void:
 	_set_pos_immediate(target)
 
 
+func set_pos_x(value: float, animated: bool = false) -> void:
+	set_pos(value, pos_y, animated)
+
+
+func set_pos_y(value: float, animated: bool = false) -> void:
+	set_pos(pos_x, value, animated)
+
+
 func _set_pos_immediate(value: Vector2) -> void:
 	_suppress_native_scroll = true
 	pos_x = value.x
@@ -226,19 +282,19 @@ func set_perc_y(value: float, animated: bool = false) -> void:
 
 
 func scroll_left(ratio: float = 1.0, animated: bool = false) -> void:
-	set_pos(pos_x - (view_width if page_mode else FGUIConfig.default_scroll_step) * ratio, pos_y, animated)
+	set_pos(pos_x - (view_width if page_mode else _scroll_step) * ratio, pos_y, animated)
 
 
 func scroll_right(ratio: float = 1.0, animated: bool = false) -> void:
-	set_pos(pos_x + (view_width if page_mode else FGUIConfig.default_scroll_step) * ratio, pos_y, animated)
+	set_pos(pos_x + (view_width if page_mode else _scroll_step) * ratio, pos_y, animated)
 
 
 func scroll_up(ratio: float = 1.0, animated: bool = false) -> void:
-	set_pos(pos_x, pos_y - (view_height if page_mode else FGUIConfig.default_scroll_step) * ratio, animated)
+	set_pos(pos_x, pos_y - (view_height if page_mode else _scroll_step) * ratio, animated)
 
 
 func scroll_down(ratio: float = 1.0, animated: bool = false) -> void:
-	set_pos(pos_x, pos_y + (view_height if page_mode else FGUIConfig.default_scroll_step) * ratio, animated)
+	set_pos(pos_x, pos_y + (view_height if page_mode else _scroll_step) * ratio, animated)
 
 
 func scroll_top(animated: bool = false) -> void:
@@ -287,6 +343,20 @@ func is_child_in_view(obj: FGUIObject) -> bool:
 	if obj == null:
 		return false
 	return obj.x + obj.width > pos_x and obj.x < pos_x + view_width and obj.y + obj.height > pos_y and obj.y < pos_y + view_height
+
+
+func cancel_dragging() -> void:
+	_pointer_dragging = false
+	_pointer_dragged = false
+	_drag_touch_index = -1
+	_drag_velocity = Vector2.ZERO
+	_pull_down_distance = 0.0
+	_pull_up_distance = 0.0
+	_last_drag_scroll_time_ms = 0
+
+
+func update_scroll_bar_visible() -> void:
+	_layout_scroll_bars()
 
 
 func current_page_x() -> int:

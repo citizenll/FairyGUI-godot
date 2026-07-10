@@ -243,6 +243,35 @@ func _initialize() -> void:
 	if absf(wheel_pane.pos_x - wheel_pane.view_width) > 1.5:
 		_fail("ScrollPane ignored mouse_wheel_enabled.")
 		return
+	var api_owner := FGUIComponent.new()
+	api_owner.set_size(100.0, 100.0)
+	host.add_child(api_owner.node)
+	var api_pane := FGUIScrollPane.new(api_owner)
+	api_owner.scroll_pane = api_pane
+	api_pane.scroll_type = FGUIEnums.SCROLL_BOTH
+	api_pane._configure_native_scroll_modes()
+	api_pane.set_content_size(300.0, 300.0)
+	api_pane.scroll_step = 40.0
+	api_pane.scroll_right()
+	api_pane.perc_y = 0.5
+	if absf(api_pane.pos_x - 40.0) > 1.5 or absf(api_pane.pos_y - 100.0) > 1.5 or absf(api_pane.mouse_wheel_step - 80.0) > 0.1:
+		_fail("ScrollPane step and percentage accessors did not update the requested axes.")
+		return
+	api_pane.set_pos_x(60.0)
+	api_pane.set_pos_y(80.0)
+	if absf(api_pane.scrolling_pos_x - 60.0) > 1.5 or absf(api_pane.scrolling_pos_y - 80.0) > 1.5 or api_pane.hz_scroll_bar != api_pane.horizontal_scroll_bar or api_pane.vt_scroll_bar != api_pane.vertical_scroll_bar:
+		_fail("ScrollPane axis accessors did not expose the native scroll state.")
+		return
+	api_pane._begin_pull_gesture(Vector2.ZERO, -1)
+	api_pane._track_pull_gesture(Vector2(10.0, 0.0))
+	if not api_pane.is_dragged:
+		_fail("ScrollPane did not expose pointer drag state.")
+		return
+	api_pane.cancel_dragging()
+	if api_pane.is_dragged:
+		_fail("ScrollPane cancel_dragging did not clear pointer drag state.")
+		return
+	api_pane.update_scroll_bar_visible()
 	var snap_owner := FGUIComponent.new()
 	snap_owner.set_size(100.0, 50.0)
 	host.add_child(snap_owner.node)
@@ -305,6 +334,7 @@ func _initialize() -> void:
 	scroll_bar.dispose()
 	inertia_owner.dispose()
 	snap_owner.dispose()
+	api_owner.dispose()
 	wheel_owner.dispose()
 	pull_owner.dispose()
 	controls_parent.dispose()
