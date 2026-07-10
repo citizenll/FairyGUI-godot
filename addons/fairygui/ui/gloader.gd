@@ -131,6 +131,11 @@ func set_icon(value: String) -> void:
 	url = value
 
 
+func advance(time: float) -> void:
+	if content_movie_clip != null:
+		content_movie_clip.advance(maxf(0.0, time))
+
+
 func get_prop(index: int) -> Variant:
 	match index:
 		FGUIEnums.OBJECT_PROP_COLOR:
@@ -156,6 +161,8 @@ func set_prop(index: int, value: Variant) -> void:
 			frame = int(value)
 		FGUIEnums.OBJECT_PROP_TIME_SCALE:
 			time_scale = float(value)
+		FGUIEnums.OBJECT_PROP_DELTA_TIME:
+			advance(float(value) / 1000.0)
 		_:
 			super.set_prop(index, value)
 

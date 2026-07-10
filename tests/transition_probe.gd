@@ -382,6 +382,100 @@ func _initialize() -> void:
 		push_error("MovieClip frame advance failed.")
 		quit(1)
 		return
+	clip.frames = [
+		{"add_delay": 0, "texture": null},
+		{"add_delay": 0, "texture": null},
+		{"add_delay": 0, "texture": null},
+		{"add_delay": 0, "texture": null},
+	]
+	clip.interval = 0.1
+	clip.repeat_delay = 0.0
+	clip.swing = false
+	clip.rewind()
+	clip.advance(0.31)
+	if clip.frame != 3:
+		push_error("MovieClip advance did not consume elapsed time across multiple frames: %s" % clip.frame)
+		quit(1)
+		return
+	clip.rewind()
+	clip.swing = true
+	clip.advance(0.61)
+	if clip.frame != 0:
+		push_error("MovieClip swing advance did not reverse at both ends: %s" % clip.frame)
+		quit(1)
+		return
+	clip.frames = [{"add_delay": 0, "texture": null}, {"add_delay": 0, "texture": null}]
+	clip.interval = 0.1
+	clip.repeat_delay = 0.2
+	clip.swing = false
+	clip.rewind()
+	clip.advance(0.21)
+	if clip.frame != 0:
+		push_error("MovieClip advance did not complete the first loop.")
+		quit(1)
+		return
+	clip.advance(0.29)
+	if clip.frame != 0:
+		push_error("MovieClip repeat delay was not applied after a loop.")
+		quit(1)
+		return
+	clip.advance(0.31)
+	if clip.frame != 1:
+		push_error("MovieClip repeat delay did not release the next frame.")
+		quit(1)
+		return
+	clip.set_play_settings(0, 1, 1, 0)
+	clip._advance_playback_frame()
+	if clip.frame != 1 or clip._play_status != 2:
+		push_error("MovieClip play settings did not enter its ending state.")
+		quit(1)
+		return
+	clip._advance_playback_frame()
+	if clip.frame != 0 or clip._play_status != 3:
+		push_error("MovieClip play settings did not stop at the requested end frame.")
+		quit(1)
+		return
+
+	var animation_clip := FGUIMovieClip.new()
+	animation_clip.frames = [
+		{"add_delay": 0, "texture": null},
+		{"add_delay": 0, "texture": null},
+		{"add_delay": 0, "texture": null},
+		{"add_delay": 0, "texture": null},
+	]
+	animation_clip.interval = 0.1
+	animation_clip.playing = false
+	owner.add_child(animation_clip)
+	var animation_seek_transition := FGUITransition.new(owner)
+	animation_seek_transition._items = [
+		{
+			"type": FGUITransition.ACTION_ANIMATION,
+			"time": 0.0,
+			"target_id": animation_clip.id,
+			"target": null,
+			"label": "animation_start",
+			"value": {"playing": true, "frame": 0},
+			"tween_config": null,
+			"hook": Callable(),
+		},
+		{
+			"type": FGUITransition.ACTION_ANIMATION,
+			"time": 0.35,
+			"target_id": animation_clip.id,
+			"target": null,
+			"label": "animation_stop",
+			"value": {"playing": false, "frame": -1},
+			"tween_config": null,
+			"hook": Callable(),
+		},
+	]
+	animation_seek_transition.play(Callable(), 1, 0.0, 0.5)
+	await process_frame
+	await process_frame
+	if animation_clip.playing or animation_clip.frame != 3:
+		push_error("Transition start-time seek did not advance animation actions: playing=%s frame=%s" % [animation_clip.playing, animation_clip.frame])
+		quit(1)
+		return
 
 	transition.dispose()
 	repeat_transition.dispose()
@@ -392,6 +486,7 @@ func _initialize() -> void:
 	path_transition.dispose()
 	parent_transition.dispose()
 	stop_marker_transition.dispose()
+	animation_seek_transition.dispose()
 	clip.dispose()
 	owner.dispose()
 	host.queue_free()

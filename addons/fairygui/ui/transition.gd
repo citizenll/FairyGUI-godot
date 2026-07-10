@@ -352,6 +352,7 @@ func _internal_play(token: int) -> void:
 	_owner_base = Vector2(owner.x, owner.y) if owner != null else Vector2.ZERO
 	_acquire_display_locks()
 	var scheduled := 0
+	var need_skip_animations := false
 	var indices := range(_items.size())
 	if _reversed:
 		indices = range(_items.size() - 1, -1, -1)
@@ -359,8 +360,13 @@ func _internal_play(token: int) -> void:
 		var item: Dictionary = _items[i]
 		if item.get("target") == null:
 			continue
+		if not _reversed and int(item["type"]) == ACTION_ANIMATION and _start_time > 0.0 and float(item["time"]) <= _start_time:
+			need_skip_animations = true
+			continue
 		if _schedule_item(item, token):
 			scheduled += 1
+	if need_skip_animations:
+		_skip_animations()
 	if scheduled == 0:
 		_check_all_complete(token)
 
@@ -488,6 +494,45 @@ func _on_delayed_item(item: Dictionary, token: int) -> void:
 		return
 	_apply_value(item, item["value"])
 	_call_hook(item, false)
+
+
+func _skip_animations() -> void:
+	var processed: Dictionary = {}
+	for i in _items.size():
+		var item: Dictionary = _items[i]
+		if processed.has(i) or int(item["type"]) != ACTION_ANIMATION or float(item["time"]) > _start_time:
+			continue
+		var target: FGUIObject = item.get("target")
+		if target == null:
+			continue
+		var frame := int(target.get_prop(FGUIEnums.OBJECT_PROP_FRAME))
+		var play_start_time := 0.0 if bool(target.get_prop(FGUIEnums.OBJECT_PROP_PLAYING)) else -1.0
+		var play_total_time := 0.0
+		for j in range(i, _items.size()):
+			var animation_item: Dictionary = _items[j]
+			if int(animation_item["type"]) != ACTION_ANIMATION or animation_item.get("target") != target or float(animation_item["time"]) > _start_time:
+				continue
+			processed[j] = true
+			var value: Dictionary = animation_item["value"]
+			var item_time := float(animation_item["time"])
+			var next_frame := int(value.get("frame", -1))
+			if next_frame >= 0:
+				frame = next_frame
+				play_start_time = item_time if bool(value.get("playing", true)) else -1.0
+				play_total_time = 0.0
+			elif bool(value.get("playing", true)):
+				if play_start_time < 0.0:
+					play_start_time = item_time
+			elif play_start_time >= 0.0:
+				play_total_time += item_time - play_start_time
+				play_start_time = -1.0
+			_call_hook(animation_item, false)
+		if play_start_time >= 0.0:
+			play_total_time += _start_time - play_start_time
+		target.set_prop(FGUIEnums.OBJECT_PROP_PLAYING, play_start_time >= 0.0)
+		target.set_prop(FGUIEnums.OBJECT_PROP_FRAME, frame)
+		if play_total_time > 0.0:
+			target.set_prop(FGUIEnums.OBJECT_PROP_DELTA_TIME, play_total_time * 1000.0)
 
 
 func _on_item_tween_finished(token: int, tween: Tween) -> void:

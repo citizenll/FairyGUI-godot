@@ -215,6 +215,8 @@ func set_prop(index: int, value: Variant) -> void:
 			frame = int(value)
 		FGUIEnums.OBJECT_PROP_TIME_SCALE:
 			time_scale = float(value)
+		FGUIEnums.OBJECT_PROP_DELTA_TIME:
+			advance(float(value) / 1000.0)
 		_:
 			super.set_prop(index, value)
 
