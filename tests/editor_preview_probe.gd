@@ -58,6 +58,21 @@ func _initialize() -> void:
 	if view.size.x <= 0.0 or view.size.y <= 0.0:
 		_fail("FGUIView did not size an empty Control to its preview content.")
 		return
+	var sized_view := FGUIView.new()
+	sized_view.resize_to_content = false
+	sized_view.match_control_size = true
+	sized_view.size = Vector2(160.0, 90.0)
+	host.add_child(sized_view)
+	sized_view.package = resource
+	sized_view.component_name = component_names[0]
+	await process_frame
+	await process_frame
+	var sized_preview := sized_view.get_fairy_object()
+	if sized_preview == null or not Vector2(sized_preview.width, sized_preview.height).is_equal_approx(sized_view.size):
+		_fail("FGUIView did not apply match_control_size outside the editor.")
+		return
+	sized_view.queue_free()
+	await process_frame
 	var second_view := FGUIView.new()
 	host.add_child(second_view)
 	second_view.package = resource

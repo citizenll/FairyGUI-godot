@@ -39,6 +39,13 @@ var time_scale: float:
 		for transition: FGUITransition in _active_child_transitions:
 			if is_instance_valid(transition):
 				transition.time_scale = _time_scale
+		if playing:
+			for item in _items:
+				if int(item.get("type", -1)) != ACTION_ANIMATION:
+					continue
+				var target: FGUIObject = item.get("target")
+				if target != null:
+					target.set_prop(FGUIEnums.OBJECT_PROP_TIME_SCALE, _time_scale)
 
 var total_duration: float:
 	get:
@@ -129,6 +136,18 @@ func set_paused(value: bool) -> void:
 	for transition: FGUITransition in _active_child_transitions:
 		if is_instance_valid(transition):
 			transition.set_paused(value)
+	for item in _items:
+		if int(item.get("type", -1)) != ACTION_ANIMATION:
+			continue
+		var target: FGUIObject = item.get("target")
+		if target == null:
+			continue
+		var animation_value: Dictionary = item.get("value", {})
+		if paused:
+			animation_value["flag"] = bool(target.get_prop(FGUIEnums.OBJECT_PROP_PLAYING))
+			target.set_prop(FGUIEnums.OBJECT_PROP_PLAYING, false)
+		else:
+			target.set_prop(FGUIEnums.OBJECT_PROP_PLAYING, bool(animation_value.get("flag", true)))
 
 
 func dispose() -> void:

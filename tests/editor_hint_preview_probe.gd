@@ -34,6 +34,10 @@ func _initialize() -> void:
 	view.queue_free()
 	host.queue_free()
 	await process_frame
+	await process_frame
+	if not FGUIPackageResource._package_cache.is_empty():
+		_fail("FGUIView editor preview retained imported package references after cleanup.")
+		return
 	quit(0)
 
 

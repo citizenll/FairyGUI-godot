@@ -168,14 +168,14 @@ func _initialize() -> void:
 	if input.text_edit == null or input.line_edit != null:
 		_fail("Text inputs should use a native TextEdit when configured for multiline text.")
 		return
-	input.prompt_text = "Enter multiple lines"
+	input.prompt_text = "[color=#336699]Enter [b]multiple[/b] lines[/color]"
 	input.text = "first\nsecond"
-	if input.text_edit.placeholder_text != "Enter multiple lines" or input.text_edit.text != "first\nsecond":
-		_fail("Multiline text inputs did not retain text or placeholder settings.")
+	if input.text_edit.placeholder_text != "Enter multiple lines" or input.text_edit.text != "first\nsecond" or input.text_edit.get_theme_color("font_placeholder_color") != Color("336699"):
+		_fail("Multiline text inputs did not retain UBB prompt text and color settings.")
 		return
 	input.single_line = true
-	if input.line_edit == null or input.text_edit != null or input.text != "first\nsecond":
-		_fail("Switching a text input to single-line mode did not preserve its content.")
+	if input.line_edit == null or input.text_edit != null or input.text != "first\nsecond" or input.line_edit.placeholder_text != "Enter multiple lines" or input.line_edit.get_theme_color("font_placeholder_color") != Color("336699"):
+		_fail("Switching a text input to single-line mode did not preserve content and prompt styling.")
 		return
 	input.password = true
 	if input.line_edit == null or not input.line_edit.secret:

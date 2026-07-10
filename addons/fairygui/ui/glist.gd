@@ -14,6 +14,14 @@ var line_count: int = 0
 var column_count: int = 0
 var line_gap: int = 0
 var column_gap: int = 0
+var align: int = FGUIEnums.ALIGN_LEFT:
+	set(value):
+		align = clampi(value, FGUIEnums.ALIGN_LEFT, FGUIEnums.ALIGN_RIGHT)
+		_request_layout_refresh()
+var vertical_align: int = FGUIEnums.VERT_ALIGN_TOP:
+	set(value):
+		vertical_align = clampi(value, FGUIEnums.VERT_ALIGN_TOP, FGUIEnums.VERT_ALIGN_BOTTOM)
+		_request_layout_refresh()
 var default_item: String = "":
 	set(value):
 		default_item = FGUIPackage.normalize_url(value)
@@ -38,6 +46,7 @@ var _virtual_first_index: int = 0
 var _virtual_real_num_items: int = 0
 var _virtual_loop_position_initialized: bool = false
 var _refreshing_virtual: bool = false
+var _align_offset := Vector2.ZERO
 
 var num_items: int:
 	get:
@@ -331,6 +340,7 @@ func refresh_virtual_list() -> void:
 		_virtual_real_num_items = 0
 		_virtual_first_index = 0
 		_virtual_loop_position_initialized = false
+		_align_offset = Vector2.ZERO
 		if scroll_pane != null:
 			scroll_pane.set_content_size(0, 0)
 		_refreshing_virtual = false
@@ -343,6 +353,7 @@ func refresh_virtual_list() -> void:
 	if layout_info.is_empty():
 		_refreshing_virtual = false
 		return
+	_align_offset = _get_align_offset(Vector2(float(layout_info["content_width"]), float(layout_info["content_height"])))
 	var horizontal := bool(layout_info["horizontal"])
 	var span := float(layout_info["primary_span"])
 	var variable_primary := bool(layout_info.get("variable_primary", false))
@@ -417,8 +428,8 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 		return
 	layout = buffer.read_i8()
 	selection_mode = buffer.read_i8()
-	buffer.read_i8()
-	buffer.read_i8()
+	align = buffer.read_i8()
+	vertical_align = buffer.read_i8()
 	line_gap = buffer.read_i16()
 	column_gap = buffer.read_i16()
 	line_count = buffer.read_i16()
@@ -539,6 +550,12 @@ func update_bounds() -> void:
 		max_size.x = maxf(max_size.x, cur.x - column_gap)
 	elif layout == FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL:
 		max_size.y = maxf(max_size.y, cur.y - line_gap)
+	_align_offset = _get_align_offset(max_size)
+	if not _align_offset.is_zero_approx():
+		for child: FGUIObject in children:
+			if fold_invisible_items and not child.visible:
+				continue
+			child.set_xy(child.x + _align_offset.x, child.y + _align_offset.y)
 	if scroll_pane != null:
 		scroll_pane.set_content_size(max_size.x, max_size.y)
 
@@ -1035,29 +1052,58 @@ func _get_virtual_layout_info(item_count: int) -> Dictionary:
 func _get_virtual_item_position(physical_index: int, layout_info: Dictionary) -> Vector2:
 	var list_layout := int(layout_info["layout"])
 	if bool(layout_info.get("variable_primary", false)):
-		return Vector2(_get_virtual_primary_start(physical_index), 0.0) if list_layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else Vector2(0.0, _get_virtual_primary_start(physical_index))
+		var variable_position := Vector2(_get_virtual_primary_start(physical_index), 0.0) if list_layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else Vector2(0.0, _get_virtual_primary_start(physical_index))
+		return variable_position + _align_offset
 	var horizontal_span := float(layout_info["horizontal_span"])
 	var vertical_span := float(layout_info["vertical_span"])
+	var position := Vector2.ZERO
 	match list_layout:
 		FGUIEnums.LIST_LAYOUT_SINGLE_ROW:
-			return Vector2(float(physical_index) * horizontal_span, 0.0)
+			position = Vector2(float(physical_index) * horizontal_span, 0.0)
 		FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL:
 			var columns := int(layout_info["columns"])
-			return Vector2(float(physical_index % columns) * horizontal_span, float(physical_index / columns) * vertical_span)
+			position = Vector2(float(physical_index % columns) * horizontal_span, float(physical_index / columns) * vertical_span)
 		FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL:
 			var rows := int(layout_info["rows"])
-			return Vector2(float(physical_index / rows) * horizontal_span, float(physical_index % rows) * vertical_span)
+			position = Vector2(float(physical_index / rows) * horizontal_span, float(physical_index % rows) * vertical_span)
 		FGUIEnums.LIST_LAYOUT_PAGINATION:
 			var page_capacity := int(layout_info["items_per_group"])
 			var page := physical_index / page_capacity
 			var page_index := physical_index % page_capacity
 			var columns := int(layout_info["columns"])
-			return Vector2(
+			position = Vector2(
 				float(page) * float(layout_info["view_width"]) + float(page_index % columns) * horizontal_span,
 				float(page_index / columns) * vertical_span
 			)
 		_:
-			return Vector2(0.0, float(physical_index) * vertical_span)
+			position = Vector2(0.0, float(physical_index) * vertical_span)
+	return position + _align_offset
+
+
+func _get_align_offset(content_size: Vector2) -> Vector2:
+	var offset := Vector2.ZERO
+	var view_size := Vector2(maxf(0.0, view_width), maxf(0.0, view_height))
+	if content_size.x < view_size.x:
+		if align == FGUIEnums.ALIGN_CENTER:
+			offset.x = floorf((view_size.x - content_size.x) * 0.5)
+		elif align == FGUIEnums.ALIGN_RIGHT:
+			offset.x = view_size.x - content_size.x
+	if content_size.y < view_size.y:
+		if vertical_align == FGUIEnums.VERT_ALIGN_MIDDLE:
+			offset.y = floorf((view_size.y - content_size.y) * 0.5)
+		elif vertical_align == FGUIEnums.VERT_ALIGN_BOTTOM:
+			offset.y = view_size.y - content_size.y
+	return offset
+
+
+func _request_layout_refresh() -> void:
+	_virtual_size_layout_dirty = true
+	if _virtual:
+		refresh_virtual_list()
+	elif scroll_pane == null and not track_bounds:
+		update_bounds()
+	else:
+		set_bounds_changed_flag()
 
 
 func _physical_to_item_index(physical_index: int) -> int:

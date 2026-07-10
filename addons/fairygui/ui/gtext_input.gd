@@ -6,6 +6,8 @@ var text_edit: TextEdit
 var _input_control: Control
 var _editable: bool = true
 var _prompt_text: String = ""
+var _prompt_color := Color.WHITE
+var _has_prompt_color: bool = false
 var _max_length: int = 0
 var _password: bool = false
 var _keyboard_type: int = 0
@@ -24,7 +26,11 @@ var prompt_text: String:
 	get:
 		return _prompt_text
 	set(value):
-		_prompt_text = value
+		var parser := FGUIUBBParser.default_parser
+		_prompt_text = parser.parse(value, true) if parser != null else value
+		_has_prompt_color = parser != null and parser.last_color != ""
+		if _has_prompt_color:
+			_prompt_color = FGUIToolSet.color_from_html(parser.last_color)
 		_apply_prompt_text()
 var max_length: int:
 	get:
@@ -111,7 +117,7 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 		return
 	var value = buffer.read_s()
 	if value != null:
-		prompt_text = FGUIUBBParser.default_parser.parse(str(value), true)
+		prompt_text = str(value)
 	value = buffer.read_s()
 	if value != null:
 		restrict = str(value)
@@ -247,8 +253,17 @@ func _apply_editable() -> void:
 func _apply_prompt_text() -> void:
 	if line_edit != null:
 		line_edit.placeholder_text = _prompt_text
+		_apply_prompt_color(line_edit)
 	elif text_edit != null:
 		text_edit.placeholder_text = _prompt_text
+		_apply_prompt_color(text_edit)
+
+
+func _apply_prompt_color(control: Control) -> void:
+	if _has_prompt_color:
+		control.add_theme_color_override("font_placeholder_color", _prompt_color)
+	else:
+		control.remove_theme_color_override("font_placeholder_color")
 
 
 func _apply_max_length() -> void:

@@ -109,6 +109,22 @@ func _initialize() -> void:
 		return
 
 	list.dispose()
+	var aligned_virtual := _create_virtual_list(
+		host,
+		Vector2(100.0, 60.0),
+		FGUIEnums.SCROLL_HORIZONTAL,
+		FGUIEnums.LIST_LAYOUT_SINGLE_ROW,
+		Vector2(20.0, 10.0)
+	)
+	aligned_virtual.auto_resize_item = false
+	aligned_virtual.align = FGUIEnums.ALIGN_CENTER
+	aligned_virtual.vertical_align = FGUIEnums.VERT_ALIGN_BOTTOM
+	aligned_virtual.set_virtual()
+	aligned_virtual.num_items = 1
+	await process_frame
+	if not _expect_item_position(aligned_virtual, 0, Vector2(40.0, 50.0), "aligned virtual item"):
+		return
+	aligned_virtual.dispose()
 
 	var variable_column := _create_virtual_list(
 		host,

@@ -18,6 +18,9 @@ func _initialize() -> void:
 	if stripped != "Bold Large Red Link https://plain.example ui://packageimage Centered [b]":
 		_fail("UBB remove mode did not preserve text while stripping recognized tags: %s" % stripped)
 		return
+	if parser.last_color != "#ff0000" or parser.last_size != "18":
+		_fail("UBB remove mode did not preserve color and size metadata for text inputs.")
+		return
 	var extended := parser.parse("A[strike]B[/strike][br]C[unknown=x]D[/unknown]")
 	if extended != "A[s]B[/s]\nC[unknown=x]D[/unknown]":
 		_fail("UBB parsing did not handle strike, line break, and unknown tags: %s" % extended)

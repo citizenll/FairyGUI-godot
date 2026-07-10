@@ -48,6 +48,26 @@ func _initialize() -> void:
 	if list.selected_index != 1:
 		_fail("List up-arrow navigation did not return to the preceding flow-layout row.")
 		return
+	var aligned_list := FGUIList.new()
+	aligned_list.layout = FGUIEnums.LIST_LAYOUT_SINGLE_ROW
+	aligned_list.auto_resize_item = false
+	aligned_list.align = FGUIEnums.ALIGN_CENTER
+	aligned_list.vertical_align = FGUIEnums.VERT_ALIGN_BOTTOM
+	aligned_list.set_size(100.0, 60.0)
+	host.add_child(aligned_list.node)
+	var aligned_item := FGUIObject.new()
+	aligned_item.set_size(20.0, 10.0)
+	aligned_list.add_child(aligned_item)
+	aligned_list.update_bounds()
+	if not Vector2(aligned_item.x, aligned_item.y).is_equal_approx(Vector2(40.0, 50.0)):
+		_fail("List alignment did not offset ordinary list content within the viewport.")
+		return
+	aligned_list.align = FGUIEnums.ALIGN_RIGHT
+	aligned_list.vertical_align = FGUIEnums.VERT_ALIGN_TOP
+	if not Vector2(aligned_item.x, aligned_item.y).is_equal_approx(Vector2(80.0, 0.0)):
+		_fail("List alignment changes did not refresh ordinary list layout immediately.")
+		return
+	aligned_list.dispose()
 
 	list.selection_mode = FGUIEnums.LIST_SELECTION_MULTIPLE_SINGLE_CLICK
 	list.clear_selection()

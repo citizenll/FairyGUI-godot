@@ -513,6 +513,43 @@ func _initialize() -> void:
 		push_error("Transition start-time seek did not advance animation actions: playing=%s frame=%s" % [animation_clip.playing, animation_clip.frame])
 		quit(1)
 		return
+	var animation_pause_transition := FGUITransition.new(owner)
+	animation_pause_transition._items = [
+		{
+			"type": FGUITransition.ACTION_ANIMATION,
+			"time": 0.0,
+			"target_id": animation_clip.id,
+			"target": null,
+			"label": "animation_pause",
+			"value": {"playing": true, "frame": 0},
+			"tween_config": null,
+			"hook": Callable(),
+		},
+		_make_alpha_tween_item(0.4),
+	]
+	animation_clip.playing = false
+	animation_pause_transition.play()
+	await process_frame
+	if not animation_pause_transition.playing or not animation_clip.playing:
+		push_error("Transition animation action did not begin playback.")
+		quit(1)
+		return
+	animation_pause_transition.time_scale = 2.5
+	if absf(animation_clip.time_scale - 2.5) > 0.01:
+		push_error("Transition runtime time_scale did not propagate to animation actions.")
+		quit(1)
+		return
+	animation_pause_transition.set_paused(true)
+	if not animation_pause_transition.paused or animation_clip.playing:
+		push_error("Transition pause did not suspend animation actions.")
+		quit(1)
+		return
+	animation_pause_transition.set_paused(false)
+	if animation_pause_transition.paused or not animation_clip.playing:
+		push_error("Transition resume did not restore animation action playback.")
+		quit(1)
+		return
+	animation_pause_transition.stop(false, false)
 
 	transition.dispose()
 	repeat_transition.dispose()
@@ -524,6 +561,7 @@ func _initialize() -> void:
 	parent_transition.dispose()
 	stop_marker_transition.dispose()
 	animation_seek_transition.dispose()
+	animation_pause_transition.dispose()
 	clip.dispose()
 	owner.dispose()
 	host.queue_free()

@@ -58,10 +58,11 @@ func parse(text: String, remove: bool = false) -> String:
 		var tag_name := raw_tag.to_lower()
 
 		if _is_supported_tag(tag_name):
-			if not remove:
-				var replacement := _convert_tag(tag_name, end, attribute)
-				if replacement != null:
-					result += str(replacement)
+			# In remove mode the source inside [img]...[/img] remains visible.
+			# Do not consume it while collecting other tag metadata.
+			var replacement: Variant = null if remove and tag_name == "img" else _convert_tag(tag_name, end, attribute)
+			if not remove and replacement != null:
+				result += str(replacement)
 		else:
 			result += _text.substr(tag_start, _read_pos - tag_start)
 		pos = _read_pos
