@@ -53,6 +53,19 @@ func _initialize() -> void:
 	if field.label.autowrap_mode != TextServer.AUTOWRAP_WORD_SMART or field.height < 12.0:
 		_fail("Height auto-size did not preserve width and enable wrapping.")
 		return
+	field.set_size(48.0, 16.0)
+	field.font_size = 20
+	field.single_line = true
+	field.auto_size = FGUIEnums.AUTOSIZE_SHRINK
+	field.text = "Shrink this text"
+	await process_frame
+	if field.label.label_settings.font_size >= 20 or field.label.get_minimum_size().x > field.width + 0.5:
+		_fail("Shrink auto-size did not reduce the effective font size to fit fixed bounds.")
+		return
+	field.auto_size = FGUIEnums.AUTOSIZE_BOTH
+	if field.label.label_settings.font_size != 20:
+		_fail("Leaving Shrink auto-size did not restore the requested font size.")
+		return
 
 	var rich_field := FGUIRichTextField.new()
 	host.add_child(rich_field.node)

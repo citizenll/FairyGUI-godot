@@ -15,12 +15,15 @@ var _shadow_offset: Vector2 = Vector2.ZERO
 var _template_vars: Dictionary = {}
 var _template_vars_enabled: bool = false
 var _updating_text_size: bool = false
+var _effective_font_size: int = 14
 var font_size: int:
 	get:
 		return _font_size
 	set(value):
 		_font_size = value
 		_apply_font_size()
+		if _text != "":
+			_update_text_size()
 		update_gear(9)
 var color: Color:
 	get:
@@ -274,8 +277,7 @@ func _apply_font_size() -> void:
 		_render_bitmap_text(_parse_template(get_text()) if _template_vars_enabled else get_text())
 		return
 	if label is Label:
-		_ensure_label_settings()
-		label.label_settings.font_size = _font_size
+		_set_effective_font_size(_font_size)
 	elif label is RichTextLabel:
 		label.add_theme_font_size_override("normal_font_size", _font_size)
 	elif label is LineEdit:
@@ -337,12 +339,43 @@ func _update_text_size() -> void:
 		return
 	_updating_text_size = true
 	_configure_label_layout()
+	if _auto_size == FGUIEnums.AUTOSIZE_SHRINK:
+		_apply_shrink_to_fit()
+		_updating_text_size = false
+		return
+	_set_effective_font_size(_font_size)
 	var minimum: Vector2 = label.get_minimum_size()
 	if _auto_size == FGUIEnums.AUTOSIZE_BOTH:
 		set_size(minimum.x, minimum.y)
 	elif _auto_size == FGUIEnums.AUTOSIZE_HEIGHT:
 		set_size(width, minimum.y)
 	_updating_text_size = false
+
+
+func _set_effective_font_size(value: int) -> void:
+	if not (label is Label):
+		return
+	_ensure_label_settings()
+	_effective_font_size = maxi(1, value)
+	label.label_settings.font_size = _effective_font_size
+
+
+func _apply_shrink_to_fit() -> void:
+	if not (label is Label):
+		return
+	var requested_size := maxi(1, _font_size)
+	var target_size := Vector2(width, height)
+	if target_size.x <= 0.0 or target_size.y <= 0.0:
+		_set_effective_font_size(requested_size)
+		return
+	var effective_size := requested_size
+	while effective_size > 1:
+		_set_effective_font_size(effective_size)
+		var minimum: Vector2 = label.get_minimum_size()
+		if minimum.x <= target_size.x + 0.5 and minimum.y <= target_size.y + 0.5:
+			break
+		effective_size -= 1
+	_set_effective_font_size(effective_size)
 
 
 func _handle_size_changed() -> void:
