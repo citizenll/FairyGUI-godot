@@ -100,6 +100,9 @@ func _find_drop_target(target_root: FGUIRoot, global_position: Vector2) -> FGUIO
 		var hovered_object := FGUIToolSet.display_object_to_gobject(hovered)
 		if hovered_object != null and hovered_object != agent:
 			return hovered_object
+	var hit_object := target_root.hit_test(global_position)
+	if hit_object != null and hit_object != agent:
+		return hit_object
 	return _find_object_at(target_root, global_position)
 
 

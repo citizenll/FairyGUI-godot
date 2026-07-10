@@ -263,6 +263,28 @@ func _snap_axis_position(value: float, vertical: bool) -> float:
 	return previous.y if vertical else previous.x
 
 
+func hit_test(view_point: Vector2, force_test: bool = false) -> FGUIObject:
+	if node == null or (not force_test and (not touchable or not internal_visible2)):
+		return null
+	var local_point := _global_to_node_local(view_point)
+	var outside_content := local_point.x < 0.0 or local_point.y < 0.0 or local_point.x > width or local_point.y > height
+	if node.clip_contents and outside_content:
+		return null
+	if _mask != null:
+		var mask_hit := _mask.hit_test(view_point, true) != null
+		if (_reversed_mask and mask_hit) or (not _reversed_mask and not mask_hit):
+			return null
+	for index in range(children.size() - 1, -1, -1):
+		var child_hit: FGUIObject = (children[index] as FGUIObject).hit_test(view_point, force_test)
+		if child_hit != null:
+			return child_hit
+	if not opaque or outside_content:
+		return null
+	if pixel_hit_test != null and not pixel_hit_test.contains(local_point.x, local_point.y):
+		return null
+	return self
+
+
 func set_bounds_changed_flag() -> void:
 	_bounds_changed = true
 

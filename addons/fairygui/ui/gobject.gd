@@ -575,6 +575,17 @@ func request_focus() -> void:
 		root_object.focus = self
 
 
+func hit_test(view_point: Vector2, force_test: bool = false) -> FGUIObject:
+	if node == null or (not force_test and (not touchable or not internal_visible2)):
+		return null
+	var local_point := _global_to_node_local(view_point)
+	if local_point.x < 0.0 or local_point.y < 0.0 or local_point.x > width or local_point.y > height:
+		return null
+	if pixel_hit_test != null and not pixel_hit_test.contains(local_point.x, local_point.y):
+		return null
+	return self
+
+
 func _global_to_node_local(point: Vector2) -> Vector2:
 	return node.get_global_transform().affine_inverse() * point if node != null else point
 
