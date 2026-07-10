@@ -153,7 +153,44 @@ func _initialize() -> void:
 		_fail("Custom scroll bar grip did not drive ScrollPane position.")
 		return
 
+	var pull_owner := FGUIComponent.new()
+	pull_owner.set_size(100, 100)
+	host.add_child(pull_owner.node)
+	var pull_pane := FGUIScrollPane.new(pull_owner)
+	pull_owner.scroll_pane = pull_pane
+	pull_pane.scroll_type = FGUIEnums.SCROLL_VERTICAL
+	pull_pane._configure_native_scroll_modes()
+	pull_pane.set_content_size(100, 300)
+	if not pull_pane.container.gui_input.is_connected(Callable(pull_pane, "_on_container_gui_input")):
+		_fail("ScrollPane did not connect its edge-drag input handler.")
+		return
+	var release_counts := {"down": 0, "up": 0, "end": 0}
+	pull_owner.on(FGUIEvents.PULL_DOWN_RELEASE, func() -> void: release_counts["down"] = int(release_counts["down"]) + 1)
+	pull_owner.on(FGUIEvents.PULL_UP_RELEASE, func() -> void: release_counts["up"] = int(release_counts["up"]) + 1)
+	pull_owner.on(FGUIEvents.SCROLL_END, func() -> void: release_counts["end"] = int(release_counts["end"]) + 1)
+	pull_pane._on_container_gui_input(_mouse_button_event(Vector2(50, 50), true))
+	pull_pane._on_container_gui_input(_mouse_motion_event(Vector2(50, 75)))
+	pull_pane._on_container_gui_input(_mouse_button_event(Vector2(50, 75), false))
+	if release_counts["down"] != 1 or release_counts["up"] != 0 or release_counts["end"] != 1:
+		_fail("ScrollPane did not dispatch pull-down release at the top edge.")
+		return
+	pull_pane.scroll_bottom()
+	pull_pane._on_container_gui_input(_mouse_button_event(Vector2(50, 50), true))
+	pull_pane._on_container_gui_input(_mouse_motion_event(Vector2(50, 20)))
+	pull_pane._on_container_gui_input(_mouse_button_event(Vector2(50, 20), false))
+	if release_counts["down"] != 1 or release_counts["up"] != 1 or release_counts["end"] != 2:
+		_fail("ScrollPane did not dispatch pull-up release at the bottom edge.")
+		return
+	pull_pane.scroll_top()
+	pull_pane._on_container_gui_input(_mouse_button_event(Vector2(50, 50), true))
+	pull_pane._on_container_gui_input(_mouse_motion_event(Vector2(50, 57)))
+	pull_pane._on_container_gui_input(_mouse_button_event(Vector2(50, 57), false))
+	if release_counts["down"] != 1 or release_counts["up"] != 1 or release_counts["end"] != 3:
+		_fail("ScrollPane dispatched a pull release below the drag threshold.")
+		return
+
 	scroll_bar.dispose()
+	pull_owner.dispose()
 	controls_parent.dispose()
 	parent.dispose()
 	owner.dispose()
@@ -181,6 +218,21 @@ func _append_i32(bytes: PackedByteArray, value: int) -> void:
 	bytes.append((value >> 16) & 0xff)
 	bytes.append((value >> 8) & 0xff)
 	bytes.append(value & 0xff)
+
+
+func _mouse_button_event(position: Vector2, pressed: bool) -> InputEventMouseButton:
+	var event := InputEventMouseButton.new()
+	event.position = position
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.pressed = pressed
+	return event
+
+
+func _mouse_motion_event(position: Vector2) -> InputEventMouseMotion:
+	var event := InputEventMouseMotion.new()
+	event.position = position
+	event.button_mask = MOUSE_BUTTON_MASK_LEFT
+	return event
 
 
 func _fail(message: String) -> void:
