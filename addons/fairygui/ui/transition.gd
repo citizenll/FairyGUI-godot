@@ -379,7 +379,7 @@ func _schedule_item(item: Dictionary, token: int) -> bool:
 			var complete_start := _get_tween_start_value(item).duplicate(true)
 			var complete_end := _get_tween_end_value(item).duplicate(true)
 			_prepare_missing_tween_values(item, complete_start, complete_end)
-			_apply_tween_variant(_variant_at_tween_elapsed(item, complete_start, complete_end, total_span), item)
+			_apply_tween_variant(_variant_at_tween_elapsed(item, complete_start, complete_end, total_span), item, complete_start)
 			_call_hook(item, true)
 			return false
 		var play_duration := total_span - offset
@@ -567,17 +567,17 @@ func _resolve_targets() -> void:
 		value["trans"] = nested_transition
 
 
-func _apply_tween_variant(value: Variant, item: Dictionary) -> void:
+func _apply_tween_variant(value: Variant, item: Dictionary, start_value: Dictionary = {}) -> void:
 	var actual := _value_from_variant(item["type"], value)
 	if item.get("tween_config") != null and item["tween_config"].get("path") != null:
 		var point: Vector2 = item["tween_config"]["path"].get_point_at(clampf(value.w, 0.0, 1.0)) if value is Vector4 else Vector2.ZERO
-		actual["f1"] = point.x + float(actual.get("start_x", 0.0))
-		actual["f2"] = point.y + float(actual.get("start_y", 0.0))
+		actual["f1"] = point.x + float(start_value.get("f1", 0.0))
+		actual["f2"] = point.y + float(start_value.get("f2", 0.0))
 	_apply_value(item, actual)
 
 
 func _apply_tween_elapsed(elapsed: float, item: Dictionary, start_value: Dictionary, end_value: Dictionary) -> void:
-	_apply_tween_variant(_variant_at_tween_elapsed(item, start_value, end_value, elapsed), item)
+	_apply_tween_variant(_variant_at_tween_elapsed(item, start_value, end_value, elapsed), item, start_value)
 
 
 func _apply_shake_elapsed(elapsed: float, item: Dictionary, duration: float, amplitude: float) -> void:
@@ -693,7 +693,7 @@ func _apply_complete_state() -> void:
 			var end_value := _get_tween_end_value(item).duplicate(true)
 			_prepare_missing_tween_values(item, start_value, end_value)
 			var span := _get_tween_total_span(float(item["tween_config"]["duration"]), int(item["tween_config"].get("repeat", 0)))
-			_apply_tween_variant(_variant_at_tween_elapsed(item, start_value, end_value, span if span < INF else float(item["tween_config"]["duration"])), item)
+			_apply_tween_variant(_variant_at_tween_elapsed(item, start_value, end_value, span if span < INF else float(item["tween_config"]["duration"])), item, start_value)
 		else:
 			_apply_value(item, item["value"])
 

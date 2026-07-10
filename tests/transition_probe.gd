@@ -199,6 +199,67 @@ func _initialize() -> void:
 		quit(1)
 		return
 
+	var straight_path := FGUIGPath.new()
+	straight_path.create([
+		FGUIGPathPoint.new_point(0.0, 0.0, FGUIGPath.CURVE_STRAIGHT),
+		FGUIGPathPoint.new_point(20.0, 0.0, FGUIGPath.CURVE_STRAIGHT)
+	])
+	if not straight_path.get_point_at(0.5).is_equal_approx(Vector2(10.0, 0.0)):
+		push_error("Transition straight path evaluation failed.")
+		quit(1)
+		return
+	var quadratic_path := FGUIGPath.new()
+	quadratic_path.create([
+		FGUIGPathPoint.new_bezier_point(0.0, 0.0, 10.0, 20.0),
+		FGUIGPathPoint.new_point(20.0, 0.0, FGUIGPath.CURVE_STRAIGHT)
+	])
+	if not quadratic_path.get_point_at(0.5).is_equal_approx(Vector2(10.0, 10.0)):
+		push_error("Transition quadratic path evaluation failed: %s" % quadratic_path.get_point_at(0.5))
+		quit(1)
+		return
+	var cubic_path := FGUIGPath.new()
+	cubic_path.create([
+		FGUIGPathPoint.new_cubic_bezier_point(0.0, 0.0, 0.0, 20.0, 20.0, 20.0),
+		FGUIGPathPoint.new_point(20.0, 0.0, FGUIGPath.CURVE_STRAIGHT)
+	])
+	if not cubic_path.get_point_at(0.5).is_equal_approx(Vector2(10.0, 15.0)):
+		push_error("Transition cubic path evaluation failed: %s" % cubic_path.get_point_at(0.5))
+		quit(1)
+		return
+	var spline_path := FGUIGPath.new()
+	spline_path.create([
+		FGUIGPathPoint.new_point(0.0, 0.0),
+		FGUIGPathPoint.new_point(10.0, 20.0),
+		FGUIGPathPoint.new_point(20.0, 0.0)
+	])
+	if not spline_path.get_point_at(0.0).is_equal_approx(Vector2.ZERO) or not spline_path.get_point_at(1.0).is_equal_approx(Vector2(20.0, 0.0)):
+		push_error("Transition Catmull-Rom path endpoints failed.")
+		quit(1)
+		return
+
+	var path_transition := FGUITransition.new(owner)
+	var path_item := {
+		"type": FGUITransition.ACTION_XY,
+		"target": child,
+		"target_id": child.id,
+		"value": {},
+		"tween_config": {
+			"duration": 1.0,
+			"ease_type": FGUIEaseType.LINEAR,
+			"repeat": 0,
+			"yoyo": false,
+			"path": quadratic_path,
+		}
+	}
+	var path_start := {"b1": true, "b2": true, "f1": 100.0, "f2": 50.0}
+	var path_end := {"b1": true, "b2": true, "f1": 120.0, "f2": 50.0}
+	child.set_xy(0.0, 0.0)
+	path_transition._apply_tween_elapsed(0.5, path_item, path_start, path_end)
+	if absf(child.x - 110.0) > 0.1 or absf(child.y - 60.0) > 0.1:
+		push_error("Transition path did not preserve the tween start offset: %s,%s" % [child.x, child.y])
+		quit(1)
+		return
+
 	var nested_component := FGUIComponent.new()
 	nested_component.set_size(40, 40)
 	owner.add_child(nested_component)
@@ -297,6 +358,7 @@ func _initialize() -> void:
 	yoyo_transition.dispose()
 	speed_transition.dispose()
 	shake_transition.dispose()
+	path_transition.dispose()
 	parent_transition.dispose()
 	stop_marker_transition.dispose()
 	clip.dispose()
