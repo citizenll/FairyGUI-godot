@@ -27,6 +27,9 @@ var _selected: bool = false
 var _down_effect: int = 0
 var _down_effect_value: float = 0.8
 var _button_touch_index: int = -2
+var _down: bool = false
+var _over: bool = false
+var _down_scaled: bool = false
 
 var selected: bool:
 	get:
@@ -37,7 +40,7 @@ var selected: bool:
 		if _selected == value:
 			return
 		_selected = value
-		set_state(DOWN if _selected else UP)
+		_refresh_button_state()
 		if _title_object != null:
 			_title_object.set_text(_selected_title if _selected and _selected_title != "" else _title)
 		if _icon_object != null:
@@ -118,8 +121,7 @@ func construct_extension(buffer: FGUIByteBuffer) -> void:
 	_icon_object = get_child("icon")
 	_title = _title_object.get_text() if _title_object != null else ""
 	_icon = _icon_object.get_icon() if _icon_object != null else ""
-	if mode == FGUIEnums.BUTTON_COMMON:
-		set_state(UP)
+	_refresh_button_state()
 
 
 func get_text() -> String:
@@ -149,8 +151,19 @@ func get_text_field() -> FGUITextField:
 func set_state(value: String) -> void:
 	if _button_controller != null and _button_controller.has_page(value):
 		_button_controller.selected_page = value
-	if _down_effect == 2:
-		set_scale(_down_effect_value, _down_effect_value) if value == DOWN else set_scale(1.0, 1.0)
+	var pressed_state := value == DOWN or value == SELECTED_OVER or value == SELECTED_DISABLED
+	if _down_effect == 1:
+		var tint := Color(_down_effect_value, _down_effect_value, _down_effect_value) if pressed_state else Color.WHITE
+		for child: FGUIObject in children:
+			if not (child is FGUITextField):
+				child.set_prop(FGUIEnums.OBJECT_PROP_COLOR, tint)
+	elif _down_effect == 2:
+		if pressed_state and not _down_scaled:
+			set_scale(scale_x * _down_effect_value, scale_y * _down_effect_value)
+			_down_scaled = true
+		elif not pressed_state and _down_scaled:
+			set_scale(scale_x / _down_effect_value, scale_y / _down_effect_value)
+			_down_scaled = false
 
 
 func fire_click() -> void:
@@ -229,10 +242,14 @@ func set_prop(index: int, value: Variant) -> void:
 func _on_gui_input(event: InputEvent) -> void:
 	if FGUIToolSet.is_primary_pointer_press(event):
 		_button_touch_index = FGUIToolSet.get_pointer_id(event)
-		set_state(DOWN)
-	elif FGUIToolSet.is_primary_pointer_release(event) and _button_touch_index == FGUIToolSet.get_pointer_id(event):
+		_down = true
 		if mode == FGUIEnums.BUTTON_COMMON:
-			set_state(UP)
+			_refresh_button_state()
+		_toggle_linked_popup()
+	elif FGUIToolSet.is_primary_pointer_release(event) and _button_touch_index == FGUIToolSet.get_pointer_id(event):
+		_down = false
+		if mode == FGUIEnums.BUTTON_COMMON:
+			_refresh_button_state()
 	super._on_gui_input(event)
 	if FGUIToolSet.is_primary_pointer_release(event) and _button_touch_index == FGUIToolSet.get_pointer_id(event):
 		_button_touch_index = -2
@@ -240,13 +257,62 @@ func _on_gui_input(event: InputEvent) -> void:
 
 
 func _handle_click(event: Variant) -> void:
-	if mode == FGUIEnums.BUTTON_CHECK and change_state_on_click:
-		selected = not selected
-		emit_event(FGUIEvents.STATE_CHANGED, event)
-	elif mode == FGUIEnums.BUTTON_RADIO and change_state_on_click and not selected:
-		selected = true
-		emit_event(FGUIEvents.STATE_CHANGED, event)
-	elif related_controller != null:
-		related_controller.selected_page_id = related_page_id
+	match mode:
+		FGUIEnums.BUTTON_CHECK:
+			if change_state_on_click:
+				selected = not selected
+				emit_event(FGUIEvents.STATE_CHANGED, event)
+		FGUIEnums.BUTTON_RADIO:
+			if change_state_on_click and not selected:
+				selected = true
+				emit_event(FGUIEvents.STATE_CHANGED, event)
+		_:
+			if related_controller != null:
+				related_controller.selected_page_id = related_page_id
 	if sound != null:
 		root.play_one_shot_sound(sound, sound_volume_scale)
+
+
+func _on_mouse_entered() -> void:
+	super._on_mouse_entered()
+	_over = true
+	if not _down:
+		_refresh_button_state()
+
+
+func _on_mouse_exited() -> void:
+	super._on_mouse_exited()
+	_over = false
+	if not _down:
+		_refresh_button_state()
+
+
+func _handle_grayed_changed() -> void:
+	if _button_controller != null and _button_controller.has_page(DISABLED):
+		_refresh_button_state()
+	else:
+		super._handle_grayed_changed()
+
+
+func _refresh_button_state() -> void:
+	var has_disabled := _button_controller != null and _button_controller.has_page(DISABLED)
+	if grayed and has_disabled:
+		set_state(SELECTED_DISABLED if _selected and _button_controller.has_page(SELECTED_DISABLED) else DISABLED)
+		return
+	if _down and mode == FGUIEnums.BUTTON_COMMON:
+		set_state(DOWN)
+	elif _selected:
+		set_state(SELECTED_OVER if _over and _button_controller != null and _button_controller.has_page(SELECTED_OVER) else DOWN)
+	else:
+		set_state(OVER if _over and _button_controller != null and _button_controller.has_page(OVER) else UP)
+
+
+func _toggle_linked_popup() -> void:
+	if linked_popup == null:
+		return
+	if linked_popup is FGUIWindow:
+		(linked_popup as FGUIWindow).toggle_status()
+		return
+	var root_object := root
+	if root_object != null:
+		root_object.toggle_popup(linked_popup, self)
