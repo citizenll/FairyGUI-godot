@@ -24,6 +24,8 @@ var vertical_scroll_bar: FGUIScrollBar
 var header: FGUIComponent
 var footer: FGUIComponent
 var page_controller: FGUIController
+var header_locked_size: float = 0.0
+var footer_locked_size: float = 0.0
 
 var _suppress_native_scroll: bool = false
 var _handling_scroll: bool = false
@@ -158,19 +160,53 @@ func set_perc_y(value: float, animated: bool = false) -> void:
 
 
 func scroll_left(ratio: float = 1.0, animated: bool = false) -> void:
-	set_pos(pos_x - FGUIConfig.default_scroll_step * ratio, pos_y, animated)
+	set_pos(pos_x - (view_width if page_mode else FGUIConfig.default_scroll_step) * ratio, pos_y, animated)
 
 
 func scroll_right(ratio: float = 1.0, animated: bool = false) -> void:
-	set_pos(pos_x + FGUIConfig.default_scroll_step * ratio, pos_y, animated)
+	set_pos(pos_x + (view_width if page_mode else FGUIConfig.default_scroll_step) * ratio, pos_y, animated)
 
 
 func scroll_up(ratio: float = 1.0, animated: bool = false) -> void:
-	set_pos(pos_x, pos_y - FGUIConfig.default_scroll_step * ratio, animated)
+	set_pos(pos_x, pos_y - (view_height if page_mode else FGUIConfig.default_scroll_step) * ratio, animated)
 
 
 func scroll_down(ratio: float = 1.0, animated: bool = false) -> void:
-	set_pos(pos_x, pos_y + FGUIConfig.default_scroll_step * ratio, animated)
+	set_pos(pos_x, pos_y + (view_height if page_mode else FGUIConfig.default_scroll_step) * ratio, animated)
+
+
+func scroll_top(animated: bool = false) -> void:
+	set_pos(pos_x, 0.0, animated)
+
+
+func scroll_bottom(animated: bool = false) -> void:
+	set_pos(pos_x, maxf(0.0, content_height - view_height), animated)
+
+
+func scroll_leftmost(animated: bool = false) -> void:
+	set_pos(0.0, pos_y, animated)
+
+
+func scroll_rightmost(animated: bool = false) -> void:
+	set_pos(maxf(0.0, content_width - view_width), pos_y, animated)
+
+
+func lock_header(size: float) -> void:
+	var next_size := maxf(0.0, size)
+	if is_equal_approx(header_locked_size, next_size):
+		return
+	header_locked_size = next_size
+	_layout_scroll_bars()
+	set_pos(pos_x, pos_y)
+
+
+func lock_footer(size: float) -> void:
+	var next_size := maxf(0.0, size)
+	if is_equal_approx(footer_locked_size, next_size):
+		return
+	footer_locked_size = next_size
+	_layout_scroll_bars()
+	set_pos(pos_x, pos_y)
 
 
 func is_right_most() -> bool:
@@ -179,6 +215,12 @@ func is_right_most() -> bool:
 
 func is_bottom_most() -> bool:
 	return pos_y >= maxf(0.0, content_height - view_height)
+
+
+func is_child_in_view(obj: FGUIObject) -> bool:
+	if obj == null:
+		return false
+	return obj.x + obj.width > pos_x and obj.x < pos_x + view_width and obj.y + obj.height > pos_y and obj.y < pos_y + view_height
 
 
 func current_page_x() -> int:
@@ -214,6 +256,8 @@ func on_owner_size_changed() -> void:
 
 func dispose() -> void:
 	page_controller = null
+	header_locked_size = 0.0
+	footer_locked_size = 0.0
 	if horizontal_scroll_bar != null:
 		horizontal_scroll_bar.dispose()
 		horizontal_scroll_bar = null
@@ -321,6 +365,10 @@ func _layout_scroll_bars() -> void:
 
 	var viewport_pos := inner_pos
 	var viewport_size := inner_size
+	var header_size := header_locked_size if header != null and allow_vertical else 0.0
+	var footer_size := footer_locked_size if footer != null and allow_vertical else 0.0
+	viewport_pos.y += header_size
+	viewport_size.y = maxf(0.0, viewport_size.y - header_size - footer_size)
 	if show_vertical and not floating:
 		viewport_size.x = maxf(0.0, viewport_size.x - vertical_width)
 		if display_on_left:
@@ -330,6 +378,17 @@ func _layout_scroll_bars() -> void:
 	container.position = viewport_pos
 	container.size = viewport_size
 	_sync_native_ranges()
+
+	if header != null:
+		header.visible = header_size > 0.0
+		if header.visible:
+			header.set_size(viewport_size.x, header_size)
+			header.set_xy(viewport_pos.x, viewport_pos.y - header_size)
+	if footer != null:
+		footer.visible = footer_size > 0.0
+		if footer.visible:
+			footer.set_size(viewport_size.x, footer_size)
+			footer.set_xy(viewport_pos.x, viewport_pos.y + viewport_size.y)
 
 	if vertical_scroll_bar != null:
 		vertical_scroll_bar.visible = show_vertical

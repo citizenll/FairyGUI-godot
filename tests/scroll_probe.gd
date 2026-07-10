@@ -111,6 +111,31 @@ func _initialize() -> void:
 	pane._configure_native_scroll_modes()
 	pane.set_content_size(100, 600)
 	await process_frame
+	var header := FGUIComponent.new()
+	var footer := FGUIComponent.new()
+	owner.node.add_child(header.node)
+	owner.node.add_child(footer.node)
+	pane.header = header
+	pane.footer = footer
+	pane.lock_header(20)
+	pane.lock_footer(25)
+	await process_frame
+	if not header.visible or not footer.visible or absf(pane.container.position.y - 20.0) > 0.1 or absf(pane.view_height - 75.0) > 0.1:
+		_fail("ScrollPane refresh locks did not reserve and lay out header/footer space.")
+		return
+	pane.scroll_bottom()
+	if not pane.is_bottom_most():
+		_fail("ScrollPane scroll_bottom did not move to the locked viewport bottom.")
+		return
+	pane.scroll_top()
+	if pane.pos_y > 0.1:
+		_fail("ScrollPane scroll_top did not return to the top.")
+		return
+	pane.lock_header(0)
+	pane.lock_footer(0)
+	if header.visible or footer.visible or absf(pane.view_height - 120.0) > 0.1:
+		_fail("ScrollPane did not release refresh lock space.")
+		return
 	var scroll_bar := FGUIScrollBar.new()
 	var track := FGUIObject.new()
 	track.set_size(10, 100)
