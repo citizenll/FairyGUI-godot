@@ -134,9 +134,19 @@ func get_top_window() -> FGUIWindow:
 
 
 func bring_to_front(window: FGUIWindow) -> void:
-	if window != null and window.parent == self:
-		set_child_index(window, children.size() - 1)
-		_adjust_modal_layer()
+	if window == null or window.parent != self:
+		return
+	var last_window_index := children.size() - 1
+	if _modal_layer != null and _modal_layer.parent == self and not window.modal:
+		last_window_index = get_child_index(_modal_layer) - 1
+	for index in range(last_window_index, -1, -1):
+		var child: FGUIObject = children[index]
+		if child == window:
+			return
+		if child is FGUIWindow:
+			set_child_index(window, index)
+			break
+	_adjust_modal_layer()
 
 
 func _adjust_modal_layer() -> void:
