@@ -721,6 +721,34 @@ func remove_from_parent() -> void:
 		parent.remove_child(self)
 
 
+func replace_me(target: FGUIObject) -> void:
+	if target == null or parent == null:
+		return
+	var container := parent
+	var index := container.get_child_index(self)
+	target.name = name
+	target.alpha = alpha
+	target.rotation = rotation
+	target.visible = visible
+	target.touchable = touchable
+	target.grayed = grayed
+	target.set_xy(x, y)
+	target.set_size(width, height)
+	target.relations.copy_from(relations)
+	container.add_child_at(target, index)
+	container.remove_child(self, true)
+
+
+func add_before_me(target: FGUIObject) -> void:
+	if target != null and parent != null:
+		parent.add_child_at(target, parent.get_child_index(self))
+
+
+func add_after_me(target: FGUIObject) -> void:
+	if target != null and parent != null:
+		parent.add_child_at(target, parent.get_child_index(self) + 1)
+
+
 func dispose() -> void:
 	if is_disposed:
 		return

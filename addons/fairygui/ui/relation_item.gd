@@ -54,6 +54,15 @@ func remove(relation_type: int = -1) -> void:
 			defs.remove_at(i)
 
 
+func copy_from(source: FGUIRelationItem) -> void:
+	if source == null:
+		return
+	target = source.target
+	defs.clear()
+	for definition: Dictionary in source.defs:
+		defs.append(definition.duplicate(true))
+
+
 func apply_on_self_size_changed(delta_width: float, delta_height: float, apply_pivot: bool) -> void:
 	if target == null or owner == null:
 		return

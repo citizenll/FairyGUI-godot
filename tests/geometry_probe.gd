@@ -83,6 +83,26 @@ func _initialize() -> void:
 	if not Vector2(full_screen.width, full_screen.height).is_equal_approx(Vector2(400.0, 200.0)):
 		_fail("GObject make_full_screen did not retain its size relation.")
 		return
+	var replace_parent := FGUIComponent.new()
+	fgui_root.add_child(replace_parent)
+	var placeholder := FGUIObject.new()
+	placeholder.name = "placeholder"
+	placeholder.set_xy(12.0, 18.0)
+	placeholder.set_size(40.0, 30.0)
+	replace_parent.add_child(placeholder)
+	placeholder.add_relation(replace_parent, FGUIEnums.RELATION_WIDTH)
+	var replacement := FGUIObject.new()
+	placeholder.replace_me(replacement)
+	if replacement.parent != replace_parent or replace_parent.get_child_at(0) != replacement or replacement.name != "placeholder" or not replacement.relations.contains(replace_parent):
+		_fail("GObject replace_me did not preserve parent placement, state, and relations.")
+		return
+	var before := FGUIObject.new()
+	var after := FGUIObject.new()
+	replacement.add_before_me(before)
+	replacement.add_after_me(after)
+	if replace_parent.get_child_at(0) != before or replace_parent.get_child_at(1) != replacement or replace_parent.get_child_at(2) != after:
+		_fail("GObject add_before_me or add_after_me did not preserve child ordering.")
+		return
 
 	object.tween_move(Vector2(20.0, 30.0), 0.04)
 	await create_timer(0.1).timeout

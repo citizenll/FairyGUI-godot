@@ -6,6 +6,10 @@ var items: Array = []
 var handling: Variant = null
 var size_dirty: bool = false
 
+var empty: bool:
+	get:
+		return items.is_empty()
+
 
 func _init(p_owner: FGUIObject = null) -> void:
 	owner = p_owner
@@ -39,14 +43,31 @@ func clear_for(target: FGUIObject) -> void:
 		items.erase(item)
 
 
+func clear_all() -> void:
+	for item in items:
+		item.dispose()
+	items.clear()
+	size_dirty = false
+
+
+func copy_from(source: FGUIRelations) -> void:
+	if source == self:
+		return
+	clear_all()
+	if source == null:
+		return
+	for source_item: FGUIRelationItem in source.items:
+		var item := FGUIRelationItem.new(owner)
+		item.copy_from(source_item)
+		items.append(item)
+
+
 func contains(target: FGUIObject) -> bool:
 	return _get_item(target) != null
 
 
 func dispose() -> void:
-	for item in items:
-		item.dispose()
-	items.clear()
+	clear_all()
 	handling = null
 	owner = null
 
