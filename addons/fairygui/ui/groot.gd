@@ -5,6 +5,7 @@ static var inst: FGUIRoot
 
 var content_scale_factor: float = 1.0
 var _modal_layer: FGUIGraph
+var _popup_stack: Array[FGUIObject] = []
 
 
 func _init() -> void:
@@ -86,6 +87,7 @@ func _handle_size_changed() -> void:
 
 
 func dispose() -> void:
+	_popup_stack.clear()
 	if _modal_layer != null and _modal_layer.parent != self:
 		_modal_layer.dispose()
 	_modal_layer = null
@@ -94,17 +96,76 @@ func dispose() -> void:
 	super.dispose()
 
 
-func show_popup(popup: FGUIObject, target: FGUIObject = null, _dir: int = FGUIEnums.POPUP_AUTO) -> void:
+func show_popup(popup: FGUIObject, target: FGUIObject = null, direction: int = FGUIEnums.POPUP_AUTO) -> void:
 	if popup == null:
 		return
+	var existing_index := _popup_stack.find(popup)
+	if existing_index >= 0:
+		_close_popups_from(existing_index)
+	_popup_stack.append(popup)
 	add_child(popup)
 	if target != null:
-		popup.set_xy(target.x, target.y + target.height)
+		var target_position := global_to_local(target.local_to_global(Vector2.ZERO))
+		var x := target_position.x
+		var y := target_position.y + target.height
+		if x + popup.width > width:
+			x = target_position.x + target.width - popup.width
+		if direction == FGUIEnums.POPUP_UP or (direction == FGUIEnums.POPUP_AUTO and y + popup.height > height):
+			y = target_position.y - popup.height - 1.0
+			if y < 0.0:
+				y = 0.0
+				x += target.width * 0.5
+		popup.set_xy(clampf(x, 0.0, maxf(0.0, width - popup.width)), clampf(y, 0.0, maxf(0.0, height - popup.height)))
+
+
+func toggle_popup(popup: FGUIObject, target: FGUIObject = null, direction: int = FGUIEnums.POPUP_AUTO) -> void:
+	if _popup_stack.has(popup):
+		hide_popup(popup)
+	else:
+		show_popup(popup, target, direction)
 
 
 func hide_popup(popup: FGUIObject = null) -> void:
-	if popup != null:
-		popup.remove_from_parent()
+	if popup == null:
+		_close_popups_from(0)
+		return
+	var popup_index := _popup_stack.find(popup)
+	if popup_index >= 0:
+		_close_popups_from(popup_index)
+	elif popup.parent == self:
+		remove_child(popup)
+
+
+func has_any_popup() -> bool:
+	return not _popup_stack.is_empty()
+
+
+func _on_gui_input(event: InputEvent) -> void:
+	if FGUIToolSet.is_primary_pointer_press(event):
+		_check_popups(FGUIToolSet.get_pointer_position(event))
+	super._on_gui_input(event)
+
+
+func _check_popups(global_position: Vector2) -> void:
+	if _popup_stack.is_empty():
+		return
+	var keep_index := -1
+	for index in _popup_stack.size():
+		var popup := _popup_stack[index]
+		if popup != null and popup.parent == self and popup.node != null and popup.node.get_global_rect().has_point(global_position):
+			keep_index = index
+	if keep_index < 0:
+		_close_popups_from(0)
+	elif keep_index + 1 < _popup_stack.size():
+		_close_popups_from(keep_index + 1)
+
+
+func _close_popups_from(index: int) -> void:
+	for popup_index in range(_popup_stack.size() - 1, index - 1, -1):
+		var popup := _popup_stack[popup_index]
+		_popup_stack.remove_at(popup_index)
+		if popup != null and popup.parent == self:
+			remove_child(popup)
 
 
 func play_one_shot_sound(sound: Variant, volume_scale: float = 1.0) -> AudioStreamPlayer:
