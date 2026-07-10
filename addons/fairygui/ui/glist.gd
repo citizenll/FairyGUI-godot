@@ -51,6 +51,9 @@ var selected_index: int:
 
 
 func dispose() -> void:
+	item_renderer = Callable()
+	item_provider = Callable()
+	selection_controller = null
 	item_pool.clear()
 	super.dispose()
 
@@ -269,6 +272,12 @@ func setup_after_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 			selection_controller = parent.get_controller_at(controller_index)
 
 
+func handle_controller_changed(controller: FGUIController) -> void:
+	super.handle_controller_changed(controller)
+	if selection_controller == controller:
+		selected_index = controller.selected_index
+
+
 func update_bounds() -> void:
 	_bounds_changed = false
 	var cur := Vector2.ZERO
@@ -409,8 +418,12 @@ func _click_item(_event: Variant, item: FGUIObject) -> void:
 
 
 func _update_selection_controller(index: int) -> void:
-	if selection_controller != null and index < selection_controller.page_count:
-		selection_controller.selected_index = index
+	if selection_controller == null or selection_controller.changing or index >= selection_controller.page_count:
+		return
+	var controller := selection_controller
+	selection_controller = null
+	controller.selected_index = index
+	selection_controller = controller
 
 
 func _measure_first_items(item_count: int, horizontal: bool) -> float:

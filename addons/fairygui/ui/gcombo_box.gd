@@ -32,8 +32,7 @@ var selected_index: int:
 		else:
 			set_text("")
 			set_icon("")
-		if selection_controller != null and _selected_index < selection_controller.page_count:
-			selection_controller.selected_index = _selected_index
+		_update_selection_controller()
 var value: String:
 	get:
 		return values[_selected_index] if _selected_index >= 0 and _selected_index < values.size() else ""
@@ -122,12 +121,27 @@ func setup_after_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 		selection_controller = parent.get_controller_at(controller_index)
 
 
+func handle_controller_changed(controller: FGUIController) -> void:
+	super.handle_controller_changed(controller)
+	if selection_controller == controller:
+		selected_index = controller.selected_index
+
+
 func get_text_field() -> FGUITextField:
 	if _title_object is FGUITextField:
 		return _title_object
 	if _title_object != null and _title_object.has_method("get_text_field"):
 		return _title_object.call("get_text_field")
 	return null
+
+
+func _update_selection_controller() -> void:
+	if selection_controller == null or selection_controller.changing or _selected_index >= selection_controller.page_count:
+		return
+	var controller := selection_controller
+	selection_controller = null
+	controller.selected_index = _selected_index
+	selection_controller = controller
 
 
 func _on_gui_input(event: InputEvent) -> void:

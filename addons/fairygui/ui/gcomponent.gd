@@ -190,6 +190,12 @@ func apply_controller(controller: FGUIController) -> void:
 	controller.run_actions()
 
 
+func handle_controller_changed(controller: FGUIController) -> void:
+	super.handle_controller_changed(controller)
+	if scroll_pane != null:
+		scroll_pane.handle_controller_changed(controller)
+
+
 func apply_all_controllers() -> void:
 	for controller in controllers:
 		apply_controller(controller)
@@ -304,7 +310,9 @@ func setup_after_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 	if not buffer.seek(begin_pos, 4):
 		return
 
-	buffer.read_i16()
+	var page_controller_index := buffer.read_i16()
+	if page_controller_index >= 0 and scroll_pane != null and parent != null:
+		scroll_pane.page_controller = parent.get_controller_at(page_controller_index)
 	var count := buffer.read_i16()
 	for i in count:
 		var controller_name = buffer.read_s()
@@ -465,6 +473,12 @@ func setup_scroll(buffer: FGUIByteBuffer) -> void:
 		scroll_pane = FGUIScrollPane.new(self)
 	scroll_pane.setup(buffer)
 	_content_node = scroll_pane.content
+
+
+func _handle_size_changed() -> void:
+	super._handle_size_changed()
+	if scroll_pane != null:
+		scroll_pane.on_owner_size_changed()
 
 
 func setup_overflow(_overflow: int) -> void:
