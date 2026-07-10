@@ -16,7 +16,8 @@ func _get_text() -> String:
 
 func _set_text(value: String) -> void:
 	_text = value
-	var parsed := FGUIUBBParser.default_parser.parse(value) if FGUIUBBParser.default_parser != null else value
+	var resolved := _parse_template(value) if _template_vars_enabled else value
+	var parsed := FGUIUBBParser.default_parser.parse(resolved) if FGUIUBBParser.default_parser != null else resolved
 	if not (label is RichTextLabel):
 		return
 	var image_regex := RegEx.new()
@@ -38,6 +39,10 @@ func _set_text(value: String) -> void:
 		current_match = image_regex.search(parsed, cursor)
 	if cursor < parsed.length():
 		label.append_text(parsed.substr(cursor))
+
+
+func _apply_display_text() -> void:
+	_set_text(_text)
 
 
 func _append_package_image(url: String) -> void:
