@@ -52,7 +52,6 @@ The repository is checked against Godot 4.7 Steam:
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --check-only --script res://addons/fairygui/fairygui.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --editor --import --path .
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/editor_preview_probe.gd
-& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --editor --script res://tests/editor_hint_preview_probe.gd --path .
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/compression_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/pixel_hit_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/relation_probe.gd
