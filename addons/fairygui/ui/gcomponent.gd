@@ -30,6 +30,21 @@ var _content_node: Control
 var _sorting_child_count: int = 0
 var _applying_controller: FGUIController
 
+var display_list_container: Control:
+	get:
+		return _get_content_node()
+var base_user_data: String:
+	get:
+		if package_item == null or package_item.raw_data == null:
+			return ""
+		var source := package_item.raw_data
+		var buffer := FGUIByteBuffer.new(source.data)
+		buffer.string_table = source.string_table
+		buffer.version = source.version
+		if not buffer.seek(0, 4):
+			return ""
+		return _string_or_empty(buffer.read_s())
+
 var num_children: int:
 	get:
 		return children.size()
