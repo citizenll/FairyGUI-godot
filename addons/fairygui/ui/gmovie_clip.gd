@@ -35,6 +35,12 @@ var _timer: Timer
 var _reversed: bool = false
 
 
+func _create_display_object() -> void:
+	super._create_display_object()
+	image_node.tree_entered.connect(_on_node_entered_tree)
+	image_node.tree_exiting.connect(_on_node_exiting_tree)
+
+
 func construct_from_resource() -> void:
 	if package_item == null:
 		return
@@ -118,6 +124,15 @@ func _current_frame_delay() -> float:
 func _on_timer_timeout() -> void:
 	_advance(_current_frame_delay())
 	_update_timer()
+
+
+func _on_node_entered_tree() -> void:
+	call_deferred("_update_timer")
+
+
+func _on_node_exiting_tree() -> void:
+	if _timer != null:
+		_timer.stop()
 
 
 func _advance(_delta: float) -> void:

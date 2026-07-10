@@ -3,6 +3,7 @@ extends FGUIObject
 
 var texture_rect: TextureRect
 var content_component: FGUIComponent
+var content_movie_clip: FGUIMovieClip
 var content_item: FGUIPackageItem
 var align: int = FGUIEnums.ALIGN_LEFT:
 	set(value):
@@ -29,9 +30,30 @@ var use_resize: bool = false:
 		use_resize = value
 		update_layout()
 var show_error_sign: bool = true
-var playing: bool = true
-var frame: int = 0
-var time_scale: float = 1.0
+var _playing: bool = true
+var playing: bool:
+	get:
+		return _playing
+	set(value):
+		_playing = value
+		if content_movie_clip != null:
+			content_movie_clip.playing = value
+var _frame: int = 0
+var frame: int:
+	get:
+		return _frame
+	set(value):
+		_frame = maxi(0, value)
+		if content_movie_clip != null:
+			content_movie_clip.frame = _frame
+var _time_scale: float = 1.0
+var time_scale: float:
+	get:
+		return _time_scale
+	set(value):
+		_time_scale = maxf(0.0001, value)
+		if content_movie_clip != null:
+			content_movie_clip.time_scale = _time_scale
 var color: Color = Color.WHITE:
 	set(value):
 		color = value
@@ -187,12 +209,14 @@ func update_layout() -> void:
 		FGUIEnums.VERT_ALIGN_BOTTOM:
 			position.y = height - target_size.y
 
-	if content_component != null:
-		content_component.set_xy(position.x, position.y)
+	var content_object: FGUIObject = content_component if content_component != null else content_movie_clip
+	if content_object != null:
+		content_object.set_xy(position.x, position.y)
 		if use_resize:
-			content_component.set_size(target_size.x, target_size.y)
+			content_object.set_scale(1.0, 1.0)
+			content_object.set_size(target_size.x, target_size.y)
 		else:
-			content_component.set_scale(sx, sy)
+			content_object.set_scale(sx, sy)
 	else:
 		texture_rect.position = position
 		texture_rect.size = target_size
@@ -225,11 +249,19 @@ func _load_from_package(item_url: String) -> void:
 			else:
 				update_layout()
 		FGUIEnums.PACKAGE_ITEM_MOVIE_CLIP:
-			if content_item.frames.is_empty():
-				_set_error_state()
-			else:
-				texture_rect.texture = content_item.frames[0].get("texture")
+			var obj := FGUIPackage.create_object_from_url(item_url)
+			if obj is FGUIMovieClip:
+				content_movie_clip = obj
+				content_movie_clip.playing = _playing
+				content_movie_clip.frame = _frame
+				content_movie_clip.time_scale = _time_scale
+				texture_rect.visible = false
+				node.add_child(content_movie_clip.node)
 				update_layout()
+			else:
+				if obj != null:
+					obj.dispose()
+				_set_error_state()
 		FGUIEnums.PACKAGE_ITEM_COMPONENT:
 			var obj := FGUIPackage.create_object_from_url(item_url)
 			if obj is FGUIComponent:
@@ -263,6 +295,9 @@ func _clear_content() -> void:
 	if content_component != null:
 		content_component.dispose()
 		content_component = null
+	if content_movie_clip != null:
+		content_movie_clip.dispose()
+		content_movie_clip = null
 	content_item = null
 
 
