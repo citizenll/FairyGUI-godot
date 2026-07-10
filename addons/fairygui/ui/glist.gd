@@ -572,6 +572,50 @@ func get_first_child_in_view() -> int:
 	return -1
 
 
+func get_snapping_position_with_dir(x_value: float, y_value: float, x_dir: int, y_dir: int) -> Vector2:
+	if not _virtual:
+		return super.get_snapping_position_with_dir(x_value, y_value, x_dir, y_dir)
+	if _num_items <= 0:
+		return Vector2.ZERO
+	_ensure_virtual_item_size()
+	_ensure_virtual_item_sizes()
+	_ensure_virtual_size_layout()
+	_virtual_real_num_items = _num_items * 6 if _loop else _num_items
+	var layout_info := _get_virtual_layout_info(_virtual_real_num_items)
+	if layout_info.is_empty():
+		return Vector2(x_value, y_value)
+	if bool(layout_info["horizontal"]):
+		return Vector2(_get_virtual_snapping_primary(x_value, x_dir, layout_info), y_value)
+	return Vector2(x_value, _get_virtual_snapping_primary(y_value, y_dir, layout_info))
+
+
+func _get_virtual_snapping_primary(value: float, direction: int, layout_info: Dictionary) -> float:
+	var horizontal := bool(layout_info["horizontal"])
+	var span := maxf(1.0, float(layout_info["primary_span"]))
+	var primary_size := span if int(layout_info["layout"]) == FGUIEnums.LIST_LAYOUT_PAGINATION else float(layout_info["cell_width"] if horizontal else layout_info["cell_height"])
+	var start := 0.0
+	var next_start := start
+	if bool(layout_info.get("variable_primary", false)):
+		var physical_index := _get_virtual_first_physical_index(value)
+		start = _get_virtual_primary_start(physical_index)
+		primary_size = _get_virtual_primary_size(physical_index)
+		next_start = _get_virtual_primary_start(physical_index + 1) if physical_index + 1 < _virtual_real_num_items else start
+	else:
+		var group_count := maxi(1, int(layout_info["group_count"]))
+		var group_index := clampi(int(floorf(value / span)), 0, group_count - 1)
+		start = float(group_index) * span
+		next_start = float(group_index + 1) * span if group_index + 1 < group_count else start
+	var delta := maxf(0.0, value - start)
+	if next_start > start and _should_snap_to_next(direction, delta, maxf(1.0, primary_size)):
+		return next_start
+	return start
+
+
+func _should_snap_to_next(direction: int, delta: float, size: float) -> bool:
+	var threshold := clampf(FGUIConfig.default_scroll_snapping_threshold, 0.0, 1.0)
+	return (direction < 0 and delta > threshold * size) or (direction > 0 and delta > (1.0 - threshold) * size) or (direction == 0 and delta > size * 0.5)
+
+
 func child_index_to_item_index(index: int) -> int:
 	if not _virtual:
 		return index

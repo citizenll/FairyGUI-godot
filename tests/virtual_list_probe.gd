@@ -135,6 +135,11 @@ func _initialize() -> void:
 		return
 	if not _expect_item_position(variable_column, 3, Vector2(0.0, 86.0), "variable column item 3"):
 		return
+	var snap_before_midpoint := variable_column.get_snapping_position(0.0, 60.0)
+	var snap_after_midpoint := variable_column.get_snapping_position(0.0, 75.0)
+	if absf(snap_before_midpoint.y - 59.0) > 0.1 or absf(snap_after_midpoint.y - 86.0) > 0.1:
+		_fail("Variable virtual list snapping did not use cached item sizes: %s / %s" % [snap_before_midpoint, snap_after_midpoint])
+		return
 	variable_column.scroll_to_view(3)
 	await process_frame
 	if variable_column.get_first_child_in_view() != 1:
