@@ -9,6 +9,11 @@ static var _inst_by_name: Dictionary = {}
 static var _branch: String = ""
 static var _vars: Dictionary = {}
 static var constructing: int = 0
+static var branch: String:
+	get:
+		return _branch
+	set(value):
+		_set_branch(value)
 
 var id: String = ""
 var name: String = ""
@@ -143,6 +148,22 @@ static func get_var(key: String) -> String:
 
 static func set_var(key: String, value: String) -> void:
 	_vars[key] = value
+
+
+static func set_branch(value: String) -> void:
+	_set_branch(value)
+
+
+static func _set_branch(value: String) -> void:
+	if _branch == value:
+		return
+	_branch = value
+	var packages: Array = []
+	for pkg: FGUIPackage in _inst_by_id.values():
+		if pkg != null and not packages.has(pkg):
+			packages.append(pkg)
+	for pkg: FGUIPackage in packages:
+		pkg.branch_index = pkg.branches.find(value) if not pkg.branches.is_empty() else -1
 
 
 func set_custom_id(value: String) -> void:

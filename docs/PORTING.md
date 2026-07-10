@@ -35,6 +35,7 @@ The Godot source tree is still useful as the API reference for current Control, 
 ## Compatibility Notes
 
 - The editor importer turns `.fui` files into `FGUIPackageResource` assets. Imported packages are included in exported projects; `FileAccess` remains a fallback for direct raw loading.
+- `FGUIPackage.branch` and `FGUIPackage.set_branch` update loaded package branch indices, so branch-specific resources are selected for newly constructed UI objects.
 - Compressed FairyGUI packages use the bundled raw-deflate implementation and are covered by the compression probe.
 - Virtual lists support single-row, single-column, flow-horizontal, flow-vertical, and pagination layouts with pooled-item recycling, logical item renderer/provider indices, and visible selection state. Single-row and single-column lists cache renderer-provided item sizes for variable primary-axis layout and six-copy loop scrolling. Flow/pagination layouts remain uniform-cell; loop mode remains limited to single-row and single-column layouts.
 - Multiple list selection supports ordinary replacement selection, Ctrl toggles, Shift ranges, and multiple-single-click toggles in both regular and virtual lists.
