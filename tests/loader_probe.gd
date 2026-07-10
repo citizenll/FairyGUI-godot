@@ -42,8 +42,34 @@ func _initialize() -> void:
 	if loader.content_movie_clip != null:
 		_fail("Loader did not dispose movie clip content.")
 		return
+	var remote_loader := FGUILoader.new()
+	host.add_child(remote_loader.node)
+	var remote_image := Image.create(3, 2, false, Image.FORMAT_RGBA8)
+	remote_image.fill(Color(0.2, 0.6, 0.9, 1.0))
+	var image_bytes := remote_image.save_png_to_buffer()
+	var decoded_texture := remote_loader._decode_external_texture(image_bytes, "https://cdn.example.test/icon.png?version=1")
+	if decoded_texture == null or decoded_texture.get_width() != 3 or decoded_texture.get_height() != 2:
+		_fail("Loader did not decode a remote PNG response buffer.")
+		return
+	remote_loader._url = "https://cdn.example.test/icon.png"
+	remote_loader._load_serial = 7
+	remote_loader._pending_external_url = remote_loader._url
+	remote_loader._active_request_serial = 7
+	remote_loader._on_http_request_completed(HTTPRequest.RESULT_SUCCESS, 200, PackedStringArray(), image_bytes)
+	if remote_loader.texture_rect.texture == null or remote_loader.source_width != 3.0 or remote_loader.source_height != 2.0:
+		_fail("Loader did not apply a completed remote image response.")
+		return
+	remote_loader._url = "https://cdn.example.test/new.png"
+	remote_loader._load_serial = 8
+	remote_loader._pending_external_url = "https://cdn.example.test/icon.png"
+	remote_loader._active_request_serial = 7
+	remote_loader._on_http_request_completed(HTTPRequest.RESULT_SUCCESS, 200, PackedStringArray(), image_bytes)
+	if remote_loader.texture_rect.texture == null or remote_loader.source_width != 3.0:
+		_fail("Loader allowed a stale remote image response to replace current content.")
+		return
 
 	standalone_clip.dispose()
+	remote_loader.dispose()
 	loader.dispose()
 	host.queue_free()
 	await process_frame

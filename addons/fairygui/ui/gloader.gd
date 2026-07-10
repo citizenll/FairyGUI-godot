@@ -66,6 +66,10 @@ var fill_amount: float = 1.0
 
 var _url: String = ""
 var _updating_layout: bool = false
+var _http_request: HTTPRequest
+var _pending_external_url: String = ""
+var _load_serial: int = 0
+var _active_request_serial: int = -1
 var url: String:
 	set(value):
 		if _url == value:
@@ -80,6 +84,7 @@ var url: String:
 func _create_display_object() -> void:
 	node = Control.new()
 	node.mouse_filter = Control.MOUSE_FILTER_PASS
+	node.tree_entered.connect(_on_display_object_entered_tree)
 	texture_rect = TextureRect.new()
 	texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -89,6 +94,11 @@ func _create_display_object() -> void:
 
 func dispose() -> void:
 	_clear_content()
+	if _http_request != null and is_instance_valid(_http_request):
+		if _http_request.get_parent() != null:
+			_http_request.get_parent().remove_child(_http_request)
+		_http_request.queue_free()
+	_http_request = null
 	super.dispose()
 
 
@@ -223,6 +233,7 @@ func update_layout() -> void:
 
 
 func _load_url() -> void:
+	_load_serial += 1
 	_clear_content()
 	if url == "":
 		return
@@ -278,17 +289,29 @@ func _load_from_package(item_url: String) -> void:
 
 
 func _load_external(path: String) -> void:
+	if path.begins_with("http://") or path.begins_with("https://"):
+		_pending_external_url = path
+		_start_http_request()
+		return
 	var resource := load(path)
 	if resource is Texture2D:
 		texture_rect.texture = resource
 		source_width = resource.get_width()
 		source_height = resource.get_height()
 		update_layout()
-	else:
-		_set_error_state()
+		return
+	var image := Image.load_from_file(path)
+	if image != null and not image.is_empty():
+		texture_rect.texture = ImageTexture.create_from_image(image)
+		source_width = image.get_width()
+		source_height = image.get_height()
+		update_layout()
+		return
+	_set_error_state()
 
 
 func _clear_content() -> void:
+	_cancel_external_request()
 	if texture_rect != null:
 		texture_rect.texture = null
 		texture_rect.visible = true
@@ -299,6 +322,85 @@ func _clear_content() -> void:
 		content_movie_clip.dispose()
 		content_movie_clip = null
 	content_item = null
+
+
+func _on_display_object_entered_tree() -> void:
+	if _pending_external_url != "" and _pending_external_url == _url:
+		_start_http_request()
+
+
+func _start_http_request() -> void:
+	if _pending_external_url == "" or node == null or not node.is_inside_tree():
+		return
+	if _http_request == null or not is_instance_valid(_http_request):
+		_http_request = HTTPRequest.new()
+		_http_request.request_completed.connect(_on_http_request_completed)
+		node.add_child(_http_request)
+	var request_error := _http_request.request(_pending_external_url)
+	if request_error != OK:
+		_pending_external_url = ""
+		_active_request_serial = -1
+		_set_error_state()
+		return
+	_active_request_serial = _load_serial
+
+
+func _cancel_external_request() -> void:
+	_pending_external_url = ""
+	_active_request_serial = -1
+	if _http_request != null and is_instance_valid(_http_request):
+		_http_request.cancel_request()
+
+
+func _on_http_request_completed(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	var request_url := _pending_external_url
+	var request_serial := _active_request_serial
+	_pending_external_url = ""
+	_active_request_serial = -1
+	if request_serial != _load_serial or request_url == "" or request_url != _url:
+		return
+	if result != HTTPRequest.RESULT_SUCCESS or response_code < 200 or response_code >= 300:
+		_set_error_state()
+		return
+	var texture := _decode_external_texture(body, request_url)
+	if texture == null:
+		_set_error_state()
+		return
+	texture_rect.texture = texture
+	source_width = texture.get_width()
+	source_height = texture.get_height()
+	update_layout()
+
+
+func _decode_external_texture(data: PackedByteArray, source: String) -> Texture2D:
+	if data.is_empty():
+		return null
+	var image := Image.new()
+	var source_path := source.get_slice("?", 0).get_slice("#", 0)
+	var extension := source_path.get_extension().to_lower()
+	var error := ERR_FILE_UNRECOGNIZED
+	match extension:
+		"png":
+			error = image.load_png_from_buffer(data)
+		"jpg", "jpeg":
+			error = image.load_jpg_from_buffer(data)
+		"webp":
+			error = image.load_webp_from_buffer(data)
+		"bmp":
+			error = image.load_bmp_from_buffer(data)
+		"tga":
+			error = image.load_tga_from_buffer(data)
+		"svg":
+			error = image.load_svg_from_buffer(data)
+	if error != OK:
+		error = image.load_png_from_buffer(data)
+	if error != OK:
+		error = image.load_jpg_from_buffer(data)
+	if error != OK:
+		error = image.load_webp_from_buffer(data)
+	if error != OK or image.is_empty():
+		return null
+	return ImageTexture.create_from_image(image)
 
 
 func _set_error_state() -> void:
