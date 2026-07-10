@@ -1,8 +1,11 @@
 class_name FGUIObjectFactory
 extends RefCounted
 
+const Loader3D := preload("res://addons/fairygui/ui/gloader3d.gd")
+
 static var extensions: Dictionary = {}
 static var loader_type: Variant = null
+static var loader3d_type: Variant = null
 
 
 static func set_extension(url: String, script: Variant) -> void:
@@ -21,6 +24,10 @@ static func set_package_item_extension(url: String, script: Variant) -> void:
 
 static func set_loader_extension(script: Variant) -> void:
 	loader_type = script
+
+
+static func set_loader3d_extension(script: Variant) -> void:
+	loader3d_type = script
 
 
 static func resolve_package_item_extension(item: FGUIPackageItem) -> void:
@@ -59,6 +66,8 @@ static func new_object(object_type: int) -> FGUIObject:
 			return FGUIGraph.new()
 		FGUIEnums.OBJECT_LOADER:
 			return loader_type.new() if loader_type != null else FGUILoader.new()
+		FGUIEnums.OBJECT_LOADER_3D:
+			return loader3d_type.new() if loader3d_type != null else Loader3D.new()
 		FGUIEnums.OBJECT_GROUP:
 			return FGUIGroup.new()
 		FGUIEnums.OBJECT_MOVIE_CLIP:

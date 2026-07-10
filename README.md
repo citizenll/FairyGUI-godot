@@ -8,9 +8,10 @@ This repository starts from the TypeScript `FairyGUI-layabox/source` runtime bec
 
 - Loads uncompressed FairyGUI `.fui` descriptors and raw-deflate compressed package bodies used by FairyGUI exports.
 - Parses package items, string tables, atlas sprite regions, component raw data, controllers, relations, gears, and child display lists.
-- Creates Godot controls for components, images, movie clips, text, rich text, input text, loaders, graphs, groups, labels, buttons, progress bars, sliders, scroll bars, combo boxes, lists, trees, roots, windows, popups, and drag/drop helpers.
+- Creates Godot controls for components, images, movie clips, text, rich text, input text, loaders, Loader3D adapters, graphs, groups, labels, buttons, progress bars, sliders, scroll bars, combo boxes, lists, trees, roots, windows, popups, and drag/drop helpers.
 - Parses and runs controller actions and common transition timelines for position, size, scale, pivot, alpha, rotation, color, visibility, animation state, text, icon, nested transitions, and hooks.
-- Supports loader alignment/fill options, component loader targets, bitmap-font package parsing/rendering, packaged audio playback, pixel hit-test masks, and flow/pagination list layout.
+- Supports loader alignment/fill options, horizontal/vertical/Radial90/Radial180/Radial360 image fills, component loader targets, bitmap-font package parsing/rendering, packaged audio playback, pixel hit-test masks, and flow/pagination list layout.
+- `FGUILoader3D` supports external `PackedScene`, CanvasItem, Control, and Node3D content; package Spine/DragonBones content is connected through `FGUILoader3D.set_content_factory` so projects can choose their licensed Godot runtime integration.
 - Supports normal atlas regions through `AtlasTexture` and rotated/offset regions through generated `ImageTexture` sprites.
 - Includes FairyGUI Laya demo package assets under `examples/assets/ui` and a smoke test that loads every demo package.
 
@@ -59,11 +60,13 @@ The repository is checked against Godot 4.7 Steam:
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/virtual_list_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/text_field_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/loader_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/loader3d_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/fill_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/graph_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/touch_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/popup_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/translation_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/list_selection_probe.gd
-& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/mask_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/tree_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/window_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/async_operation_probe.gd
