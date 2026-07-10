@@ -46,6 +46,17 @@ func _initialize() -> void:
 	if not object.in_container:
 		_fail("GObject in_container did not reflect an attached display node.")
 		return
+	if not object.on_stage:
+		_fail("GObject on_stage did not reflect an attached display node.")
+		return
+	object.rotation = 450.0
+	if absf(object.normalize_rotation - 90.0) > 0.01 or absf(object.node.rotation_degrees - 90.0) > 0.01:
+		_fail("GObject normalize_rotation did not normalize the display rotation.")
+		return
+	object.rotation = -450.0
+	if absf(object.normalize_rotation + 90.0) > 0.01 or absf(object.node.rotation_degrees + 90.0) > 0.01:
+		_fail("GObject normalize_rotation did not preserve negative rotation direction.")
+		return
 	object.pixel_snapping = true
 	object.set_xy(20.4, 30.6)
 	if not object.node.position.is_equal_approx(Vector2(10.0, 26.0)):

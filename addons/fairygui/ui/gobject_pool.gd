@@ -16,9 +16,7 @@ func return_object(obj: FGUIObject) -> void:
 	if obj == null:
 		return
 	obj.remove_from_parent()
-	var url := ""
-	if obj.package_item != null:
-		url = "ui://%s%s" % [obj.package_item.owner.id, obj.package_item.id]
+	var url := obj.resource_url
 	if url == "":
 		obj.dispose()
 		return

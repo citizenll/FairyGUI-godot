@@ -81,9 +81,20 @@ var rotation: float:
 	get:
 		return _rotation
 	set(value):
+		if is_equal_approx(_rotation, value):
+			return
 		_rotation = value
 		if node != null:
-			node.rotation_degrees = value
+			node.rotation_degrees = normalize_rotation
+		update_gear(3)
+var normalize_rotation: float:
+	get:
+		var value := fmod(_rotation, 360.0)
+		if value > 180.0:
+			return value - 360.0
+		if value < -180.0:
+			return value + 360.0
+		return value
 var scale_x: float:
 	get:
 		return _scale.x
@@ -186,6 +197,14 @@ var is_disposed: bool:
 var in_container: bool:
 	get:
 		return node != null and node.get_parent() != null
+var on_stage: bool:
+	get:
+		return node != null and node.is_inside_tree()
+var resource_url: String:
+	get:
+		if package_item != null and package_item.owner != null:
+			return "ui://%s%s" % [package_item.owner.id, package_item.id]
+		return ""
 var focused: bool:
 	get:
 		var root_object := root
@@ -420,9 +439,7 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 		set_pivot(buffer.read_float32(), buffer.read_float32(), buffer.read_bool())
 
 	alpha = buffer.read_float32()
-	_rotation = buffer.read_float32()
-	if node != null:
-		node.rotation_degrees = _rotation
+	rotation = buffer.read_float32()
 	visible = buffer.read_bool()
 	touchable = buffer.read_bool()
 	grayed = buffer.read_bool()
