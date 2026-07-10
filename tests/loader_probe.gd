@@ -67,9 +67,44 @@ func _initialize() -> void:
 	if remote_loader.texture_rect.texture == null or remote_loader.source_width != 3.0:
 		_fail("Loader allowed a stale remote image response to replace current content.")
 		return
+	var error_package := FGUIPackage.add_package("res://examples/assets/ui/Basics")
+	if error_package == null:
+		_fail("Loader error-sign test could not load the Basics package.")
+		return
+	var error_item: FGUIPackageItem
+	for item: FGUIPackageItem in error_package.items:
+		if item.type == FGUIEnums.PACKAGE_ITEM_COMPONENT:
+			error_item = item
+			break
+	if error_item == null:
+		_fail("Loader error-sign test could not find a reusable package component.")
+		return
+	var previous_error_sign := FGUIConfig.loader_error_sign
+	FGUIConfig.loader_error_sign = "ui://%s%s" % [error_package.id, error_item.id]
+	var error_loader := FGUILoader.new()
+	error_loader.set_size(120.0, 70.0)
+	host.add_child(error_loader.node)
+	error_loader.url = "ui://missing-package-item"
+	if error_loader._error_sign == null or error_loader._error_sign.node.get_parent() != error_loader.node:
+		_fail("Loader did not show the configured FairyGUI error-sign component after a load failure.")
+		return
+	if not Vector2(error_loader._error_sign.width, error_loader._error_sign.height).is_equal_approx(Vector2(120.0, 70.0)):
+		_fail("Loader error-sign component did not match the loader bounds.")
+		return
+	error_loader.set_size(80.0, 45.0)
+	if not Vector2(error_loader._error_sign.width, error_loader._error_sign.height).is_equal_approx(Vector2(80.0, 45.0)):
+		_fail("Loader error-sign component did not react to loader resizing.")
+		return
+	error_loader.url = ""
+	if error_loader._error_sign != null or error_loader.node.get_child_count() < 2:
+		_fail("Loader did not return the error-sign component when its content was cleared.")
+		return
+	FGUIConfig.loader_error_sign = previous_error_sign
+	FGUIPackage.remove_package(error_package.id)
 
 	standalone_clip.dispose()
 	remote_loader.dispose()
+	error_loader.dispose()
 	loader.dispose()
 	host.queue_free()
 	await process_frame

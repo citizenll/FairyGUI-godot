@@ -3,6 +3,8 @@ extends FGUIObject
 
 const FillRenderer := preload("res://addons/fairygui/ui/fill_renderer.gd")
 
+static var _error_sign_pool := FGUIObjectPool.new()
+
 var texture_rect: TextureRect
 var fill_renderer
 var content_component: FGUIComponent
@@ -32,7 +34,14 @@ var use_resize: bool = false:
 	set(value):
 		use_resize = value
 		update_layout()
-var show_error_sign: bool = true
+var _show_error_sign: bool = true
+var show_error_sign: bool:
+	get:
+		return _show_error_sign
+	set(value):
+		_show_error_sign = value
+		if not _show_error_sign:
+			_clear_error_state()
 var _playing: bool = true
 var playing: bool:
 	get:
@@ -87,6 +96,7 @@ var _http_request: HTTPRequest
 var _pending_external_url: String = ""
 var _load_serial: int = 0
 var _active_request_serial: int = -1
+var _error_sign: FGUIObject
 var url: String:
 	set(value):
 		if _url == value:
@@ -342,6 +352,7 @@ func _load_external(path: String) -> void:
 
 func _clear_content() -> void:
 	_cancel_external_request()
+	_clear_error_state()
 	if texture_rect != null:
 		_set_texture(null)
 	if content_component != null:
@@ -433,8 +444,25 @@ func _decode_external_texture(data: PackedByteArray, source: String) -> Texture2
 
 
 func _set_error_state() -> void:
-	if show_error_sign:
+	if not _show_error_sign:
+		return
+	if _error_sign == null and FGUIConfig.loader_error_sign != "":
+		_error_sign = _error_sign_pool.get_object(FGUIConfig.loader_error_sign)
+	if _error_sign == null or _error_sign.node == null:
 		push_warning("FairyGUI loader content not found or unsupported: %s" % url)
+		return
+	_error_sign.set_size(width, height)
+	if _error_sign.node.get_parent() != node:
+		node.add_child(_error_sign.node)
+
+
+func _clear_error_state() -> void:
+	if _error_sign == null:
+		return
+	if _error_sign.node != null and _error_sign.node.get_parent() == node:
+		node.remove_child(_error_sign.node)
+	_error_sign_pool.return_object(_error_sign)
+	_error_sign = null
 
 
 func _set_texture(texture: Texture2D) -> void:
@@ -457,3 +485,5 @@ func _apply_fill() -> void:
 func _handle_size_changed() -> void:
 	super._handle_size_changed()
 	update_layout()
+	if _error_sign != null:
+		_error_sign.set_size(width, height)

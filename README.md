@@ -10,7 +10,7 @@ This repository starts from the TypeScript `FairyGUI-layabox/source` runtime bec
 - Parses package items, string tables, atlas sprite regions, component raw data, controllers, relations, gears, and child display lists.
 - Creates Godot controls for components, images, movie clips, text, rich text, input text, loaders, Loader3D adapters, graphs, groups, labels, buttons, progress bars, sliders, scroll bars, combo boxes, lists, trees, roots, windows, popups, and drag/drop helpers.
 - Parses and runs controller actions and common transition timelines for position, size, scale, pivot, alpha, rotation, color, visibility, animation state, text, icon, nested transitions, and hooks.
-- Supports loader alignment/fill options, horizontal/vertical/Radial90/Radial180/Radial360 image fills, component loader targets, bitmap-font package parsing/rendering, packaged audio playback, pixel hit-test masks, and flow/pagination list layout.
+- Supports loader alignment/fill options, `FGUIConfig.loader_error_sign`, horizontal/vertical/Radial90/Radial180/Radial360 image fills, component loader targets, bitmap-font package parsing/rendering, packaged audio playback, pixel hit-test masks, and flow/pagination list layout.
 - `FGUILoader3D` supports external `PackedScene`, CanvasItem, Control, and Node3D content; package Spine/DragonBones content is connected through `FGUILoader3D.set_content_factory` so projects can choose their licensed Godot runtime integration.
 - Supports normal atlas regions through `AtlasTexture` and rotated/offset regions through generated `ImageTexture` sprites.
 - Includes FairyGUI Laya demo package assets under `examples/assets/ui` and a smoke test that loads every demo package.
