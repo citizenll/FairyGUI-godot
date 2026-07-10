@@ -1,6 +1,8 @@
 class_name FGUIController
 extends RefCounted
 
+static var _next_page_id: int = 0
+
 var parent: FGUIComponent
 var name: String = ""
 var _selected_index: int = -1
@@ -9,28 +11,14 @@ var selected_index: int:
 	get:
 		return _selected_index
 	set(value):
-		if value >= page_ids.size():
-			value = page_ids.size() - 1
-		if value < -1:
-			value = -1
-		if _selected_index == value:
-			return
-		changing = true
-		previous_index = _selected_index
-		_selected_index = value
-		if parent != null:
-			parent.apply_controller(self)
-		changing = false
-var _selected_page_id: String = ""
+		_set_selected_index(value, true)
 var changing: bool = false
 var auto_radio_group_depth: bool = false
 var actions: Array = []
+var _event_listeners: Dictionary = {}
 var selected_page_id: String:
 	set(value):
-		_selected_page_id = value
-		var index := page_ids.find(value)
-		if index != -1:
-			selected_index = index
+		_set_selected_index(page_ids.find(value), true)
 	get:
 		return page_ids[_selected_index] if _selected_index >= 0 and _selected_index < page_ids.size() else ""
 var selected_page: String:
@@ -38,8 +26,14 @@ var selected_page: String:
 		return page_names[_selected_index] if _selected_index >= 0 and _selected_index < page_names.size() else ""
 	set(value):
 		var index := page_names.find(value)
-		if index != -1:
-			selected_index = index
+		_set_selected_index(index if index >= 0 else (0 if not page_names.is_empty() else -1), true)
+var opposite_page_id: String:
+	set(value):
+		var index := page_ids.find(value)
+		if index > 0:
+			selected_index = 0
+		elif page_ids.size() > 1:
+			selected_index = 1
 var previous_page: String:
 	get:
 		return page_names[previous_index] if previous_index >= 0 and previous_index < page_names.size() else ""
@@ -54,6 +48,9 @@ var page_names: Array = []
 
 
 func setup(buffer: FGUIByteBuffer) -> void:
+	page_ids.clear()
+	page_names.clear()
+	actions.clear()
 	var begin_pos := buffer.pos
 	if not buffer.seek(begin_pos, 0):
 		return
@@ -101,7 +98,46 @@ func has_page_id(page_id: String) -> bool:
 
 
 func set_selected_index(value: int) -> void:
-	selected_index = value
+	_set_selected_index(value, false)
+
+
+func add_page(page_name: String = "") -> void:
+	add_page_at(page_name, page_ids.size())
+
+
+func add_page_at(page_name: String, index: int) -> void:
+	var page_id := str(_next_page_id)
+	_next_page_id += 1
+	while page_ids.has(page_id):
+		page_id = str(_next_page_id)
+		_next_page_id += 1
+	var insert_index := clampi(index, 0, page_ids.size())
+	page_ids.insert(insert_index, page_id)
+	page_names.insert(insert_index, page_name)
+
+
+func remove_page(page_name: String) -> void:
+	remove_page_at(page_names.find(page_name))
+
+
+func remove_page_at(index: int) -> void:
+	if index < 0 or index >= page_ids.size():
+		return
+	page_ids.remove_at(index)
+	page_names.remove_at(index)
+	if _selected_index >= page_ids.size():
+		_set_selected_index(_selected_index - 1, true)
+	elif parent != null:
+		parent.apply_controller(self)
+
+
+func clear_pages() -> void:
+	page_ids.clear()
+	page_names.clear()
+	if _selected_index != -1:
+		_set_selected_index(-1, true)
+	elif parent != null:
+		parent.apply_controller(self)
 
 
 func get_page_id(index: int) -> String:
@@ -121,9 +157,63 @@ func get_page_id_by_name(page_name: String) -> String:
 	return get_page_id(index)
 
 
+func get_page_name_by_id(page_id: String) -> String:
+	var index := page_ids.find(page_id)
+	return get_page_name(index)
+
+
 func run_actions() -> void:
 	for action in actions:
 		action.run(self, previous_page_id, selected_page_id)
+
+
+func on(event_name: String, callable: Callable) -> void:
+	if not callable.is_valid():
+		return
+	if not _event_listeners.has(event_name):
+		_event_listeners[event_name] = []
+	_event_listeners[event_name].append(callable)
+
+
+func off(event_name: String, callable: Callable) -> void:
+	if _event_listeners.has(event_name):
+		_event_listeners[event_name].erase(callable)
+
+
+func has_event_listener(event_name: String) -> bool:
+	return _event_listeners.has(event_name) and not _event_listeners[event_name].is_empty()
+
+
+func dispose() -> void:
+	parent = null
+	actions.clear()
+	_event_listeners.clear()
+
+
+func _set_selected_index(value: int, emit_change: bool) -> void:
+	var next_index := value
+	if next_index >= page_ids.size():
+		next_index = page_ids.size() - 1
+	if next_index < -1:
+		next_index = -1
+	if _selected_index == next_index:
+		return
+	changing = true
+	previous_index = _selected_index
+	_selected_index = next_index
+	if parent != null:
+		parent.apply_controller(self)
+	if emit_change:
+		_emit_event(FGUIEvents.STATE_CHANGED)
+	changing = false
+
+
+func _emit_event(event_name: String) -> void:
+	if not _event_listeners.has(event_name):
+		return
+	for callable: Callable in _event_listeners[event_name].duplicate():
+		if callable.is_valid():
+			callable.call(self)
 
 
 func _string_or_empty(value: Variant) -> String:

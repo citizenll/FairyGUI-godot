@@ -85,8 +85,7 @@ func dispose() -> void:
 		transition.dispose()
 	transitions.clear()
 	for controller: FGUIController in controllers:
-		controller.parent = null
-		controller.actions.clear()
+		controller.dispose()
 	controllers.clear()
 	for child: FGUIObject in children.duplicate():
 		child.dispose()
