@@ -225,15 +225,15 @@ func _apply_input_settings() -> void:
 	_apply_prompt_text()
 	_apply_max_length()
 	_apply_keyboard_type()
-	if line_edit != null:
-		line_edit.secret = _password
 	_apply_font_size()
 	_apply_font_color()
 	_apply_leading()
 	_apply_stroke()
 	_apply_shadow()
-	_apply_align()
-	_apply_valign()
+	if line_edit != null:
+		line_edit.secret = _password
+		_apply_align()
+		_apply_valign()
 	_handle_touchable_changed()
 
 

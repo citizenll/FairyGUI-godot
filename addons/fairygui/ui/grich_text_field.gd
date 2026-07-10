@@ -4,7 +4,8 @@ extends FGUITextField
 
 func _create_display_object() -> void:
 	label = RichTextLabel.new()
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# FairyGUI rich text fields are interactive, unlike ordinary text fields.
+	label.mouse_filter = Control.MOUSE_FILTER_STOP
 	label.bbcode_enabled = true
 	label.fit_content = true
 	node = label
@@ -25,6 +26,7 @@ func _set_text(value: String) -> void:
 	var first_match := image_regex.search(parsed)
 	if first_match == null:
 		label.text = parsed
+		_update_text_size()
 		return
 	label.clear()
 	var cursor := 0
@@ -39,6 +41,7 @@ func _set_text(value: String) -> void:
 		current_match = image_regex.search(parsed, cursor)
 	if cursor < parsed.length():
 		label.append_text(parsed.substr(cursor))
+	_update_text_size()
 
 
 func _apply_display_text() -> void:

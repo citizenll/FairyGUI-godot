@@ -346,19 +346,22 @@ func _apply_shadow() -> void:
 		_ensure_label_settings()
 		label.label_settings.shadow_color = _shadow_color
 		label.label_settings.shadow_offset = _shadow_offset
-	elif label is TextEdit:
+	elif label is RichTextLabel or label is TextEdit:
 		label.add_theme_color_override("font_shadow_color", _shadow_color)
 		label.add_theme_constant_override("shadow_offset_x", roundi(_shadow_offset.x))
 		label.add_theme_constant_override("shadow_offset_y", roundi(_shadow_offset.y))
 
 
 func _configure_label_layout() -> void:
-	if not (label is Label):
-		return
 	var wrap := _auto_size != FGUIEnums.AUTOSIZE_BOTH and not _single_line
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if wrap else TextServer.AUTOWRAP_OFF
-	label.clip_text = _auto_size == FGUIEnums.AUTOSIZE_ELLIPSIS
-	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if _auto_size == FGUIEnums.AUTOSIZE_ELLIPSIS else TextServer.OVERRUN_NO_TRIMMING
+	if label is Label:
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if wrap else TextServer.AUTOWRAP_OFF
+		label.clip_text = _auto_size == FGUIEnums.AUTOSIZE_ELLIPSIS
+		label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if _auto_size == FGUIEnums.AUTOSIZE_ELLIPSIS else TextServer.OVERRUN_NO_TRIMMING
+	elif label is RichTextLabel:
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if wrap else TextServer.AUTOWRAP_OFF
+		label.fit_content = _auto_size == FGUIEnums.AUTOSIZE_BOTH or _auto_size == FGUIEnums.AUTOSIZE_HEIGHT
+		label.scroll_active = false
 
 
 func _on_single_line_changed() -> void:
@@ -366,20 +369,28 @@ func _on_single_line_changed() -> void:
 
 
 func _update_text_size() -> void:
-	if _bitmap_font != null or _updating_text_size or not (label is Label) or _text == "":
+	if _bitmap_font != null or _updating_text_size or _text == "":
 		return
 	_updating_text_size = true
 	_configure_label_layout()
-	if _auto_size == FGUIEnums.AUTOSIZE_SHRINK:
+	if label is Label and _auto_size == FGUIEnums.AUTOSIZE_SHRINK:
 		_apply_shrink_to_fit()
 		_updating_text_size = false
 		return
-	_set_effective_font_size(_font_size)
-	var minimum: Vector2 = label.get_minimum_size()
-	if _auto_size == FGUIEnums.AUTOSIZE_BOTH:
-		set_size(minimum.x, minimum.y)
-	elif _auto_size == FGUIEnums.AUTOSIZE_HEIGHT:
-		set_size(width, minimum.y)
+	if label is Label:
+		_set_effective_font_size(_font_size)
+		var minimum: Vector2 = label.get_minimum_size()
+		if _auto_size == FGUIEnums.AUTOSIZE_BOTH:
+			set_size(minimum.x, minimum.y)
+		elif _auto_size == FGUIEnums.AUTOSIZE_HEIGHT:
+			set_size(width, minimum.y)
+	elif label is RichTextLabel:
+		var content_width := maxf(label.get_content_width(), label.get_minimum_size().x)
+		var content_height := maxf(label.get_content_height(), label.get_minimum_size().y)
+		if _auto_size == FGUIEnums.AUTOSIZE_BOTH and content_width > 0.0 and content_height > 0.0:
+			set_size(content_width, content_height)
+		elif _auto_size == FGUIEnums.AUTOSIZE_HEIGHT and content_height > 0.0:
+			set_size(width, content_height)
 	_updating_text_size = false
 
 
@@ -419,27 +430,25 @@ func _handle_size_changed() -> void:
 
 
 func _apply_align() -> void:
-	if not (label is Label):
-		return
+	var value := HORIZONTAL_ALIGNMENT_LEFT
 	match align:
 		FGUIEnums.ALIGN_CENTER:
-			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			value = HORIZONTAL_ALIGNMENT_CENTER
 		FGUIEnums.ALIGN_RIGHT:
-			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		_:
-			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+			value = HORIZONTAL_ALIGNMENT_RIGHT
+	if label is Label or label is RichTextLabel:
+		label.horizontal_alignment = value
 
 
 func _apply_valign() -> void:
-	if not (label is Label):
-		return
+	var value := VERTICAL_ALIGNMENT_TOP
 	match valign:
 		FGUIEnums.VERT_ALIGN_MIDDLE:
-			label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			value = VERTICAL_ALIGNMENT_CENTER
 		FGUIEnums.VERT_ALIGN_BOTTOM:
-			label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-		_:
-			label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+			value = VERTICAL_ALIGNMENT_BOTTOM
+	if label is Label or label is RichTextLabel:
+		label.vertical_alignment = value
 
 
 func _render_bitmap_text(value: String) -> void:

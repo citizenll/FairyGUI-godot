@@ -99,6 +99,57 @@ func _initialize() -> void:
 	if rich_field.label.get_parsed_text() != "Ada":
 		_fail("Rich text fields did not resolve text template variables.")
 		return
+	rich_field.font_size = 20
+	rich_field.color = Color(0.2, 0.4, 0.6)
+	rich_field.leading = 4
+	rich_field.stroke = 2
+	rich_field.stroke_color = Color(0.8, 0.2, 0.1)
+	rich_field.shadow_color = Color(0.1, 0.1, 0.1, 0.5)
+	rich_field.shadow_offset = Vector2(2, 3)
+	rich_field.align = FGUIEnums.ALIGN_CENTER
+	rich_field.valign = FGUIEnums.VERT_ALIGN_BOTTOM
+	rich_field.auto_size = FGUIEnums.AUTOSIZE_BOTH
+	rich_field.text = "Rich text auto size"
+	await process_frame
+	if rich_field.width <= 0.0 or rich_field.height <= 0.0 or not rich_field.label.fit_content:
+		_fail("Rich text fields did not auto-size to their content.")
+		return
+	if rich_field.label.horizontal_alignment != HORIZONTAL_ALIGNMENT_CENTER or rich_field.label.vertical_alignment != VERTICAL_ALIGNMENT_BOTTOM:
+		_fail("Rich text fields did not apply horizontal and vertical alignment.")
+		return
+	if rich_field.label.get_theme_font_size("normal_font_size") != 20 or rich_field.label.get_theme_color("default_color") != rich_field.color:
+		_fail("Rich text fields did not apply font size and color.")
+		return
+	if rich_field.label.get_theme_constant("line_separation") != 4 or rich_field.label.get_theme_constant("outline_size") != 2:
+		_fail("Rich text fields did not apply line spacing and outline settings.")
+		return
+	if rich_field.label.get_theme_color("font_outline_color") != rich_field.stroke_color or rich_field.label.get_theme_color("font_shadow_color") != rich_field.shadow_color:
+		_fail("Rich text fields did not apply outline and shadow colors.")
+		return
+	rich_field.auto_size = FGUIEnums.AUTOSIZE_HEIGHT
+	rich_field.set_size(64.0, 1.0)
+	rich_field.single_line = false
+	rich_field.text = "Rich text should wrap across several words."
+	await process_frame
+	if rich_field.label.autowrap_mode != TextServer.AUTOWRAP_WORD_SMART or rich_field.height <= 1.0:
+		_fail("Rich text height auto-size did not wrap fixed-width content.")
+		return
+	if rich_field.label.mouse_filter != Control.MOUSE_FILTER_STOP:
+		_fail("Rich text fields should receive pointer input.")
+		return
+	rich_field.data = 0
+	rich_field.on_click(func(_event: InputEvent) -> void: rich_field.data = int(rich_field.data) + 1)
+	var rich_press := InputEventMouseButton.new()
+	rich_press.button_index = MOUSE_BUTTON_LEFT
+	rich_press.pressed = true
+	rich_field._on_gui_input(rich_press)
+	var rich_release := InputEventMouseButton.new()
+	rich_release.button_index = MOUSE_BUTTON_LEFT
+	rich_release.pressed = false
+	rich_field._on_gui_input(rich_release)
+	if rich_field.data != 1:
+		_fail("Rich text fields did not dispatch click events.")
+		return
 
 	var input := FGUITextInput.new()
 	host.add_child(input.node)
@@ -119,9 +170,25 @@ func _initialize() -> void:
 		_fail("Password inputs should use LineEdit secret rendering.")
 		return
 	input.password = false
+	input.font_size = 18
+	input.color = Color(0.2, 0.4, 0.6)
+	input.leading = 5
+	input.stroke = 2
+	input.stroke_color = Color(0.8, 0.2, 0.1)
+	input.shadow_color = Color(0.1, 0.1, 0.1, 0.5)
+	input.shadow_offset = Vector2(2, 3)
 	input.single_line = false
 	if input.text_edit == null or input.line_edit != null:
 		_fail("Text inputs did not restore TextEdit after leaving password single-line mode.")
+		return
+	if input.text_edit.get_theme_font_size("font_size") != 18 or input.text_edit.get_theme_color("font_color") != input.color:
+		_fail("Text inputs did not preserve font styling when switching back to multiline mode.")
+		return
+	if input.text_edit.get_theme_constant("line_separation") != 5 or input.text_edit.get_theme_constant("outline_size") != 2:
+		_fail("Text inputs did not preserve text layout styling when switching back to multiline mode.")
+		return
+	if input.text_edit.get_theme_color("font_outline_color") != input.stroke_color or input.text_edit.get_theme_color("font_shadow_color") != input.shadow_color:
+		_fail("Text inputs did not preserve outline and shadow styling when switching back to multiline mode.")
 		return
 	input.max_length = 4
 	input.restrict = ""
