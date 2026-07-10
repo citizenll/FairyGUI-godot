@@ -64,6 +64,25 @@ func _initialize() -> void:
 		_fail("Rich text fields did not resolve text template variables.")
 		return
 
+	var input := FGUITextInput.new()
+	host.add_child(input.node)
+	input.restrict = "0-9"
+	input._on_text_changed("a1b2")
+	if input.text != "12":
+		_fail("Text input numeric restrict ranges were not applied.")
+		return
+	input.restrict = "^0-9"
+	input._on_text_changed("a1b2")
+	if input.text != "ab":
+		_fail("Text input inverse restrict ranges were not applied.")
+		return
+	input.restrict = "\\-"
+	input._on_text_changed("a-b")
+	if input.text != "-":
+		_fail("Text input escaped restrict characters were not applied.")
+		return
+
+	input.dispose()
 	rich_field.dispose()
 	field.dispose()
 	host.queue_free()

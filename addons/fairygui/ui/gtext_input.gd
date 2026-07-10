@@ -26,7 +26,12 @@ var password: bool:
 	set(value):
 		if line_edit != null:
 			line_edit.secret = value
-var restrict: String = ""
+var _restrict: String = ""
+var restrict: String:
+	get:
+		return _restrict
+	set(value):
+		_restrict = value
 var keyboard_type: int = 0:
 	set(value):
 		keyboard_type = value
@@ -102,16 +107,45 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 
 
 func _on_text_changed(new_text: String) -> void:
-	if restrict == "":
+	if _restrict == "":
 		_text = new_text
 		return
 	var filtered := ""
 	for i in new_text.length():
 		var ch := new_text.substr(i, 1)
-		if restrict.find(ch) != -1:
+		if _is_restricted_character_allowed(new_text.unicode_at(i)):
 			filtered += ch
 	if filtered != new_text:
 		var caret := line_edit.caret_column
 		line_edit.text = filtered
 		line_edit.caret_column = mini(caret, filtered.length())
 	_text = filtered
+
+
+func _is_restricted_character_allowed(codepoint: int) -> bool:
+	var inverted := _restrict.begins_with("^")
+	var index := 1 if inverted else 0
+	var matched := false
+	while index < _restrict.length():
+		var first := _restrict.unicode_at(index)
+		if first == 92 and index + 1 < _restrict.length():
+			index += 1
+			first = _restrict.unicode_at(index)
+		index += 1
+		if index < _restrict.length() and _restrict.unicode_at(index) == 45:
+			index += 1
+			if index < _restrict.length():
+				var last := _restrict.unicode_at(index)
+				if last == 92 and index + 1 < _restrict.length():
+					index += 1
+					last = _restrict.unicode_at(index)
+				index += 1
+				if codepoint >= mini(first, last) and codepoint <= maxi(first, last):
+					matched = true
+				continue
+			if codepoint == first or codepoint == 45:
+				matched = true
+			continue
+		if codepoint == first:
+			matched = true
+	return not matched if inverted else matched
