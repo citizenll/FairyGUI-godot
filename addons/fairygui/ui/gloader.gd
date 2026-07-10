@@ -3,8 +3,6 @@ extends FGUIObject
 
 const FillRenderer := preload("res://addons/fairygui/ui/fill_renderer.gd")
 
-static var _error_sign_pool := FGUIObjectPool.new()
-
 var texture_rect: TextureRect
 var fill_renderer
 var content_component: FGUIComponent
@@ -97,6 +95,7 @@ var _pending_external_url: String = ""
 var _load_serial: int = 0
 var _active_request_serial: int = -1
 var _error_sign: FGUIObject
+var _error_sign_pool := FGUIObjectPool.new()
 var url: String:
 	set(value):
 		if _url == value:
@@ -125,6 +124,7 @@ func _create_display_object() -> void:
 
 func dispose() -> void:
 	_clear_content()
+	_error_sign_pool.clear()
 	if _http_request != null and is_instance_valid(_http_request):
 		if _http_request.get_parent() != null:
 			_http_request.get_parent().remove_child(_http_request)

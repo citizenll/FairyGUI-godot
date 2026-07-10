@@ -100,11 +100,11 @@ func _initialize() -> void:
 		_fail("Loader did not return the error-sign component when its content was cleared.")
 		return
 	FGUIConfig.loader_error_sign = previous_error_sign
+	error_loader.dispose()
 	FGUIPackage.remove_package(error_package.id)
 
 	standalone_clip.dispose()
 	remote_loader.dispose()
-	error_loader.dispose()
 	loader.dispose()
 	host.queue_free()
 	await process_frame

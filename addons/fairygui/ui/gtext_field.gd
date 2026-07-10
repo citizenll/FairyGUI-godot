@@ -675,6 +675,8 @@ func _render_bitmap_text(value: String) -> void:
 	_clear_bitmap_nodes()
 	if label == null or _bitmap_font == null:
 		return
+	var was_updating := _updating_text_size
+	_updating_text_size = true
 	label.text = ""
 	var scale := float(font_size) / float(maxi(_bitmap_font.font_size, 1))
 	var line_height := float(_bitmap_font.line_height) * scale
@@ -708,12 +710,10 @@ func _render_bitmap_text(value: String) -> void:
 		max_width = maxf(max_width, float(line["width"]))
 	var total_height := maxf(line_height, float(lines.size()) * line_height + float(maxi(0, lines.size() - 1) * _leading))
 	_bitmap_text_size = Vector2(max_width, total_height)
-	_updating_text_size = true
 	if _auto_size == FGUIEnums.AUTOSIZE_BOTH:
 		set_size(max_width, total_height)
 	elif _auto_size == FGUIEnums.AUTOSIZE_HEIGHT:
 		set_size(width, total_height)
-	_updating_text_size = false
 	var layout_width := max_width if _auto_size == FGUIEnums.AUTOSIZE_BOTH else width
 	var vertical_offset := 0.0
 	if _auto_size != FGUIEnums.AUTOSIZE_BOTH and _auto_size != FGUIEnums.AUTOSIZE_HEIGHT:
@@ -744,6 +744,7 @@ func _render_bitmap_text(value: String) -> void:
 			glyph_node.modulate = color if _bitmap_font.tint else Color.WHITE
 			label.add_child(glyph_node)
 			_bitmap_nodes.append(glyph_node)
+	_updating_text_size = was_updating
 
 
 func _refresh_bitmap_text() -> void:

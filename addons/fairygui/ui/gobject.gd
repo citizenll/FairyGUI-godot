@@ -37,11 +37,17 @@ var y: float:
 		set_xy(_x, value)
 var width: float:
 	get:
+		ensure_size_correct()
+		if relations != null and relations.size_dirty:
+			relations.ensure_relations_size_correct()
 		return _width
 	set(value):
 		set_size(value, _raw_height)
 var height: float:
 	get:
+		ensure_size_correct()
+		if relations != null and relations.size_dirty:
+			relations.ensure_relations_size_correct()
 		return _height
 	set(value):
 		set_size(_raw_width, value)
@@ -49,28 +55,41 @@ var alpha: float:
 	get:
 		return _alpha
 	set(value):
+		if is_equal_approx(_alpha, value):
+			return
 		_alpha = value
 		_handle_alpha_changed()
+		update_gear(3)
 var visible: bool:
 	get:
 		return _visible
 	set(value):
+		if _visible == value:
+			return
 		_visible = value
 		_handle_visible_changed()
+		if parent != null:
+			parent.set_bounds_changed_flag()
 		if _group is FGUIGroup and _group.exclude_invisibles:
 			_group.set_bounds_changed_flag()
 var touchable: bool:
 	get:
 		return _touchable
 	set(value):
+		if _touchable == value:
+			return
 		_touchable = value
 		_handle_touchable_changed()
+		update_gear(3)
 var grayed: bool:
 	get:
 		return _grayed
 	set(value):
+		if _grayed == value:
+			return
 		_grayed = value
 		_handle_grayed_changed()
+		update_gear(3)
 var blend_mode: int:
 	get:
 		return _blend_mode
@@ -164,14 +183,14 @@ var pixel_snapping: bool:
 		_handle_xy_changed()
 var x_min: float:
 	get:
-		return _x
+		return _x - _width * _pivot.x if _pivot_as_anchor else _x
 	set(value):
-		set_xy(value, _y)
+		set_xy(value + _width * _pivot.x, _y) if _pivot_as_anchor else set_xy(value, _y)
 var y_min: float:
 	get:
-		return _y
+		return _y - _height * _pivot.y if _pivot_as_anchor else _y
 	set(value):
-		set_xy(_x, value)
+		set_xy(_x, value + _height * _pivot.y) if _pivot_as_anchor else set_xy(_x, value)
 var actual_width: float:
 	get:
 		return width * absf(_scale.x)
@@ -348,32 +367,42 @@ func set_xy(new_x: float, new_y: float) -> void:
 	_x = new_x
 	_y = new_y
 	_handle_xy_changed()
+	emit_event(FGUIEvents.XY_CHANGED)
 	if self is FGUIGroup:
 		(self as FGUIGroup).move_children(dx, dy)
-	if group != null and group is FGUIGroup:
-		group.set_bounds_changed_flag(true)
+	update_gear(1)
+	if parent != null and not parent is FGUIList:
+		parent.set_bounds_changed_flag()
+		if group != null and group is FGUIGroup:
+			group.set_bounds_changed_flag(true)
 
 
-func set_size(new_width: float, new_height: float, _ignore_pivot: bool = false) -> void:
-	if max_width > 0.0:
-		new_width = minf(new_width, max_width)
-	if max_height > 0.0:
-		new_height = minf(new_height, max_height)
-	new_width = maxf(new_width, min_width)
-	new_height = maxf(new_height, min_height)
+func set_size(new_width: float, new_height: float, ignore_pivot: bool = false) -> void:
 	if is_equal_approx(_raw_width, new_width) and is_equal_approx(_raw_height, new_height):
 		return
-	var old_width := _raw_width
-	var old_height := _raw_height
 	_raw_width = new_width
 	_raw_height = new_height
-	_width = new_width
-	_height = new_height
+	var constrained_width := maxf(new_width, min_width)
+	var constrained_height := maxf(new_height, min_height)
+	if max_width > 0.0:
+		constrained_width = minf(constrained_width, max_width)
+	if max_height > 0.0:
+		constrained_height = minf(constrained_height, max_height)
+	var delta_width := constrained_width - _width
+	var delta_height := constrained_height - _height
+	_width = constrained_width
+	_height = constrained_height
 	_handle_size_changed()
+	if not _pivot.is_zero_approx():
+		if _pivot_as_anchor:
+			_handle_xy_changed()
+		elif not ignore_pivot:
+			set_xy(_x - _pivot.x * delta_width, _y - _pivot.y * delta_height)
 	if self is FGUIGroup:
-		(self as FGUIGroup).resize_children(_raw_width - old_width, _raw_height - old_height)
-	relations.on_owner_size_changed(_raw_width - old_width, _raw_height - old_height, _pivot_as_anchor)
+		(self as FGUIGroup).resize_children(delta_width, delta_height)
+	update_gear(2)
 	if parent != null:
+		relations.on_owner_size_changed(delta_width, delta_height, _pivot_as_anchor or not ignore_pivot)
 		parent.set_bounds_changed_flag()
 	if group != null and group is FGUIGroup:
 		group.set_bounds_changed_flag()
@@ -381,9 +410,12 @@ func set_size(new_width: float, new_height: float, _ignore_pivot: bool = false) 
 
 
 func set_scale(scale_x: float, scale_y: float) -> void:
+	if is_equal_approx(_scale.x, scale_x) and is_equal_approx(_scale.y, scale_y):
+		return
 	_scale = Vector2(scale_x, scale_y)
 	if node != null:
 		node.scale = _scale
+	update_gear(2)
 
 
 func set_alpha(value: float) -> void:
@@ -860,7 +892,6 @@ func _handle_xy_changed() -> void:
 		if _pixel_snapping:
 			next_pos = next_pos.round()
 		node.position = next_pos
-	emit_event(FGUIEvents.XY_CHANGED)
 
 
 func _handle_size_changed() -> void:
