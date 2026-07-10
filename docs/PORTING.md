@@ -42,4 +42,5 @@ The Godot source tree is still useful as the API reference for current Control, 
 - Scroll panes provide header/footer lock layout and top/bottom navigation. Native touch overscroll and pull-release events are not implemented yet.
 - Tree nodes support dynamic insertion, removal, reordering, selection, and single-click folder expansion with pooled cell refreshes.
 - Windows attach through `GRoot`, preserve init/show/hide lifecycle callbacks, support content panes, close controls, modal root overlays, ordering, and modal-wait pane ownership.
+- Async object creation defers completion to the next frame and supports cancellation. Time-sliced construction of a single very large component is not implemented yet.
 - Scale9, common widgets, list layout, scroll containers, bitmap fonts, audio, and pixel hit testing are present. Complex transition timelines, very large virtual lists, rendering comparison, and performance still require commercial-freeze parity work.
