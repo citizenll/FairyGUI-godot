@@ -9,6 +9,7 @@ var _popup_stack: Array[FGUIObject] = []
 var _tooltip_win: FGUIObject
 var _default_tooltip_win: FGUIObject
 var _focus_object: FGUIObject
+var _attached_viewport: Viewport
 
 var focus: FGUIObject:
 	get:
@@ -34,6 +35,8 @@ func _init() -> void:
 	if node != null:
 		node.name = "GRoot"
 		node.mouse_filter = Control.MOUSE_FILTER_PASS
+		node.tree_entered.connect(_connect_viewport)
+		node.tree_exiting.connect(_disconnect_viewport)
 
 
 static func get_inst() -> FGUIRoot:
@@ -49,7 +52,7 @@ func attach_to(parent_node: Node) -> void:
 		if node.get_parent() != null:
 			node.get_parent().remove_child(node)
 		parent_node.add_child(node)
-	_update_size_from_viewport()
+	_connect_viewport()
 
 
 func show_window(window: FGUIWindow) -> void:
@@ -108,6 +111,7 @@ func _handle_size_changed() -> void:
 func dispose() -> void:
 	_popup_stack.clear()
 	_focus_object = null
+	_disconnect_viewport()
 	if _tooltip_win != null and _tooltip_win.parent == self:
 		remove_child(_tooltip_win)
 	_tooltip_win = null
@@ -269,3 +273,27 @@ func _update_size_from_viewport() -> void:
 	var viewport := node.get_viewport()
 	if viewport != null:
 		set_size(viewport.get_visible_rect().size.x, viewport.get_visible_rect().size.y)
+
+
+func _connect_viewport() -> void:
+	if node == null:
+		return
+	var viewport := node.get_viewport()
+	if viewport == _attached_viewport:
+		_update_size_from_viewport()
+		return
+	_disconnect_viewport()
+	_attached_viewport = viewport
+	if _attached_viewport != null:
+		_attached_viewport.size_changed.connect(_on_viewport_size_changed)
+	_update_size_from_viewport()
+
+
+func _disconnect_viewport() -> void:
+	if _attached_viewport != null and _attached_viewport.size_changed.is_connected(_on_viewport_size_changed):
+		_attached_viewport.size_changed.disconnect(_on_viewport_size_changed)
+	_attached_viewport = null
+
+
+func _on_viewport_size_changed() -> void:
+	_update_size_from_viewport()

@@ -7,6 +7,11 @@ func _initialize() -> void:
 	var ui_root := FGUIRoot.new()
 	ui_root.set_size(200.0, 100.0)
 	host.add_child(ui_root.node)
+	await process_frame
+	if ui_root._attached_viewport == null or not ui_root._attached_viewport.size_changed.is_connected(Callable(ui_root, "_on_viewport_size_changed")):
+		_fail("GRoot did not connect to viewport size changes.")
+		return
+	ui_root.set_size(200.0, 100.0)
 	var target := FGUIObject.new()
 	target.set_xy(160.0, 80.0)
 	target.set_size(20.0, 10.0)
