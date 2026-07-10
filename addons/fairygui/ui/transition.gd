@@ -98,6 +98,9 @@ func stop(set_to_complete: bool = true, process_callback: bool = false) -> void:
 		if is_instance_valid(tween):
 			tween.kill()
 	_active_tweens.clear()
+	for item in _items:
+		if int(item["type"]) == ACTION_SHAKE:
+			_reset_shake(item)
 	var child_transitions := _active_child_transitions.duplicate()
 	_active_child_transitions.clear()
 	for transition: FGUITransition in child_transitions:
@@ -359,6 +362,8 @@ func _internal_play(token: int) -> void:
 func _schedule_item(item: Dictionary, token: int) -> bool:
 	var config = item.get("tween_config")
 	var action_time := _get_item_play_time(item)
+	if int(item["type"]) == ACTION_SHAKE:
+		return _schedule_shake(item, token, action_time)
 	if config != null:
 		var duration := float(config["duration"])
 		var repeat := int(config.get("repeat", 0))
@@ -409,6 +414,34 @@ func _schedule_item(item: Dictionary, token: int) -> bool:
 	delayed.tween_interval(action_time - _start_time)
 	delayed.tween_callback(Callable(self, "_on_delayed_item").bind(item, token))
 	delayed.finished.connect(Callable(self, "_on_item_tween_finished").bind(token, delayed))
+	return true
+
+
+func _schedule_shake(item: Dictionary, token: int, action_time: float) -> bool:
+	var value: Dictionary = item["value"]
+	var duration := maxf(0.0, float(value.get("duration", 0.0)))
+	var end_limit := _end_time if _end_time >= 0.0 else INF
+	if action_time > end_limit:
+		return false
+	_reset_shake(item)
+	var offset := maxf(0.0, _start_time - action_time)
+	if duration <= 0.0 or offset >= duration:
+		return false
+	var play_duration := duration - offset
+	if end_limit < INF:
+		play_duration = minf(play_duration, end_limit - action_time - offset)
+	if play_duration <= 0.0:
+		return false
+	var tween := _make_tween()
+	if tween == null:
+		return false
+	var delay := maxf(0.0, action_time - _start_time)
+	if delay > 0.0:
+		tween.tween_interval(delay)
+	tween.tween_callback(Callable(self, "_call_hook").bind(item, false))
+	tween.tween_method(Callable(self, "_apply_shake_elapsed").bind(item, duration, float(value.get("amplitude", 0.0))), offset, offset + play_duration, play_duration)
+	tween.tween_callback(Callable(self, "_reset_shake").bind(item))
+	tween.finished.connect(Callable(self, "_on_item_tween_finished").bind(token, tween))
 	return true
 
 
@@ -542,6 +575,26 @@ func _apply_tween_variant(value: Variant, item: Dictionary) -> void:
 
 func _apply_tween_elapsed(elapsed: float, item: Dictionary, start_value: Dictionary, end_value: Dictionary) -> void:
 	_apply_tween_variant(_variant_at_tween_elapsed(item, start_value, end_value, elapsed), item)
+
+
+func _apply_shake_elapsed(elapsed: float, item: Dictionary, duration: float, amplitude: float) -> void:
+	var strength := amplitude * (1.0 - clampf(elapsed / maxf(duration, 0.0001), 0.0, 1.0))
+	var value: Dictionary = item["value"]
+	value["offset_x"] = strength if randf() > 0.5 else -strength
+	value["offset_y"] = strength if randf() > 0.5 else -strength
+	_apply_value(item, value)
+
+
+func _reset_shake(item: Dictionary) -> void:
+	var value: Dictionary = item.get("value", {})
+	if value.is_empty():
+		return
+	value["offset_x"] = 0.0
+	value["offset_y"] = 0.0
+	if item.get("target") != null:
+		_apply_value(item, value)
+	value["last_offset_x"] = 0.0
+	value["last_offset_y"] = 0.0
 
 
 func _apply_value(item: Dictionary, source_value: Dictionary) -> void:

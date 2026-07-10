@@ -137,6 +137,41 @@ func _initialize() -> void:
 		quit(1)
 		return
 
+	var shake_transition := FGUITransition.new(owner)
+	shake_transition._items.append({
+		"type": FGUITransition.ACTION_SHAKE,
+		"time": 0.0,
+		"target_id": child.id,
+		"target": null,
+		"label": "shake",
+		"value": {"amplitude": 8.0, "duration": 0.2},
+		"tween_config": null,
+		"hook": Callable()
+	})
+	var shake_origin := Vector2(10, 10)
+	child.set_xy(shake_origin.x, shake_origin.y)
+	shake_transition.play()
+	await create_timer(0.05).timeout
+	if Vector2(child.x, child.y).is_equal_approx(shake_origin):
+		push_error("Transition shake did not move the target.")
+		quit(1)
+		return
+	shake_transition.stop(false, false)
+	if not Vector2(child.x, child.y).is_equal_approx(shake_origin):
+		push_error("Transition shake did not reset after stop: %s,%s" % [child.x, child.y])
+		quit(1)
+		return
+	var shake_completed := [false]
+	shake_transition.play(func() -> void: shake_completed[0] = true, 1, 0.0, 0.0, 0.05)
+	waited = 0.0
+	while not shake_completed[0] and waited < 1.0:
+		await create_timer(0.03).timeout
+		waited += 0.03
+	if not shake_completed[0] or not Vector2(child.x, child.y).is_equal_approx(shake_origin):
+		push_error("Transition shake breakpoint did not reset the target.")
+		quit(1)
+		return
+
 	var ease_value: Vector4 = transition._variant_at_tween_elapsed(
 		{"type": FGUITransition.ACTION_XY, "tween_config": {"duration": 1.0, "ease_type": FGUIEaseType.QUAD_IN, "repeat": 0, "yoyo": false}},
 		{"b1": true, "b2": true, "f1": 0.0, "f2": 0.0},
@@ -261,6 +296,7 @@ func _initialize() -> void:
 	repeat_transition.dispose()
 	yoyo_transition.dispose()
 	speed_transition.dispose()
+	shake_transition.dispose()
 	parent_transition.dispose()
 	stop_marker_transition.dispose()
 	clip.dispose()
