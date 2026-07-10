@@ -73,10 +73,20 @@ func _initialize() -> void:
 	var second := FGUIObjectFactory.new_object_from_item(target_item)
 	pool.return_object(first)
 	pool.return_object(second)
+	if pool.count != 2:
+		expected.dispose()
+		FGUIPackage.remove_package(pkg.id)
+		_fail("FGUIObjectPool did not track the number of pooled objects.")
+		return
 	if pool.get_object(url) != first or pool.get_object(url) != second:
 		expected.dispose()
 		FGUIPackage.remove_package(pkg.id)
 		_fail("FGUIObjectPool did not preserve FairyGUI FIFO reuse order.")
+		return
+	if pool.count != 0:
+		expected.dispose()
+		FGUIPackage.remove_package(pkg.id)
+		_fail("FGUIObjectPool did not decrement its pooled-object count on reuse.")
 		return
 	first.dispose()
 	second.dispose()
