@@ -15,6 +15,9 @@ var _shadow_offset: Vector2 = Vector2.ZERO
 var _template_vars: Dictionary = {}
 var _template_vars_enabled: bool = false
 var _ubb_enabled: bool = false
+var _bold: bool = false
+var _italic: bool = false
+var _underline: bool = false
 var _updating_text_size: bool = false
 var _effective_font_size: int = 14
 var font_size: int:
@@ -45,7 +48,12 @@ var letter_spacing: int:
 		return _letter_spacing
 	set(value):
 		_letter_spacing = value
-		_refresh_bitmap_text()
+		if _bitmap_font != null:
+			_refresh_bitmap_text()
+		else:
+			_apply_font()
+			if _text != "":
+				_update_text_size()
 var auto_size: int:
 	get:
 		return _auto_size
@@ -104,6 +112,34 @@ var ubb_enabled: bool:
 		_ubb_enabled = value
 		_ensure_text_renderer()
 		_apply_display_text()
+var bold: bool:
+	get:
+		return _bold
+	set(value):
+		if _bold == value:
+			return
+		_bold = value
+		_apply_font()
+		_apply_display_text()
+var italic: bool:
+	get:
+		return _italic
+	set(value):
+		if _italic == value:
+			return
+		_italic = value
+		_apply_font()
+		_apply_display_text()
+var underline: bool:
+	get:
+		return _underline
+	set(value):
+		if _underline == value:
+			return
+		_underline = value
+		_ensure_text_renderer()
+		_apply_font()
+		_apply_display_text()
 var template_vars: Variant:
 	get:
 		return _template_vars if _template_vars_enabled else null
@@ -136,6 +172,20 @@ var _font_name: String = ""
 var _bitmap_font: FGUIBitmapFont
 var _bitmap_nodes: Array[TextureRect] = []
 var _bitmap_text_size := Vector2.ZERO
+var font: String:
+	get:
+		return _font_name
+	set(value):
+		if _font_name == value and _bitmap_font != null:
+			return
+		var previous_bitmap_font := _bitmap_font
+		_font_name = value
+		_bitmap_font = _resolve_bitmap_font(_get_resolved_font_name())
+		if previous_bitmap_font != null and _bitmap_font == null:
+			_clear_bitmap_nodes()
+		_ensure_text_renderer()
+		_apply_font()
+		_apply_display_text()
 var text_width: float:
 	get:
 		return _get_text_content_size().x
@@ -176,7 +226,7 @@ func _apply_display_text() -> void:
 	if _bitmap_font != null:
 		_render_bitmap_text(value)
 		return
-	if label is RichTextLabel and _ubb_enabled:
+	if label is RichTextLabel:
 		_set_rich_text_content(value)
 		return
 	if label != null:
@@ -187,15 +237,22 @@ func _apply_display_text() -> void:
 func _set_rich_text_content(value: String) -> void:
 	if not (label is RichTextLabel):
 		return
+	label.clear()
+	var style_depth := _push_rich_text_style(label)
+	if not (_ubb_enabled or self is FGUIRichTextField):
+		label.add_text(value)
+		_pop_rich_text_style(label, style_depth)
+		_update_text_size()
+		return
 	var parsed := FGUIUBBParser.default_parser.parse(value) if FGUIUBBParser.default_parser != null else value
 	var image_regex := RegEx.new()
 	image_regex.compile("(?i)\\[img\\](ui://[^\\[]+)\\[/img\\]")
 	var first_match := image_regex.search(parsed)
 	if first_match == null:
-		label.text = parsed
+		label.append_text(parsed)
+		_pop_rich_text_style(label, style_depth)
 		_update_text_size()
 		return
-	label.clear()
 	var cursor := 0
 	var current_match := first_match
 	while current_match != null:
@@ -208,7 +265,30 @@ func _set_rich_text_content(value: String) -> void:
 		current_match = image_regex.search(parsed, cursor)
 	if cursor < parsed.length():
 		label.append_text(parsed.substr(cursor))
+	_pop_rich_text_style(label, style_depth)
 	_update_text_size()
+
+
+func _push_rich_text_style(rich_label: RichTextLabel) -> int:
+	var depth := 0
+	if _bold and _italic:
+		rich_label.push_bold_italics()
+		depth += 1
+	elif _bold:
+		rich_label.push_bold()
+		depth += 1
+	elif _italic:
+		rich_label.push_italics()
+		depth += 1
+	if _underline:
+		rich_label.push_underline()
+		depth += 1
+	return depth
+
+
+func _pop_rich_text_style(rich_label: RichTextLabel, depth: int) -> void:
+	for _index in depth:
+		rich_label.pop()
 
 
 func _append_package_image(url: String) -> void:
@@ -283,7 +363,7 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 	if not buffer.seek(begin_pos, 5):
 		return
 	var font_name = buffer.read_s()
-	_font_name = "" if font_name == null else str(font_name)
+	font = "" if font_name == null else str(font_name)
 	font_size = buffer.read_i16()
 	color = buffer.read_color()
 	align = buffer.read_i8()
@@ -294,9 +374,9 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 	letter_spacing = buffer.read_i16()
 	ubb_enabled = buffer.read_bool()
 	auto_size = buffer.read_i8()
-	buffer.read_bool()
-	buffer.read_bool()
-	buffer.read_bool()
+	underline = buffer.read_bool()
+	italic = buffer.read_bool()
+	bold = buffer.read_bool()
 	single_line = buffer.read_bool()
 	if buffer.read_bool():
 		stroke_color = buffer.read_color()
@@ -309,15 +389,7 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 	if buffer.version >= 3:
 		buffer.read_bool()
 		buffer.skip(12)
-	if _font_name.begins_with("ui://"):
-		var font_item := FGUIPackage.get_item_by_url(_font_name)
-		if font_item != null:
-			var font_asset: Variant = font_item.owner.get_item_asset(font_item)
-			if font_asset is FGUIBitmapFont:
-				_bitmap_font = font_asset
-				_ensure_text_renderer()
-				if label != null:
-					label.text = ""
+	_apply_font()
 
 
 func setup_after_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
@@ -371,6 +443,88 @@ func _apply_font_size() -> void:
 		label.add_theme_font_size_override("normal_font_size", _font_size)
 	elif label is LineEdit or label is TextEdit:
 		label.add_theme_font_size_override("font_size", _font_size)
+
+
+func _apply_font() -> void:
+	if label == null or _bitmap_font != null:
+		return
+	if label is Label:
+		_ensure_label_settings()
+		label.label_settings.font = _get_font_variant(_bold, _italic)
+	elif label is RichTextLabel:
+		_apply_rich_text_fonts(label)
+	elif label is LineEdit or label is TextEdit:
+		var input_font := _get_font_variant(_bold, _italic)
+		if input_font == null:
+			label.remove_theme_font_override("font")
+		else:
+			label.add_theme_font_override("font", input_font)
+
+
+func _apply_rich_text_fonts(rich_label: RichTextLabel) -> void:
+	for style in [
+		{"theme": "normal_font", "bold": false, "italic": false},
+		{"theme": "bold_font", "bold": true, "italic": false},
+		{"theme": "italics_font", "bold": false, "italic": true},
+		{"theme": "bold_italics_font", "bold": true, "italic": true},
+	]:
+		var font_variant := _get_font_variant(bool(style["bold"]), bool(style["italic"]))
+		var theme_name := str(style["theme"])
+		if font_variant == null:
+			rich_label.remove_theme_font_override(theme_name)
+		else:
+			rich_label.add_theme_font_override(theme_name, font_variant)
+
+
+func _get_font_variant(wants_bold: bool, wants_italic: bool) -> Font:
+	var base_font := _get_base_font()
+	if base_font == null and not wants_bold and not wants_italic and _letter_spacing == 0:
+		return null
+	if base_font is SystemFont and _letter_spacing == 0:
+		var system_font := base_font as SystemFont
+		system_font.font_weight = 700 if wants_bold else 400
+		system_font.font_italic = wants_italic
+		return system_font
+	if base_font is SystemFont:
+		var styled_system_font := base_font as SystemFont
+		styled_system_font.font_weight = 700 if wants_bold else 400
+		styled_system_font.font_italic = wants_italic
+	var variation := FontVariation.new()
+	variation.base_font = base_font
+	if wants_bold:
+		variation.variation_embolden = 0.6
+	if wants_italic:
+		variation.variation_transform = Transform2D(Vector2(1.0, 0.0), Vector2(0.2, 1.0), Vector2.ZERO)
+	if _letter_spacing != 0:
+		variation.spacing_glyph = _letter_spacing
+	return variation
+
+
+func _get_base_font() -> Font:
+	var font_name := _get_resolved_font_name()
+	if font_name == "" or font_name.begins_with("ui://"):
+		return null
+	if ResourceLoader.exists(font_name):
+		var loaded := ResourceLoader.load(font_name)
+		if loaded is Font:
+			return loaded
+	var system_font := SystemFont.new()
+	system_font.font_names = PackedStringArray([font_name])
+	return system_font
+
+
+func _get_resolved_font_name() -> String:
+	return _font_name if _font_name != "" else FGUIConfig.default_font
+
+
+func _resolve_bitmap_font(font_name: String) -> FGUIBitmapFont:
+	if not font_name.begins_with("ui://"):
+		return null
+	var font_item := FGUIPackage.get_item_by_url(font_name)
+	if font_item == null:
+		return null
+	var font_asset: Variant = font_item.owner.get_item_asset(font_item)
+	return font_asset as FGUIBitmapFont
 
 
 func _apply_font_color() -> void:
@@ -518,10 +672,7 @@ func _apply_valign() -> void:
 
 
 func _render_bitmap_text(value: String) -> void:
-	for glyph_node in _bitmap_nodes:
-		if is_instance_valid(glyph_node):
-			glyph_node.queue_free()
-	_bitmap_nodes.clear()
+	_clear_bitmap_nodes()
 	if label == null or _bitmap_font == null:
 		return
 	label.text = ""
@@ -600,6 +751,13 @@ func _refresh_bitmap_text() -> void:
 		_render_bitmap_text(_parse_template(get_text()) if _template_vars_enabled else get_text())
 
 
+func _clear_bitmap_nodes() -> void:
+	for glyph_node in _bitmap_nodes:
+		if is_instance_valid(glyph_node):
+			glyph_node.queue_free()
+	_bitmap_nodes.clear()
+
+
 func _get_text_content_size() -> Vector2:
 	if _bitmap_font != null:
 		return _bitmap_text_size
@@ -613,7 +771,7 @@ func _get_text_content_size() -> Vector2:
 func _ensure_text_renderer() -> void:
 	if self is FGUITextInput:
 		return
-	var use_rich_text := _bitmap_font == null and (_ubb_enabled or self is FGUIRichTextField)
+	var use_rich_text := _bitmap_font == null and (_ubb_enabled or _underline or self is FGUIRichTextField)
 	if use_rich_text == (label is RichTextLabel):
 		return
 	_replace_text_renderer(use_rich_text)
@@ -662,6 +820,7 @@ func _replace_text_renderer(use_rich_text: bool) -> void:
 	_handle_alpha_changed()
 	_handle_visible_changed()
 	_apply_font_size()
+	_apply_font()
 	_apply_font_color()
 	_apply_leading()
 	_apply_stroke()

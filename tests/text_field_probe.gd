@@ -34,6 +34,36 @@ func _initialize() -> void:
 	if field.get_prop(FGUIEnums.OBJECT_PROP_OUTLINE_COLOR) != field.stroke_color:
 		_fail("Outline color property was not exposed to gears.")
 		return
+	field.bold = true
+	field.italic = true
+	if not field.bold or not field.italic or not (field.label.label_settings.font is FontVariation):
+		_fail("Text fields did not expose bold and italic style flags through their native font renderer.")
+		return
+	field.bold = false
+	field.italic = false
+	field.letter_spacing = 3
+	if not (field.label.label_settings.font is FontVariation) or (field.label.label_settings.font as FontVariation).spacing_glyph != 3:
+		_fail("Text fields did not apply FairyGUI letter spacing to non-bitmap fonts.")
+		return
+	field.letter_spacing = 0
+	field.text = "Raw [literal] text"
+	field.underline = true
+	if not (field.label is RichTextLabel) or field.label.get_parsed_text() != "Raw [literal] text":
+		_fail("Underlined plain text did not preserve literal BBCode-like text in its RichText renderer.")
+		return
+	field.underline = false
+	if not (field.label is Label) or field.label.text != "Raw [literal] text":
+		_fail("Disabling underline did not restore the plain text renderer and source text.")
+		return
+	var previous_default_font := FGUIConfig.default_font
+	FGUIConfig.default_font = "FairyGUIProbeMissingFont"
+	var configured_font_field := FGUITextField.new()
+	host.add_child(configured_font_field.node)
+	configured_font_field.font = ""
+	if not (configured_font_field.label.label_settings.font is SystemFont):
+		_fail("Empty text font names did not use FGUIConfig.default_font.")
+		return
+	FGUIConfig.default_font = previous_default_font
 	field.ensure_size_correct()
 	if field.text_width <= 0.0 or field.text_height <= 0.0:
 		_fail("Text fields did not expose measured text dimensions.")
@@ -87,7 +117,16 @@ func _initialize() -> void:
 	if ubb_field.label.get_theme_font_size("normal_font_size") != 17 or ubb_field.label.get_theme_color("default_color") != ubb_field.color:
 		_fail("UBB-enabled text fields did not retain existing font styling.")
 		return
+	ubb_field.bold = true
+	ubb_field.italic = true
+	ubb_field.underline = true
+	if ubb_field.label.get_parsed_text() != "Bold Red":
+		_fail("Global text styles did not preserve UBB content while applying RichText formatting.")
+		return
 	ubb_field.ubb_enabled = false
+	ubb_field.bold = false
+	ubb_field.italic = false
+	ubb_field.underline = false
 	if not (ubb_field.label is Label) or ubb_field.label.text != "[b]Bold[/b] [color=#ff0000]Red[/color]":
 		_fail("Disabling UBB did not restore a plain text renderer and raw text content.")
 		return
@@ -220,6 +259,8 @@ func _initialize() -> void:
 	input.stroke_color = Color(0.8, 0.2, 0.1)
 	input.shadow_color = Color(0.1, 0.1, 0.1, 0.5)
 	input.shadow_offset = Vector2(2, 3)
+	input.bold = true
+	input.italic = true
 	input.single_line = false
 	if input.text_edit == null or input.line_edit != null:
 		_fail("Text inputs did not restore TextEdit after leaving password single-line mode.")
@@ -236,6 +277,9 @@ func _initialize() -> void:
 		return
 	if input.text_edit.get_theme_color("font_outline_color") != input.stroke_color or input.text_edit.get_theme_color("font_shadow_color") != input.shadow_color:
 		_fail("Text inputs did not preserve outline and shadow styling when switching back to multiline mode.")
+		return
+	if not (input.text_edit.get_theme_font("font") is FontVariation):
+		_fail("Text inputs did not preserve bold and italic font styling when switching native input modes.")
 		return
 	input.max_length = 4
 	input.restrict = ""
@@ -260,6 +304,7 @@ func _initialize() -> void:
 		return
 
 	input.dispose()
+	configured_font_field.dispose()
 	rich_field.dispose()
 	bitmap_field.dispose()
 	ubb_field.dispose()

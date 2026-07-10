@@ -232,6 +232,7 @@ func _apply_input_settings() -> void:
 	_apply_max_length()
 	_apply_keyboard_type()
 	_apply_font_size()
+	_apply_font()
 	_apply_font_color()
 	_apply_leading()
 	_apply_stroke()

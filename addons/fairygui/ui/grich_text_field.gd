@@ -18,30 +18,7 @@ func _get_text() -> String:
 func _set_text(value: String) -> void:
 	_text = value
 	var resolved := _parse_template(value) if _template_vars_enabled else value
-	var parsed := FGUIUBBParser.default_parser.parse(resolved) if FGUIUBBParser.default_parser != null else resolved
-	if not (label is RichTextLabel):
-		return
-	var image_regex := RegEx.new()
-	image_regex.compile("(?i)\\[img\\](ui://[^\\[]+)\\[/img\\]")
-	var first_match := image_regex.search(parsed)
-	if first_match == null:
-		label.text = parsed
-		_update_text_size()
-		return
-	label.clear()
-	var cursor := 0
-	var current_match := first_match
-	while current_match != null:
-		var start := current_match.get_start()
-		var end := current_match.get_end()
-		if start > cursor:
-			label.append_text(parsed.substr(cursor, start - cursor))
-		_append_package_image(current_match.get_string(1))
-		cursor = end
-		current_match = image_regex.search(parsed, cursor)
-	if cursor < parsed.length():
-		label.append_text(parsed.substr(cursor))
-	_update_text_size()
+	_set_rich_text_content(resolved)
 
 
 func _apply_display_text() -> void:
