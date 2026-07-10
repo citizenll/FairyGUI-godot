@@ -45,6 +45,7 @@ The Godot source tree is still useful as the API reference for current Control, 
 - `FGUITranslationHelper.load_from_xml` parses FairyGUI translation XML. Load translations before adding packages so component text, prompts, list entries, controller text, labels, buttons, and combo boxes are localized during package construction.
 - Components support forward and reversed image/rectangle alpha masks. Forward masks use native `CanvasItem` clipping; reversed masks use a local Canvas shader and preserve texture alpha. Component input filtering follows mask bounds and configured pixel-hit tests.
 - Controller display gears implement page visibility, secondary AND/OR display conditions, transition display locks, and grouped-child visibility propagation.
+- Groups support horizontal/vertical automatic bounds, grouped-child movement and alpha propagation, proportional resize distribution, main-grid minimum sizing, and invisible-child exclusion.
 - Scroll panes provide header/footer lock layout, top/bottom navigation, edge-drag `PULL_DOWN_RELEASE`/`PULL_UP_RELEASE` events, and `SCROLL_END` for completed pointer drags. Godot's native elastic overscroll animation is not replicated yet.
 - Tree nodes support dynamic insertion, removal, reordering, selection, and single-click folder expansion with pooled cell refreshes.
 - Windows attach through `GRoot`, preserve init/show/hide lifecycle callbacks, support content panes, close controls, modal root overlays, ordering, and modal-wait pane ownership.

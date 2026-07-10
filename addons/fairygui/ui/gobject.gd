@@ -188,9 +188,13 @@ func _init() -> void:
 func set_xy(new_x: float, new_y: float) -> void:
 	if is_equal_approx(_x, new_x) and is_equal_approx(_y, new_y):
 		return
+	var dx := new_x - _x
+	var dy := new_y - _y
 	_x = new_x
 	_y = new_y
 	_handle_xy_changed()
+	if self is FGUIGroup:
+		(self as FGUIGroup).move_children(dx, dy)
 	if group != null and group is FGUIGroup:
 		group.set_bounds_changed_flag(true)
 
@@ -211,6 +215,8 @@ func set_size(new_width: float, new_height: float, _ignore_pivot: bool = false) 
 	_width = new_width
 	_height = new_height
 	_handle_size_changed()
+	if self is FGUIGroup:
+		(self as FGUIGroup).resize_children(_raw_width - old_width, _raw_height - old_height)
 	relations.on_owner_size_changed(_raw_width - old_width, _raw_height - old_height, _pivot_as_anchor)
 	if parent != null:
 		parent.set_bounds_changed_flag()
