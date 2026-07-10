@@ -38,18 +38,22 @@ var leading: int:
 	set(value):
 		_leading = value
 		_apply_leading()
+		_refresh_bitmap_text()
 var letter_spacing: int:
 	get:
 		return _letter_spacing
 	set(value):
 		_letter_spacing = value
+		_refresh_bitmap_text()
 var auto_size: int:
 	get:
 		return _auto_size
 	set(value):
 		_auto_size = value
 		_configure_label_layout()
-		if _text != "":
+		if _bitmap_font != null:
+			_refresh_bitmap_text()
+		elif _text != "":
 			_update_text_size()
 var single_line: bool:
 	get:
@@ -57,7 +61,9 @@ var single_line: bool:
 	set(value):
 		_single_line = value
 		_configure_label_layout()
-		if _text != "":
+		if _bitmap_font != null:
+			_refresh_bitmap_text()
+		elif _text != "":
 			_update_text_size()
 var stroke: int:
 	get:
@@ -96,8 +102,22 @@ var template_vars: Variant:
 		else:
 			_template_vars_enabled = bool(value)
 		_apply_display_text()
-var align: int = FGUIEnums.ALIGN_LEFT
-var valign: int = FGUIEnums.VERT_ALIGN_TOP
+var _align: int = FGUIEnums.ALIGN_LEFT
+var align: int:
+	get:
+		return _align
+	set(value):
+		_align = value
+		_apply_align()
+		_refresh_bitmap_text()
+var _valign: int = FGUIEnums.VERT_ALIGN_TOP
+var valign: int:
+	get:
+		return _valign
+	set(value):
+		_valign = value
+		_apply_valign()
+		_refresh_bitmap_text()
 var _text: String = ""
 var _font_name: String = ""
 var _bitmap_font: FGUIBitmapFont
@@ -335,7 +355,7 @@ func _configure_label_layout() -> void:
 
 
 func _update_text_size() -> void:
-	if _updating_text_size or not (label is Label) or _text == "":
+	if _bitmap_font != null or _updating_text_size or not (label is Label) or _text == "":
 		return
 	_updating_text_size = true
 	_configure_label_layout()
@@ -380,6 +400,9 @@ func _apply_shrink_to_fit() -> void:
 
 func _handle_size_changed() -> void:
 	super._handle_size_changed()
+	if _bitmap_font != null:
+		_refresh_bitmap_text()
+		return
 	if not _updating_text_size:
 		_update_text_size()
 
@@ -417,33 +440,74 @@ func _render_bitmap_text(value: String) -> void:
 		return
 	label.text = ""
 	var scale := float(font_size) / float(maxi(_bitmap_font.font_size, 1))
-	var cursor := Vector2.ZERO
-	var max_x := 0.0
+	var line_height := float(_bitmap_font.line_height) * scale
+	var wrap_width := width if _auto_size != FGUIEnums.AUTOSIZE_BOTH and not _single_line and width > 0.0 else INF
+	var lines: Array = []
+	var line_entries: Array = []
+	var line_width := 0.0
 	for i in value.length():
 		var code := value.unicode_at(i)
+		if code == 13:
+			continue
 		if code == 10:
-			max_x = maxf(max_x, cursor.x)
-			cursor.x = 0.0
-			cursor.y += _bitmap_font.line_height * scale
+			lines.append({"entries": line_entries, "width": line_width})
+			line_entries = []
+			line_width = 0.0
 			continue
 		var glyph := _bitmap_font.get_glyph(code)
-		if glyph.is_empty():
-			cursor.x += font_size * 0.5
-			continue
-		var texture: Texture2D = glyph.get("texture")
-		if texture != null:
+		var advance := float(glyph.get("advance", glyph.get("width", font_size * 0.5))) * scale if not glyph.is_empty() else float(font_size) * 0.5
+		var spacing := float(_letter_spacing) if not line_entries.is_empty() else 0.0
+		if not line_entries.is_empty() and line_width + spacing + advance > wrap_width:
+			lines.append({"entries": line_entries, "width": line_width})
+			line_entries = []
+			line_width = 0.0
+			spacing = 0.0
+		var entry := {"glyph": glyph, "x": line_width + spacing}
+		line_entries.append(entry)
+		line_width += spacing + advance
+	lines.append({"entries": line_entries, "width": line_width})
+	var max_width := 0.0
+	for line: Dictionary in lines:
+		max_width = maxf(max_width, float(line["width"]))
+	var total_height := maxf(line_height, float(lines.size()) * line_height + float(maxi(0, lines.size() - 1) * _leading))
+	_updating_text_size = true
+	if _auto_size == FGUIEnums.AUTOSIZE_BOTH:
+		set_size(max_width, total_height)
+	elif _auto_size == FGUIEnums.AUTOSIZE_HEIGHT:
+		set_size(width, total_height)
+	_updating_text_size = false
+	var layout_width := max_width if _auto_size == FGUIEnums.AUTOSIZE_BOTH else width
+	var vertical_offset := 0.0
+	if _auto_size != FGUIEnums.AUTOSIZE_BOTH and _auto_size != FGUIEnums.AUTOSIZE_HEIGHT:
+		if valign == FGUIEnums.VERT_ALIGN_MIDDLE:
+			vertical_offset = (height - total_height) * 0.5
+		elif valign == FGUIEnums.VERT_ALIGN_BOTTOM:
+			vertical_offset = height - total_height
+	for line_index in lines.size():
+		var line: Dictionary = lines[line_index]
+		var horizontal_offset := 0.0
+		if align == FGUIEnums.ALIGN_CENTER:
+			horizontal_offset = (layout_width - float(line["width"])) * 0.5
+		elif align == FGUIEnums.ALIGN_RIGHT:
+			horizontal_offset = layout_width - float(line["width"])
+		var line_y := vertical_offset + float(line_index) * (line_height + float(_leading))
+		for entry: Dictionary in line["entries"]:
+			var entry_glyph: Dictionary = entry["glyph"]
+			var texture: Texture2D = entry_glyph.get("texture")
+			if texture == null:
+				continue
 			var glyph_node := TextureRect.new()
 			glyph_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			glyph_node.texture = texture
 			glyph_node.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			glyph_node.stretch_mode = TextureRect.STRETCH_SCALE
-			glyph_node.position = Vector2(cursor.x + float(glyph.get("x", 0)) * scale, cursor.y + float(glyph.get("y", 0)) * scale)
-			glyph_node.size = Vector2(float(glyph.get("width", 0)) * scale, float(glyph.get("height", 0)) * scale)
+			glyph_node.position = Vector2(horizontal_offset + float(entry["x"]) + float(entry_glyph.get("x", 0)) * scale, line_y + float(entry_glyph.get("y", 0)) * scale)
+			glyph_node.size = Vector2(float(entry_glyph.get("width", 0)) * scale, float(entry_glyph.get("height", 0)) * scale)
 			glyph_node.modulate = color if _bitmap_font.tint else Color.WHITE
 			label.add_child(glyph_node)
 			_bitmap_nodes.append(glyph_node)
-		cursor.x += float(glyph.get("advance", glyph.get("width", font_size))) * scale
-		max_x = maxf(max_x, cursor.x)
-	var total_height := cursor.y + _bitmap_font.line_height * scale
-	if auto_size == FGUIEnums.AUTOSIZE_BOTH:
-		set_size(max_x, total_height)
+
+
+func _refresh_bitmap_text() -> void:
+	if _bitmap_font != null and not _updating_text_size:
+		_render_bitmap_text(_parse_template(get_text()) if _template_vars_enabled else get_text())

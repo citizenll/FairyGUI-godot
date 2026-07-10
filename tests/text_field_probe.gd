@@ -66,6 +66,29 @@ func _initialize() -> void:
 	if field.label.label_settings.font_size != 20:
 		_fail("Leaving Shrink auto-size did not restore the requested font size.")
 		return
+	var bitmap_field := FGUITextField.new()
+	host.add_child(bitmap_field.node)
+	bitmap_field._bitmap_font = _make_bitmap_font()
+	bitmap_field.font_size = 10
+	bitmap_field.leading = 2
+	bitmap_field.letter_spacing = 1
+	bitmap_field.auto_size = FGUIEnums.AUTOSIZE_HEIGHT
+	bitmap_field.set_size(20.0, 1.0)
+	bitmap_field.single_line = false
+	bitmap_field.text = "AAA"
+	if bitmap_field._bitmap_nodes.size() != 3 or bitmap_field.height < 21.0 or bitmap_field._bitmap_nodes[2].position.y < 11.0:
+		_fail("Bitmap text did not wrap into lines and auto-size its height.")
+		return
+	bitmap_field.auto_size = FGUIEnums.AUTOSIZE_NONE
+	bitmap_field.single_line = true
+	bitmap_field.letter_spacing = 0
+	bitmap_field.set_size(30.0, 30.0)
+	bitmap_field.align = FGUIEnums.ALIGN_RIGHT
+	bitmap_field.valign = FGUIEnums.VERT_ALIGN_BOTTOM
+	bitmap_field.text = "A"
+	if not bitmap_field._bitmap_nodes[0].position.is_equal_approx(Vector2(22.0, 20.0)):
+		_fail("Bitmap text did not honor horizontal and vertical alignment.")
+		return
 
 	var rich_field := FGUIRichTextField.new()
 	host.add_child(rich_field.node)
@@ -97,6 +120,7 @@ func _initialize() -> void:
 
 	input.dispose()
 	rich_field.dispose()
+	bitmap_field.dispose()
 	field.dispose()
 	host.queue_free()
 	await process_frame
@@ -106,3 +130,15 @@ func _initialize() -> void:
 func _fail(message: String) -> void:
 	push_error(message)
 	quit(1)
+
+
+func _make_bitmap_font() -> FGUIBitmapFont:
+	var image := Image.create(8, 8, false, Image.FORMAT_RGBA8)
+	image.fill(Color.WHITE)
+	var texture := ImageTexture.create_from_image(image)
+	var font := FGUIBitmapFont.new()
+	font.tint = true
+	font.font_size = 10
+	font.line_height = 10
+	font.glyphs[65] = {"x": 0, "y": 0, "width": 8, "height": 8, "advance": 8, "texture": texture}
+	return font
