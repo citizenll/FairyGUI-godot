@@ -233,7 +233,42 @@ func _initialize() -> void:
 		_fail("ScrollPane snap-to-item did not finish at the nearest component item exactly once: pos=%s end=%s" % [snap_pane.pos_x, snap_end_count["value"]])
 		return
 
+	var inertia_owner := FGUIComponent.new()
+	inertia_owner.set_size(100.0, 100.0)
+	host.add_child(inertia_owner.node)
+	var inertia_pane := FGUIScrollPane.new(inertia_owner)
+	inertia_owner.scroll_pane = inertia_pane
+	var inertia_end_count := {"value": 0}
+	inertia_owner.on(FGUIEvents.SCROLL_END, func() -> void: inertia_end_count["value"] = int(inertia_end_count["value"]) + 1)
+	inertia_pane.scroll_type = FGUIEnums.SCROLL_VERTICAL
+	inertia_pane._configure_native_scroll_modes()
+	inertia_pane.set_content_size(100.0, 1000.0)
+	inertia_pane.deceleration_rate = 0.9
+	inertia_pane.set_pos(0.0, 300.0)
+	inertia_pane._begin_pull_gesture(Vector2.ZERO, -1)
+	inertia_pane._pointer_dragged = true
+	inertia_pane._drag_velocity = Vector2(0.0, 1000.0)
+	inertia_pane._end_pull_gesture()
+	if inertia_pane._scroll_tween == null:
+		_fail("ScrollPane did not start inertia after a fast pointer drag.")
+		return
+	await create_timer(0.9).timeout
+	if inertia_pane.pos_y <= 350.0 or inertia_end_count["value"] != 1:
+		_fail("ScrollPane inertia did not complete exactly once: pos=%s end=%s" % [inertia_pane.pos_y, inertia_end_count["value"]])
+		return
+	inertia_pane.inertia_disabled = true
+	inertia_pane.set_pos(0.0, 300.0)
+	inertia_pane._begin_pull_gesture(Vector2.ZERO, -1)
+	inertia_pane._pointer_dragged = true
+	inertia_pane._drag_velocity = Vector2(0.0, 1000.0)
+	inertia_pane._end_pull_gesture()
+	await process_frame
+	if absf(inertia_pane.pos_y - 300.0) > 1.5 or inertia_pane._scroll_tween != null or inertia_end_count["value"] != 2:
+		_fail("ScrollPane ignored the inertia-disabled package flag or emitted the wrong completion count.")
+		return
+
 	scroll_bar.dispose()
+	inertia_owner.dispose()
 	snap_owner.dispose()
 	pull_owner.dispose()
 	controls_parent.dispose()

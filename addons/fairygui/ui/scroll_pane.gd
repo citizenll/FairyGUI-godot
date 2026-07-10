@@ -2,6 +2,9 @@ class_name FGUIScrollPane
 extends RefCounted
 
 const SCROLL_TWEEN_DURATION := 0.3
+const INERTIA_MIN_VELOCITY := 60.0
+const INERTIA_MIN_DURATION := 0.12
+const INERTIA_MAX_DURATION := 0.8
 
 var owner: FGUIComponent
 var container: ScrollContainer
@@ -16,6 +19,7 @@ var bounceback_effect: bool = true
 var touch_effect: bool = true
 var page_mode: bool = false
 var inertia_disabled: bool = false
+var deceleration_rate: float = FGUIConfig.default_scroll_deceleration_rate
 var mask_disabled: bool = false
 var floating: bool = false
 var dont_clip_margin: bool = false
@@ -36,6 +40,9 @@ var _pointer_dragging: bool = false
 var _pointer_dragged: bool = false
 var _drag_touch_index: int = -1
 var _last_drag_position := Vector2.ZERO
+var _last_drag_scroll_position := Vector2.ZERO
+var _drag_velocity := Vector2.ZERO
+var _last_drag_scroll_time_ms: int = 0
 var _pull_down_distance: float = 0.0
 var _pull_up_distance: float = 0.0
 var _scroll_tween: Tween
@@ -174,7 +181,7 @@ func _can_animate_scroll(target: Vector2) -> bool:
 	return container != null and owner != null and owner.node != null and owner.node.is_inside_tree() and not Vector2(pos_x, pos_y).is_equal_approx(target)
 
 
-func _start_scroll_tween(target: Vector2) -> void:
+func _start_scroll_tween(target: Vector2, duration: float = SCROLL_TWEEN_DURATION) -> void:
 	_cancel_scroll_tween()
 	if owner == null or owner.node == null:
 		_set_pos_immediate(target)
@@ -184,7 +191,7 @@ func _start_scroll_tween(target: Vector2) -> void:
 	tween.set_trans(Tween.TRANS_QUAD)
 	tween.set_ease(Tween.EASE_OUT)
 	_scroll_tween = tween
-	tween.tween_method(Callable(self, "_set_pos_from_tween"), Vector2(pos_x, pos_y), target, SCROLL_TWEEN_DURATION)
+	tween.tween_method(Callable(self, "_set_pos_from_tween"), Vector2(pos_x, pos_y), target, maxf(duration, 0.001))
 	tween.finished.connect(Callable(self, "_on_scroll_tween_finished").bind(tween))
 
 
@@ -496,6 +503,7 @@ func _on_native_scroll() -> void:
 	if _scroll_tween != null and not _tweening_scroll:
 		_cancel_scroll_tween()
 	_handling_scroll = true
+	_record_drag_velocity()
 	_update_scroll_bars()
 	_update_page_controller()
 	if owner is FGUIList and owner._virtual and not owner._refreshing_virtual:
@@ -531,6 +539,9 @@ func _begin_pull_gesture(pointer_position: Vector2, touch_index: int) -> void:
 	_pointer_dragged = false
 	_drag_touch_index = touch_index
 	_last_drag_position = pointer_position
+	_last_drag_scroll_position = Vector2(pos_x, pos_y)
+	_drag_velocity = Vector2.ZERO
+	_last_drag_scroll_time_ms = Time.get_ticks_msec()
 	_pull_down_distance = 0.0
 	_pull_up_distance = 0.0
 
@@ -572,15 +583,12 @@ func _end_pull_gesture() -> void:
 	if not _pointer_dragged:
 		return
 	var threshold := maxf(0.0, FGUIConfig.touch_drag_sensitivity)
+	var target := _get_settled_scroll_target(_get_inertia_target())
 	var defer_scroll_end := false
-	if page_mode:
-		set_pos(pos_x, pos_y, true)
+	if not target.is_equal_approx(Vector2(pos_x, pos_y)):
+		var duration := _get_inertia_duration(_drag_velocity) if not inertia_disabled else SCROLL_TWEEN_DURATION
+		_start_scroll_tween(target, duration)
 		defer_scroll_end = _scroll_tween != null
-	elif snap_to_item and owner != null:
-		var snapped := owner.get_snapping_position(pos_x, pos_y)
-		if not snapped.is_equal_approx(Vector2(pos_x, pos_y)):
-			set_pos(snapped.x, snapped.y, true)
-			defer_scroll_end = _scroll_tween != null
 	if owner != null:
 		if _pull_down_distance > threshold:
 			owner.emit_event(FGUIEvents.PULL_DOWN_RELEASE)
@@ -591,6 +599,53 @@ func _end_pull_gesture() -> void:
 	_pull_down_distance = 0.0
 	_pull_up_distance = 0.0
 	_pointer_dragged = false
+	_drag_velocity = Vector2.ZERO
+	_last_drag_scroll_time_ms = 0
+
+
+func _record_drag_velocity() -> void:
+	if not _pointer_dragging:
+		return
+	var now := Time.get_ticks_msec()
+	var elapsed_ms := now - _last_drag_scroll_time_ms
+	var current := Vector2(pos_x, pos_y)
+	if elapsed_ms > 0:
+		var raw_velocity := (current - _last_drag_scroll_position) / (float(elapsed_ms) * 0.001)
+		_drag_velocity = raw_velocity if _drag_velocity.is_zero_approx() else _drag_velocity.lerp(raw_velocity, 0.75)
+	_last_drag_scroll_position = current
+	_last_drag_scroll_time_ms = now
+
+
+func _get_inertia_target() -> Vector2:
+	var current := Vector2(pos_x, pos_y)
+	if inertia_disabled:
+		return current
+	var duration := _get_inertia_duration(_drag_velocity)
+	if is_zero_approx(duration):
+		return current
+	var target := current + _drag_velocity * duration * 0.4
+	return Vector2(_clamp_x(target.x), _clamp_y(target.y))
+
+
+func _get_inertia_duration(velocity: Vector2) -> float:
+	var speed := velocity.length()
+	if speed < INERTIA_MIN_VELOCITY:
+		return 0.0
+	var rate := clampf(deceleration_rate, 0.01, 0.9999)
+	var duration := log(INERTIA_MIN_VELOCITY / speed) / log(rate) / 60.0
+	return clampf(duration, INERTIA_MIN_DURATION, INERTIA_MAX_DURATION)
+
+
+func _get_settled_scroll_target(value: Vector2) -> Vector2:
+	var target := Vector2(_clamp_x(value.x), _clamp_y(value.y))
+	if page_mode:
+		target.x = roundf(target.x / maxf(view_width, 1.0)) * maxf(view_width, 1.0)
+		target.y = roundf(target.y / maxf(view_height, 1.0)) * maxf(view_height, 1.0)
+		return Vector2(_clamp_x(target.x), _clamp_y(target.y))
+	if snap_to_item and owner != null:
+		var snapped := owner.get_snapping_position_with_dir(target.x, target.y, signi(_drag_velocity.x), signi(_drag_velocity.y))
+		return Vector2(_clamp_x(snapped.x), _clamp_y(snapped.y))
+	return target
 
 
 func _update_scroll_bars() -> void:
