@@ -28,6 +28,12 @@ func _initialize() -> void:
 	if graph.polygon_points.size() != 3 or graph.graph_node.get_draw_points().size() != 3:
 		_fail("Polygon graph points were not converted from FairyGUI flat point data.")
 		return
+	var parsed_graph := FGUIGraph.new()
+	host.add_child(parsed_graph.node)
+	parsed_graph.setup_before_add(_polygon_setup_buffer(), 0)
+	if parsed_graph.polygon_points.size() != 3:
+		_fail("Graph package parsing did not treat polygon count as flat coordinate values.")
+		return
 	graph.draw_regular_polygon(1.0, Color.BLACK, Color.WHITE, 4, 0.0, [1.0, 0.5, 1.0, 0.5])
 	var regular_points: PackedVector2Array = graph.graph_node.get_draw_points()
 	if regular_points.size() != 4 or not regular_points[0].is_equal_approx(Vector2(80.0, 30.0)) or not regular_points[1].is_equal_approx(Vector2(50.0, 45.0)):
@@ -38,6 +44,7 @@ func _initialize() -> void:
 	if not regular_points[0].is_equal_approx(Vector2(40.0, 40.0)):
 		_fail("Regular polygon graph geometry did not refresh after resize.")
 		return
+	parsed_graph.dispose()
 	graph.dispose()
 	host.queue_free()
 	await process_frame
@@ -47,3 +54,23 @@ func _initialize() -> void:
 func _fail(message: String) -> void:
 	push_error(message)
 	quit(1)
+
+
+func _polygon_setup_buffer() -> FGUIByteBuffer:
+	var bytes := PackedByteArray()
+	bytes.resize(92)
+	bytes[0] = 6
+	bytes[1] = 1
+	_write_u16(bytes, 2, 14)
+	_write_u16(bytes, 12, 52)
+	_write_u16(bytes, 49, FGUIByteBuffer.STRING_NULL)
+	bytes[52] = FGUIGraph.TYPE_POLYGON
+	_write_u16(bytes, 66, 6)
+	var buffer := FGUIByteBuffer.new(bytes)
+	buffer.string_table = ["parsed_graph"]
+	return buffer
+
+
+func _write_u16(bytes: PackedByteArray, offset: int, value: int) -> void:
+	bytes[offset] = (value >> 8) & 0xff
+	bytes[offset + 1] = value & 0xff

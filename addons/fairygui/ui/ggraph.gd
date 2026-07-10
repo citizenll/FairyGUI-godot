@@ -148,9 +148,15 @@ func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 	_polygon_points = PackedVector2Array()
 	_distances.clear()
 	if _type == TYPE_POLYGON:
-		var point_count := maxi(0, buffer.read_i16())
-		for index in point_count:
-			_polygon_points.append(Vector2(buffer.read_float32(), buffer.read_float32()))
+		# The package stores a count of float coordinates, not Vector2 points.
+		var coordinate_count := mini(maxi(0, buffer.read_i16()), buffer.bytes_available() / 4)
+		var coordinate_x := 0.0
+		for index in coordinate_count:
+			var coordinate := buffer.read_float32()
+			if index % 2 == 0:
+				coordinate_x = coordinate
+			else:
+				_polygon_points.append(Vector2(coordinate_x, coordinate))
 	elif _type == TYPE_REGULAR_POLYGON:
 		_sides = maxi(0, buffer.read_i16())
 		_start_angle = buffer.read_float32()
