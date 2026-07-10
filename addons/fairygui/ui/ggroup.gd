@@ -17,6 +17,15 @@ func set_bounds_changed_flag(_position_changed_only: bool = false) -> void:
 	_bounds_changed = true
 
 
+func _handle_visible_changed() -> void:
+	super._handle_visible_changed()
+	if parent == null:
+		return
+	for child: FGUIObject in parent.children:
+		if child.group == self:
+			child._handle_visible_changed()
+
+
 func ensure_size_correct() -> void:
 	ensure_bounds_correct()
 
@@ -66,7 +75,7 @@ func _handle_layout() -> void:
 	for child: FGUIObject in parent.children:
 		if child.group != self:
 			continue
-		if exclude_invisibles and not child.visible:
+		if exclude_invisibles and not child.internal_visible3:
 			continue
 		child.set_xy(current.x, current.y)
 		if layout == FGUIEnums.GROUP_LAYOUT_HORIZONTAL:
@@ -83,7 +92,7 @@ func _update_bounds() -> void:
 	for child: FGUIObject in parent.children:
 		if child.group != self:
 			continue
-		if exclude_invisibles and not child.visible:
+		if exclude_invisibles and not child.internal_visible3:
 			continue
 		var child_rect := Rect2(child.x, child.y, child.width, child.height)
 		rect = child_rect if not initialized else rect.merge(child_rect)

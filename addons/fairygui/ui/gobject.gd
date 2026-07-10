@@ -52,6 +52,8 @@ var visible: bool:
 	set(value):
 		_visible = value
 		_handle_visible_changed()
+		if _group is FGUIGroup and _group.exclude_invisibles:
+			_group.set_bounds_changed_flag()
 var touchable: bool:
 	get:
 		return _touchable
@@ -89,6 +91,7 @@ var group: FGUIObject:
 		return _group
 	set(value):
 		_group = value
+		_handle_visible_changed()
 var tooltips: String:
 	get:
 		return _tooltips
@@ -118,6 +121,15 @@ var root: FGUIRoot:
 		while current.parent != null:
 			current = current.parent
 		return current if current is FGUIRoot else FGUIRoot.inst
+var internal_visible: bool:
+	get:
+		return _internal_visible and (_group == null or _group == self or _group.internal_visible)
+var internal_visible2: bool:
+	get:
+		return _visible and _internal_visible and (_group == null or _group == self or _group.internal_visible2)
+var internal_visible3: bool:
+	get:
+		return _internal_visible and _visible
 var source_width: float = 0.0
 var source_height: float = 0.0
 var init_width: float = 0.0
@@ -151,6 +163,7 @@ var _tooltips: String = ""
 var _event_listeners: Dictionary = {}
 var _gears: Dictionary = {}
 var _gear_locked: bool = false
+var _handling_controller: bool = false
 var _dragging: bool = false
 var _drag_touch_index: int = -1
 var _drag_start_mouse: Vector2 = Vector2.ZERO
@@ -385,20 +398,48 @@ func update_gear_from_relations(index: int, dx: float, dy: float) -> void:
 			gear_size.update_from_relations(dx, dy)
 
 
+func add_display_lock() -> int:
+	var gear: FGUIGearBase = _gears.get(0)
+	var display_gear: FGUIGearDisplay = gear as FGUIGearDisplay
+	if display_gear != null and display_gear.controller != null:
+		var token: int = display_gear.add_lock()
+		check_gear_display()
+		return token
+	return 0
+
+
+func release_display_lock(token: int) -> void:
+	var gear: FGUIGearBase = _gears.get(0)
+	var display_gear: FGUIGearDisplay = gear as FGUIGearDisplay
+	if token != 0 and display_gear != null and display_gear.controller != null:
+		display_gear.release_lock(token)
+		check_gear_display()
+
+
 func handle_controller_changed(controller: FGUIController) -> void:
+	_handling_controller = true
 	for gear in _gears.values():
 		if gear.controller == controller:
 			gear.apply()
+	_handling_controller = false
 	check_gear_display()
 
 
 func check_gear_display() -> void:
+	if _handling_controller:
+		return
 	var visible_by_gear := true
-	var gear: FGUIGearBase = _gears.get(0)
-	if gear is FGUIGearDisplay:
-		visible_by_gear = gear.connected
-	_internal_visible = visible_by_gear
-	_handle_visible_changed()
+	var display_gear: FGUIGearBase = _gears.get(0)
+	if display_gear is FGUIGearDisplay:
+		visible_by_gear = (display_gear as FGUIGearDisplay).connected
+	var display_gear2: FGUIGearBase = _gears.get(8)
+	if display_gear2 is FGUIGearDisplay2:
+		visible_by_gear = (display_gear2 as FGUIGearDisplay2).evaluate(visible_by_gear)
+	if _internal_visible != visible_by_gear:
+		_internal_visible = visible_by_gear
+		_handle_visible_changed()
+		if _group is FGUIGroup and _group.exclude_invisibles:
+			_group.set_bounds_changed_flag()
 
 
 func global_to_local(point: Vector2) -> Vector2:
@@ -505,7 +546,7 @@ func _handle_alpha_changed() -> void:
 
 func _handle_visible_changed() -> void:
 	if node != null:
-		node.visible = _visible and _internal_visible and not bool(node.get_meta("fgui_mask_hidden", false))
+		node.visible = internal_visible2 and not bool(node.get_meta("fgui_mask_hidden", false))
 
 
 func _handle_touchable_changed() -> void:

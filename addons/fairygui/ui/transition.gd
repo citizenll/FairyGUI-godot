@@ -106,6 +106,7 @@ func stop(set_to_complete: bool = true, process_callback: bool = false) -> void:
 	for transition: FGUITransition in child_transitions:
 		if is_instance_valid(transition):
 			transition.stop(set_to_complete, false)
+	_release_display_locks()
 	if set_to_complete:
 		_apply_complete_state()
 	var callback := _on_complete
@@ -264,7 +265,8 @@ func setup(buffer: FGUIByteBuffer) -> void:
 			"label": "",
 			"value": {},
 			"tween_config": null,
-			"hook": Callable()
+			"hook": Callable(),
+			"display_lock_token": 0
 		}
 		var target_index := buffer.read_i16()
 		if target_index >= 0 and owner != null:
@@ -348,6 +350,7 @@ func _on_start_delay_finished(token: int, tween: Tween) -> void:
 
 func _internal_play(token: int) -> void:
 	_owner_base = Vector2(owner.x, owner.y) if owner != null else Vector2.ZERO
+	_acquire_display_locks()
 	var scheduled := 0
 	var indices := range(_items.size())
 	if _reversed:
@@ -526,6 +529,7 @@ func _finish_playback(token: int) -> void:
 		_internal_play(token)
 		return
 	playing = false
+	_release_display_locks()
 	var callback := _on_complete
 	_on_complete = Callable()
 	if callback.is_valid():
@@ -565,6 +569,28 @@ func _resolve_targets() -> void:
 			else:
 				value["stop_time"] = 0.0
 		value["trans"] = nested_transition
+
+
+func _acquire_display_locks() -> void:
+	if (_options & OPTION_IGNORE_DISPLAY_CONTROLLER) == 0:
+		return
+	for item in _items:
+		if int(item.get("display_lock_token", 0)) != 0:
+			continue
+		var target: FGUIObject = item.get("target")
+		if target != null and target != owner:
+			item["display_lock_token"] = target.add_display_lock()
+
+
+func _release_display_locks() -> void:
+	for item in _items:
+		var token := int(item.get("display_lock_token", 0))
+		if token == 0:
+			continue
+		var target: FGUIObject = item.get("target")
+		if target != null:
+			target.release_display_lock(token)
+		item["display_lock_token"] = 0
 
 
 func _apply_tween_variant(value: Variant, item: Dictionary, start_value: Dictionary = {}) -> void:
