@@ -2,7 +2,17 @@ class_name FGUIWindow
 extends FGUIComponent
 
 var content_pane: FGUIComponent
-var modal: bool = false
+var _modal: bool = false
+var modal: bool:
+	get:
+		return _modal
+	set(value):
+		if _modal == value:
+			return
+		_modal = value
+		var root := parent as FGUIRoot
+		if root != null:
+			root._adjust_modal_layer()
 var bring_to_front_on_click: bool = FGUIConfig.bring_window_to_front_on_click
 var shown: bool = false
 var frame: FGUIComponent

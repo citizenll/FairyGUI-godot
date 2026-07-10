@@ -48,6 +48,13 @@ func _initialize() -> void:
 	if not window.is_top:
 		_fail("Window bring_to_front did not reorder the root display list.")
 		return
+	window.modal = true
+	if gui_root._modal_layer == null or gui_root._modal_layer.parent != gui_root or not window.is_top:
+		_fail("Modal windows did not create and prioritize a root modal layer.")
+		return
+	if gui_root.get_child_index(gui_root._modal_layer) != gui_root.get_child_index(window) - 1 or gui_root._modal_layer.node.mouse_filter != Control.MOUSE_FILTER_STOP:
+		_fail("Root modal layer was not placed directly below the modal window.")
+		return
 	window.center_on(gui_root)
 	if absf(window.x - 140.0) > 0.1 or absf(window.y - 110.0) > 0.1:
 		_fail("Window center_on did not use root dimensions.")
@@ -66,7 +73,7 @@ func _initialize() -> void:
 	var close_button := FGUIObject.new()
 	window.close_button = close_button
 	close_button.emit_event("click")
-	if window.parent != null or window.shown or window.hidden_count != 1:
+	if window.parent != null or window.shown or window.hidden_count != 1 or gui_root._modal_layer.parent != null:
 		_fail("Window close button did not hide and detach the window.")
 		return
 	window.show()

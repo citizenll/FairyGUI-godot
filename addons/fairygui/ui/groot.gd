@@ -4,6 +4,7 @@ extends FGUIComponent
 static var inst: FGUIRoot
 
 var content_scale_factor: float = 1.0
+var _modal_layer: FGUIGraph
 
 
 func _init() -> void:
@@ -39,6 +40,7 @@ func show_window(window: FGUIWindow) -> void:
 	else:
 		set_child_index(window, children.size() - 1)
 	window._show_from_root()
+	_adjust_modal_layer()
 
 
 func hide_window(window: FGUIWindow) -> void:
@@ -47,11 +49,49 @@ func hide_window(window: FGUIWindow) -> void:
 	window._hide_from_root()
 	if window.parent == self:
 		remove_child(window)
+	_adjust_modal_layer()
 
 
 func bring_to_front(window: FGUIWindow) -> void:
 	if window != null and window.parent == self:
 		set_child_index(window, children.size() - 1)
+		_adjust_modal_layer()
+
+
+func _adjust_modal_layer() -> void:
+	var modal_window: FGUIWindow = null
+	for child in children:
+		if child is FGUIWindow and child.modal and child.shown:
+			modal_window = child
+	if modal_window == null:
+		if _modal_layer != null and _modal_layer.parent == self:
+			remove_child(_modal_layer)
+		return
+	if _modal_layer == null:
+		_modal_layer = FGUIGraph.new()
+		_modal_layer.color_rect.color = FGUIConfig.modal_layer_color
+		_modal_layer.touchable = true
+		_modal_layer.node.mouse_filter = Control.MOUSE_FILTER_STOP
+	_modal_layer.set_size(width, height)
+	if _modal_layer.parent != self:
+		add_child(_modal_layer)
+	set_child_index(modal_window, children.size() - 1)
+	set_child_index(_modal_layer, get_child_index(modal_window) - 1)
+
+
+func _handle_size_changed() -> void:
+	super._handle_size_changed()
+	if _modal_layer != null:
+		_modal_layer.set_size(width, height)
+
+
+func dispose() -> void:
+	if _modal_layer != null and _modal_layer.parent != self:
+		_modal_layer.dispose()
+	_modal_layer = null
+	if inst == self:
+		inst = null
+	super.dispose()
 
 
 func show_popup(popup: FGUIObject, target: FGUIObject = null, _dir: int = FGUIEnums.POPUP_AUTO) -> void:
