@@ -76,6 +76,8 @@ func add_child(child: FGUIObject) -> FGUIObject:
 func _create_display_object() -> void:
 	node = FGUIMaskContainer.new()
 	node.mouse_filter = Control.MOUSE_FILTER_PASS
+	node.tree_entered.connect(_on_component_entered_tree)
+	node.tree_exiting.connect(_on_component_exiting_tree)
 
 
 func dispose() -> void:
@@ -670,7 +672,19 @@ func _setup_transitions(buffer: FGUIByteBuffer) -> void:
 		var transition := FGUITransition.new(self)
 		transition.setup(buffer)
 		transitions.append(transition)
+		if node != null and node.is_inside_tree():
+			transition.on_owner_added_to_stage()
 		buffer.pos = next_pos
+
+
+func _on_component_entered_tree() -> void:
+	for transition: FGUITransition in transitions:
+		transition.on_owner_added_to_stage()
+
+
+func _on_component_exiting_tree() -> void:
+	for transition: FGUITransition in transitions:
+		transition.on_owner_removed_from_stage()
 
 
 func _skip_relation_block(buffer: FGUIByteBuffer) -> void:

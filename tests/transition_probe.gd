@@ -53,6 +53,43 @@ func _initialize() -> void:
 		quit(1)
 		return
 
+	var auto_owner := FGUIComponent.new()
+	auto_owner.alpha = 0.0
+	var auto_transition := FGUITransition.new(auto_owner)
+	auto_transition._auto_play = true
+	auto_transition._auto_play_times = 1
+	auto_transition._items.append(_make_alpha_tween_item(0.04))
+	auto_owner.transitions.append(auto_transition)
+	host.add_child(auto_owner.node)
+	await create_timer(0.12).timeout
+	if auto_transition.playing or absf(auto_owner.alpha - 1.0) > 0.05:
+		push_error("Transition auto-play did not run when its component entered the stage.")
+		quit(1)
+		return
+
+	var stage_owner := FGUIComponent.new()
+	stage_owner.alpha = 0.0
+	var stage_transition := FGUITransition.new(stage_owner)
+	stage_transition._auto_play = true
+	stage_transition._auto_play_times = 1
+	stage_transition._items.append(_make_alpha_tween_item(0.5))
+	stage_owner.transitions.append(stage_transition)
+	host.add_child(stage_owner.node)
+	await process_frame
+	await process_frame
+	if not stage_transition.playing:
+		push_error("Transition auto-play did not start before the component left the stage.")
+		quit(1)
+		return
+	host.remove_child(stage_owner.node)
+	await process_frame
+	if stage_transition.playing:
+		push_error("Transition did not stop when its component left the stage.")
+		quit(1)
+		return
+	stage_owner.dispose()
+	auto_owner.dispose()
+
 	var repeat_transition := FGUITransition.new(owner)
 	repeat_transition._items.append({
 		"type": FGUITransition.ACTION_XY,
