@@ -34,15 +34,24 @@ func attach_to(parent_node: Node) -> void:
 func show_window(window: FGUIWindow) -> void:
 	if window == null:
 		return
-	add_child(window)
-	window.show()
+	if window.parent != self:
+		add_child(window)
+	else:
+		set_child_index(window, children.size() - 1)
+	window._show_from_root()
 
 
 func hide_window(window: FGUIWindow) -> void:
 	if window == null:
 		return
-	window.hide()
-	window.remove_from_parent()
+	window._hide_from_root()
+	if window.parent == self:
+		remove_child(window)
+
+
+func bring_to_front(window: FGUIWindow) -> void:
+	if window != null and window.parent == self:
+		set_child_index(window, children.size() - 1)
 
 
 func show_popup(popup: FGUIObject, target: FGUIObject = null, _dir: int = FGUIEnums.POPUP_AUTO) -> void:
