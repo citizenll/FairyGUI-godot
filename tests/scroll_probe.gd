@@ -208,6 +208,41 @@ func _initialize() -> void:
 	if release_counts["down"] != 1 or release_counts["up"] != 1 or release_counts["end"] != 3:
 		_fail("ScrollPane dispatched a pull release below the drag threshold.")
 		return
+	var wheel_owner := FGUIComponent.new()
+	wheel_owner.set_size(100, 100)
+	host.add_child(wheel_owner.node)
+	var wheel_pane := FGUIScrollPane.new(wheel_owner)
+	wheel_owner.scroll_pane = wheel_pane
+	wheel_pane.scroll_type = FGUIEnums.SCROLL_BOTH
+	wheel_pane._configure_native_scroll_modes()
+	wheel_pane.set_content_size(600, 500)
+	wheel_pane.mouse_wheel_step = 40.0
+	wheel_pane.touch_effect = false
+	wheel_pane._on_container_gui_input(_mouse_wheel_event(MOUSE_BUTTON_WHEEL_DOWN, 2.0))
+	if absf(wheel_pane.pos_y - 80.0) > 1.5:
+		_fail("ScrollPane mouse wheel did not use the configured vertical FairyGUI step: %s" % wheel_pane.pos_y)
+		return
+	wheel_pane._on_container_gui_input(_mouse_wheel_event(MOUSE_BUTTON_WHEEL_UP))
+	if absf(wheel_pane.pos_y - 40.0) > 1.5:
+		_fail("ScrollPane mouse wheel did not scroll upward.")
+		return
+	wheel_pane.set_content_size(600, 100)
+	wheel_pane.set_pos(0.0, 0.0)
+	wheel_pane._on_container_gui_input(_mouse_wheel_event(MOUSE_BUTTON_WHEEL_DOWN))
+	if absf(wheel_pane.pos_x - 40.0) > 1.5:
+		_fail("ScrollPane mouse wheel did not select the horizontal-only axis.")
+		return
+	wheel_pane.page_mode = true
+	wheel_pane.set_pos(0.0, 0.0)
+	wheel_pane._on_container_gui_input(_mouse_wheel_event(MOUSE_BUTTON_WHEEL_DOWN))
+	if absf(wheel_pane.pos_x - wheel_pane.view_width) > 1.5:
+		_fail("ScrollPane mouse wheel did not advance by one page.")
+		return
+	wheel_pane.mouse_wheel_enabled = false
+	wheel_pane._on_container_gui_input(_mouse_wheel_event(MOUSE_BUTTON_WHEEL_DOWN))
+	if absf(wheel_pane.pos_x - wheel_pane.view_width) > 1.5:
+		_fail("ScrollPane ignored mouse_wheel_enabled.")
+		return
 	var snap_owner := FGUIComponent.new()
 	snap_owner.set_size(100.0, 50.0)
 	host.add_child(snap_owner.node)
@@ -270,6 +305,7 @@ func _initialize() -> void:
 	scroll_bar.dispose()
 	inertia_owner.dispose()
 	snap_owner.dispose()
+	wheel_owner.dispose()
 	pull_owner.dispose()
 	controls_parent.dispose()
 	parent.dispose()
@@ -306,6 +342,14 @@ func _mouse_button_event(position: Vector2, pressed: bool) -> InputEventMouseBut
 	event.position = position
 	event.button_index = MOUSE_BUTTON_LEFT
 	event.pressed = pressed
+	return event
+
+
+func _mouse_wheel_event(button_index: int, factor: float = 1.0) -> InputEventMouseButton:
+	var event := InputEventMouseButton.new()
+	event.button_index = button_index
+	event.pressed = true
+	event.factor = factor
 	return event
 
 

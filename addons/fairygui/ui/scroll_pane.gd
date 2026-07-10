@@ -20,6 +20,8 @@ var touch_effect: bool = true
 var page_mode: bool = false
 var inertia_disabled: bool = false
 var deceleration_rate: float = FGUIConfig.default_scroll_deceleration_rate
+var mouse_wheel_enabled: bool = true
+var mouse_wheel_step: float = FGUIConfig.default_scroll_step * 2.0
 var mask_disabled: bool = false
 var floating: bool = false
 var dont_clip_margin: bool = false
@@ -514,6 +516,8 @@ func _on_native_scroll() -> void:
 
 
 func _on_container_gui_input(event: InputEvent) -> void:
+	if _handle_mouse_wheel(event):
+		return
 	if (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed) or (event is InputEventScreenTouch and event.pressed):
 		_cancel_scroll_tween()
 	if not touch_effect:
@@ -532,6 +536,33 @@ func _on_container_gui_input(event: InputEvent) -> void:
 			_end_pull_gesture()
 	elif event is InputEventScreenDrag and _drag_touch_index == event.index:
 		_track_pull_gesture(event.position)
+
+
+func _handle_mouse_wheel(event: InputEvent) -> bool:
+	if not event is InputEventMouseButton:
+		return false
+	var mouse_event := event as InputEventMouseButton
+	if not mouse_event.pressed or mouse_event.button_index not in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
+		return false
+	# Override ScrollContainer's page-based native wheel behavior with FairyGUI steps.
+	if container != null:
+		container.accept_event()
+	if not mouse_wheel_enabled:
+		return true
+	var horizontal_available := scroll_type != FGUIEnums.SCROLL_VERTICAL and content_width > view_width
+	var vertical_available := scroll_type != FGUIEnums.SCROLL_HORIZONTAL and content_height > view_height
+	var direction := -1.0 if mouse_event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_LEFT] else 1.0
+	var factor := maxf(mouse_event.factor, 0.0)
+	if mouse_event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		if horizontal_available and not vertical_available:
+			set_pos(pos_x + direction * (view_width if page_mode else mouse_wheel_step) * factor, pos_y)
+		elif vertical_available:
+			set_pos(pos_x, pos_y + direction * (view_height if page_mode else mouse_wheel_step) * factor)
+	elif horizontal_available:
+		set_pos(pos_x + direction * (view_width if page_mode else mouse_wheel_step) * factor, pos_y)
+	elif vertical_available:
+		set_pos(pos_x, pos_y + direction * (view_height if page_mode else mouse_wheel_step) * factor)
+	return true
 
 
 func _begin_pull_gesture(pointer_position: Vector2, touch_index: int) -> void:
