@@ -327,7 +327,8 @@ func setup(buffer: FGUIByteBuffer) -> void:
 				"start_value": {"b1": true, "b2": true},
 				"end_value": {"b1": true, "b2": true},
 				"end_hook": Callable(),
-				"path": null
+				"path": null,
+				"custom_ease": null,
 			}
 			_total_duration = maxf(_total_duration, item["time"] + tween_config["duration"])
 			buffer.seek(cur_pos, 2)
@@ -336,6 +337,12 @@ func setup(buffer: FGUIByteBuffer) -> void:
 			_decode_value(item, buffer, tween_config["end_value"])
 			if buffer.version >= 2:
 				tween_config["path"] = _read_path(buffer)
+			if buffer.version >= 4 and int(tween_config["ease_type"]) == FGUIEaseType.CUSTOM:
+				var custom_path := _read_path(buffer)
+				if custom_path != null:
+					var custom_ease := FGUICustomEase.new()
+					custom_ease.create_from_path(custom_path)
+					tween_config["custom_ease"] = custom_ease
 			item["tween_config"] = tween_config
 		else:
 			_total_duration = maxf(_total_duration, item["time"])
@@ -1015,7 +1022,14 @@ func _variant_at_tween_elapsed(item: Dictionary, start_value: Dictionary, end_va
 	elif tt >= duration:
 		tt = duration
 	var eased_time := duration - tt if reversed_cycle else tt
-	var ratio := FGUIEaseManager.evaluate(int(config.get("ease_type", FGUIEaseType.QUAD_OUT)), eased_time, duration)
+	var ratio := FGUIEaseManager.evaluate(
+		int(config.get("ease_type", FGUIEaseType.QUAD_OUT)),
+		eased_time,
+		duration,
+		1.70158,
+		0.0,
+		config.get("custom_ease") as FGUICustomEase
+	)
 	return _variant_at_ratio(item, start_value, end_value, ratio)
 
 

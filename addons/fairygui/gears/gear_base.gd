@@ -3,7 +3,7 @@ extends RefCounted
 
 var owner: FGUIObject
 var controller: FGUIController
-var tween_config: Dictionary = {"tween": false, "ease_type": FGUIEaseType.QUAD_OUT, "duration": 0.3, "delay": 0.0}
+var tween_config: Dictionary = {"tween": false, "ease_type": FGUIEaseType.QUAD_OUT, "duration": 0.3, "delay": 0.0, "custom_ease": null}
 
 
 static func create(owner: FGUIObject, index: int) -> FGUIGearBase:
@@ -80,6 +80,12 @@ func setup(buffer: FGUIByteBuffer) -> void:
 		elif self is FGUIGearDisplay2:
 			var display2 := self as FGUIGearDisplay2
 			display2.condition = buffer.read_u8()
+	if buffer.version >= 4 and bool(tween_config.get("tween", false)) and int(tween_config.get("ease_type", -1)) == FGUIEaseType.CUSTOM:
+		var custom_path := _read_custom_ease_path(buffer)
+		if custom_path != null:
+			var custom_ease := FGUICustomEase.new()
+			custom_ease.create_from_path(custom_path)
+			tween_config["custom_ease"] = custom_ease
 
 
 func init() -> void:
@@ -96,6 +102,25 @@ func apply() -> void:
 
 func update_state() -> void:
 	pass
+
+
+func _read_custom_ease_path(buffer: FGUIByteBuffer) -> FGUIGPath:
+	var point_count := buffer.read_i32()
+	if point_count <= 0:
+		return null
+	var points: Array = []
+	for index in point_count:
+		var curve_type := buffer.read_u8()
+		match curve_type:
+			FGUIGPath.CURVE_BEZIER:
+				points.append(FGUIGPathPoint.new_bezier_point(buffer.read_float32(), buffer.read_float32(), buffer.read_float32(), buffer.read_float32()))
+			FGUIGPath.CURVE_CUBIC_BEZIER:
+				points.append(FGUIGPathPoint.new_cubic_bezier_point(buffer.read_float32(), buffer.read_float32(), buffer.read_float32(), buffer.read_float32(), buffer.read_float32(), buffer.read_float32()))
+			_:
+				points.append(FGUIGPathPoint.new_point(buffer.read_float32(), buffer.read_float32(), curve_type))
+	var path := FGUIGPath.new()
+	path.create(points)
+	return path
 
 
 func _active_page_id() -> String:

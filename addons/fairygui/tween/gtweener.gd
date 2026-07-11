@@ -21,6 +21,7 @@ var yoyo: bool = false
 var time_scale: float = 1.0
 var snapping: bool = false
 var path: FGUIGPath
+var custom_ease: FGUICustomEase
 
 var on_start: Callable:
 	get:
@@ -82,6 +83,7 @@ func reset() -> void:
 	time_scale = 1.0
 	snapping = false
 	path = null
+	custom_ease = null
 	_value_size = 0
 	_started = false
 	_paused = false
@@ -113,8 +115,9 @@ func set_breakpoint(value_breakpoint: float) -> FGUIGTweener:
 	return self
 
 
-func set_ease(value_ease: int) -> FGUIGTweener:
+func set_ease(value_ease: int, value_custom_ease: FGUICustomEase = null) -> FGUIGTweener:
 	ease_type = value_ease
+	custom_ease = value_custom_ease
 	return self
 
 
@@ -313,7 +316,7 @@ func _update_values() -> void:
 		tween_time = duration
 		_ended = 1
 
-	_normalized_time = FGUIEaseManager.evaluate(ease_type, duration - tween_time if reversed_cycle else tween_time, duration, ease_overshoot_or_amplitude, ease_period)
+	_normalized_time = FGUIEaseManager.evaluate(ease_type, duration - tween_time if reversed_cycle else tween_time, duration, ease_overshoot_or_amplitude, ease_period, custom_ease)
 	value.set_zero()
 	delta_value.set_zero()
 	if _value_size == 6:

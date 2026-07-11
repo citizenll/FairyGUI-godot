@@ -5,7 +5,7 @@ const _PI_OVER_2 := PI * 0.5
 const _TWO_PI := PI * 2.0
 
 
-static func evaluate(ease_type: int, time: float, duration: float, overshoot_or_amplitude: float = 1.70158, period: float = 0.0) -> float:
+static func evaluate(ease_type: int, time: float, duration: float, overshoot_or_amplitude: float = 1.70158, period: float = 0.0, custom_ease: FGUICustomEase = null) -> float:
 	if duration <= 0.0:
 		return 1.0
 	time = clampf(time, 0.0, duration)
@@ -153,6 +153,8 @@ static func evaluate(ease_type: int, time: float, duration: float, overshoot_or_
 			return _bounce_ease_out(time, duration)
 		FGUIEaseType.BOUNCE_IN_OUT:
 			return _bounce_ease_in_out(time, duration)
+		FGUIEaseType.CUSTOM:
+			return custom_ease.evaluate(t) if custom_ease != null else t
 		_:
 			return -t * (t - 2.0)
 

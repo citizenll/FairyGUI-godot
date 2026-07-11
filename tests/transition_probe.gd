@@ -508,6 +508,38 @@ func _initialize() -> void:
 		push_error("ElasticOut ease start endpoint failed.")
 		quit(1)
 		return
+	var custom_ease := FGUICustomEase.new()
+	custom_ease.create([
+		FGUIGPathPoint.new_point(0.0, 0.0, FGUIGPath.CURVE_STRAIGHT),
+		FGUIGPathPoint.new_point(0.5, 0.25, FGUIGPath.CURVE_STRAIGHT),
+		FGUIGPathPoint.new_point(1.0, 1.0, FGUIGPath.CURVE_STRAIGHT),
+	])
+	var custom_ratio := FGUIEaseManager.evaluate(FGUIEaseType.CUSTOM, 0.5, 1.0, 1.70158, 0.0, custom_ease)
+	if absf(custom_ratio - 0.25) > 0.02 or absf(FGUIEaseManager.evaluate(FGUIEaseType.CUSTOM, 0.5, 1.0) - 0.5) > 0.001:
+		push_error("Custom ease evaluation failed: %s" % custom_ratio)
+		quit(1)
+		return
+	var custom_item := {
+		"type": FGUITransition.ACTION_ALPHA,
+		"tween_config": {
+			"duration": 1.0,
+			"ease_type": FGUIEaseType.CUSTOM,
+			"repeat": 0,
+			"yoyo": false,
+			"custom_ease": custom_ease,
+		},
+	}
+	var transition_custom_value := float(transition._variant_at_tween_elapsed(custom_item, {"f1": 0.0}, {"f1": 1.0}, 0.5))
+	if absf(transition_custom_value - 0.25) > 0.02:
+		push_error("Transition did not use its custom ease curve: %s" % transition_custom_value)
+		quit(1)
+		return
+	var custom_tweener := FGUIGTweener.new()._to(0.0, 1.0, 1.0).set_ease(FGUIEaseType.CUSTOM, custom_ease)
+	custom_tweener.seek(0.5)
+	if absf(custom_tweener.value.x - 0.25) > 0.02:
+		push_error("GTweener did not use its custom ease curve: %s" % custom_tweener.value.x)
+		quit(1)
+		return
 
 	var straight_path := FGUIGPath.new()
 	straight_path.create([
