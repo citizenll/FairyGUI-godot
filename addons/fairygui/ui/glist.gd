@@ -285,10 +285,10 @@ func get_max_item_width() -> float:
 	return result
 
 
-func handle_arrow_key(direction: int) -> void:
+func handle_arrow_key(direction: int) -> int:
 	var index := selected_index
 	if index < 0:
-		return
+		return -1
 	var target_index := -1
 	match layout:
 		FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN:
@@ -306,18 +306,36 @@ func handle_arrow_key(direction: int) -> void:
 				target_index = index - 1
 			elif direction == 3:
 				target_index = index + 1
-			elif not _virtual:
-				target_index = _find_arrow_neighbor(index, direction, true)
+			elif direction == 1 or direction == 5:
+				if _virtual:
+					var columns := _get_virtual_navigation_line_count(true)
+					target_index = index + (-columns if direction == 1 else columns)
+				else:
+					target_index = _find_arrow_neighbor(index, direction, true)
 		FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL:
 			if direction == 1:
 				target_index = index - 1
 			elif direction == 5:
 				target_index = index + 1
-			elif not _virtual:
-				target_index = _find_arrow_neighbor(index, direction, false)
+			elif direction == 7 or direction == 3:
+				if _virtual:
+					var rows := _get_virtual_navigation_line_count(false)
+					target_index = index + (-rows if direction == 7 else rows)
+				else:
+					target_index = _find_arrow_neighbor(index, direction, false)
 	if target_index >= 0 and target_index < num_items:
 		clear_selection()
 		add_selection(target_index, true)
+		return target_index
+	return -1
+
+
+func _get_virtual_navigation_line_count(horizontal_flow: bool) -> int:
+	_ensure_virtual_item_size()
+	var layout_info := _get_virtual_layout_info(maxi(1, _num_items))
+	if layout_info.is_empty():
+		return 1
+	return maxi(1, int(layout_info["columns"] if horizontal_flow else layout_info["rows"]))
 
 
 func _find_arrow_neighbor(index: int, direction: int, vertical: bool) -> int:
@@ -349,10 +367,42 @@ func _find_arrow_neighbor(index: int, direction: int, vertical: bool) -> int:
 
 func resize_to_fit(item_count: int = 0, min_size: int = 0) -> void:
 	ensure_bounds_correct()
-	if layout == FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN:
-		height = maxf(min_size, _measure_first_items(item_count, false))
+	var count := num_items if item_count <= 0 else mini(item_count, num_items)
+	var resize_height := layout == FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN or layout == FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL
+	var next_size := float(min_size)
+	if count > 0 and _virtual:
+		_ensure_virtual_item_size()
+		_ensure_virtual_item_sizes()
+		_ensure_virtual_size_layout()
+		if _supports_variable_virtual_primary():
+			var last_index := count - 1
+			var item_size := _get_cached_virtual_item_size(last_index)
+			next_size = _virtual_primary_prefix[last_index] + (item_size.y if resize_height else item_size.x)
+		else:
+			var layout_info := _get_virtual_layout_info(maxi(1, _num_items))
+			var items_per_line := 1
+			if layout == FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL or layout == FGUIEnums.LIST_LAYOUT_PAGINATION:
+				items_per_line = maxi(1, int(layout_info["columns"]))
+			elif layout == FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL:
+				items_per_line = maxi(1, int(layout_info["rows"]))
+			var line_count := int(ceilf(float(count) / float(items_per_line)))
+			if resize_height:
+				next_size = float(line_count) * float(layout_info["cell_height"]) + float(maxi(0, line_count - 1) * line_gap)
+			else:
+				next_size = float(line_count) * float(layout_info["cell_width"]) + float(maxi(0, line_count - 1) * column_gap)
+	elif count > 0:
+		var index := mini(count, children.size()) - 1
+		while index >= 0:
+			var child := get_child_at(index)
+			if child != null and (not fold_invisible_items or child.visible):
+				next_size = (child.y + child.height) if resize_height else (child.x + child.width)
+				break
+			index -= 1
+	next_size = maxf(float(min_size), next_size)
+	if resize_height:
+		view_height = next_size
 	else:
-		width = maxf(min_size, _measure_first_items(item_count, true))
+		view_width = next_size
 
 
 func set_virtual() -> void:
@@ -1301,17 +1351,6 @@ func _update_selection_controller(index: int) -> void:
 	selection_controller = null
 	controller.selected_index = index
 	selection_controller = controller
-
-
-func _measure_first_items(item_count: int, horizontal: bool) -> float:
-	var count := children.size() if item_count <= 0 else mini(item_count, children.size())
-	var total := 0.0
-	for i in count:
-		var child := get_child_at(i)
-		total += (child.width if horizontal else child.height)
-		if i != count - 1:
-			total += (column_gap if horizontal else line_gap)
-	return total
 
 
 func _ensure_virtual_item_size() -> void:

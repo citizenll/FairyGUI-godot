@@ -433,6 +433,13 @@ func _initialize() -> void:
 		return
 	if not _expect_item_position(flow_horizontal, 2, Vector2(0.0, 24.0), "flow-horizontal item 2"):
 		return
+	flow_horizontal.selected_index = 1
+	if flow_horizontal.handle_arrow_key(5) != 3 or flow_horizontal.selected_index != 3:
+		_fail("Virtual flow-horizontal down-arrow navigation did not preserve its column.")
+		return
+	if flow_horizontal.handle_arrow_key(1) != 1 or flow_horizontal.selected_index != 1:
+		_fail("Virtual flow-horizontal up-arrow navigation did not return to its prior row.")
+		return
 	flow_horizontal.scroll_pane.set_pos(0.0, 25.0)
 	await process_frame
 	if flow_horizontal.get_first_child_in_view() != 2:
@@ -442,6 +449,10 @@ func _initialize() -> void:
 	await process_frame
 	if flow_horizontal.get_first_child_in_view() != 4:
 		_fail("Flow-horizontal virtual list scroll_to_view did not target the row.")
+		return
+	flow_horizontal.resize_to_fit(3)
+	if absf(flow_horizontal.view_height - 44.0) > 0.1:
+		_fail("Virtual flow-horizontal resize_to_fit used the wrong line count: %s" % flow_horizontal.view_height)
 		return
 	flow_horizontal.dispose()
 
@@ -467,6 +478,13 @@ func _initialize() -> void:
 	if not _expect_item_position(flow_vertical, 1, Vector2(0.0, 23.0), "flow-vertical item 1"):
 		return
 	if not _expect_item_position(flow_vertical, 2, Vector2(34.0, 0.0), "flow-vertical item 2"):
+		return
+	flow_vertical.selected_index = 0
+	if flow_vertical.handle_arrow_key(3) != 2 or flow_vertical.selected_index != 2:
+		_fail("Virtual flow-vertical right-arrow navigation did not preserve its row.")
+		return
+	if flow_vertical.handle_arrow_key(7) != 0 or flow_vertical.selected_index != 0:
+		_fail("Virtual flow-vertical left-arrow navigation did not return to its prior column.")
 		return
 	flow_vertical.scroll_pane.set_pos(35.0, 0.0)
 	await process_frame
@@ -499,6 +517,10 @@ func _initialize() -> void:
 		_fail("Pagination virtual list content size is incorrect.")
 		return
 	if not _expect_item_position(pagination, 5, Vector2(64.0, 23.0), "pagination item 5"):
+		return
+	pagination.selected_index = 1
+	if pagination.handle_arrow_key(5) != 4 or pagination.selected_index != 4:
+		_fail("Virtual pagination down-arrow navigation did not preserve its column.")
 		return
 	pagination.scroll_pane.set_pos(100.0, 0.0)
 	await process_frame

@@ -64,13 +64,16 @@ func _initialize() -> void:
 	list.set_size(100.0, 100.0)
 	list.update_bounds()
 	list.selected_index = 1
-	list.handle_arrow_key(5)
-	if list.selected_index != 3:
+	if list.handle_arrow_key(5) != 3 or list.selected_index != 3:
 		_fail("List down-arrow navigation did not preserve the flow-layout column.")
 		return
-	list.handle_arrow_key(1)
-	if list.selected_index != 1:
+	if list.handle_arrow_key(1) != 1 or list.selected_index != 1:
 		_fail("List up-arrow navigation did not return to the preceding flow-layout row.")
+		return
+	var previous_view_width := list.view_width
+	list.resize_to_fit(3)
+	if absf(list.view_height - 40.0) > 0.1 or absf(list.view_width - previous_view_width) > 0.1:
+		_fail("Flow-horizontal resize_to_fit did not resize the vertical list axis: %s,%s" % [list.view_width, list.view_height])
 		return
 	var aligned_list := FGUIList.new()
 	aligned_list.layout = FGUIEnums.LIST_LAYOUT_SINGLE_ROW
