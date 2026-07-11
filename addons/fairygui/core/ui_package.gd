@@ -116,6 +116,11 @@ static func get_item_by_url(url: String) -> FGUIPackageItem:
 	return null
 
 
+static func get_item_asset_by_url(url: String) -> Variant:
+	var item := get_item_by_url(url)
+	return item.owner.get_item_asset(item) if item != null and item.owner != null else null
+
+
 static func get_item_url(package_name: String, resource_name: String) -> String:
 	var pkg := get_by_name(package_name)
 	if pkg == null:
@@ -154,6 +159,10 @@ static func set_branch(value: String) -> void:
 	_set_branch(value)
 
 
+static func set_strings_source(source: String) -> void:
+	TranslationHelper.load_from_xml(source)
+
+
 static func _set_branch(value: String) -> void:
 	if _branch == value:
 		return
@@ -181,6 +190,7 @@ func dispose() -> void:
 		item.texture = null
 		item.audio = null
 		item.bitmap_font = null
+		item.misc_asset = null
 		item.pixel_hit_test_data = null
 		item.frames.clear()
 		item.high_resolution.clear()
@@ -206,6 +216,10 @@ func get_item_by_id(item_id: String) -> FGUIPackageItem:
 
 func get_item_by_name(resource_name: String) -> FGUIPackageItem:
 	return _items_by_name.get(resource_name)
+
+
+func get_items() -> Array:
+	return items
 
 
 func get_item_asset_by_name(resource_name: String) -> Variant:
@@ -255,8 +269,53 @@ func get_item_asset(item: FGUIPackageItem) -> Variant:
 		FGUIEnums.PACKAGE_ITEM_COMPONENT:
 			return item.raw_data
 
+		FGUIEnums.PACKAGE_ITEM_MISC:
+			if not item.decoded:
+				item.decoded = true
+				item.misc_asset = _load_misc(item.file)
+			return item.misc_asset
+
 		_:
 			return null
+
+
+func get_item_asset_async(item: FGUIPackageItem, on_complete: Callable = Callable()) -> void:
+	if item == null:
+		if on_complete.is_valid():
+			on_complete.call(ERR_INVALID_PARAMETER, null)
+		return
+
+	var error: Variant = null
+	get_item_asset(item)
+	if item.type == FGUIEnums.PACKAGE_ITEM_SPINE or item.type == FGUIEnums.PACKAGE_ITEM_DRAGON_BONES:
+		error = ERR_UNAVAILABLE
+	if on_complete.is_valid():
+		on_complete.call(error, item)
+
+
+func load_all_assets() -> void:
+	for item: FGUIPackageItem in items:
+		get_item_asset(item)
+
+
+func unload_assets() -> void:
+	for item: FGUIPackageItem in items:
+		match item.type:
+			FGUIEnums.PACKAGE_ITEM_IMAGE, FGUIEnums.PACKAGE_ITEM_ATLAS:
+				item.texture = null
+				item.decoded = false
+			FGUIEnums.PACKAGE_ITEM_MOVIE_CLIP:
+				item.frames.clear()
+				item.decoded = false
+			FGUIEnums.PACKAGE_ITEM_SOUND:
+				item.audio = null
+				item.decoded = false
+			FGUIEnums.PACKAGE_ITEM_FONT:
+				item.bitmap_font = null
+				item.decoded = false
+			FGUIEnums.PACKAGE_ITEM_MISC:
+				item.misc_asset = null
+				item.decoded = false
 
 
 func _internal_create_object(item: FGUIPackageItem, user_class: Variant = null) -> FGUIObject:
@@ -466,6 +525,22 @@ func _load_audio(path: String) -> AudioStream:
 		return stream
 	push_warning("FairyGUI audio not found: %s" % path)
 	return null
+
+
+func _load_misc(path: String) -> Variant:
+	if path == "":
+		return null
+	if ResourceLoader.exists(path):
+		var resource := ResourceLoader.load(path)
+		if resource != null:
+			return resource
+	if not FileAccess.file_exists(path):
+		push_warning("FairyGUI miscellaneous asset not found: %s" % path)
+		return null
+	var extension := path.get_extension().to_lower()
+	if extension in ["txt", "xml", "csv", "html", "htm", "css", "js", "json"]:
+		return FileAccess.get_file_as_string(path)
+	return FileAccess.get_file_as_bytes(path)
 
 
 func _load_font(item: FGUIPackageItem) -> void:

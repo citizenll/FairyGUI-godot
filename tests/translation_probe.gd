@@ -4,7 +4,7 @@ const TranslationHelper := preload("res://addons/fairygui/utils/translation_help
 
 
 func _initialize() -> void:
-	TranslationHelper.load_from_xml("<resources><string name=\"pkgcomp-child\">Localized text</string></resources>")
+	FGUIPackage.set_strings_source("<resources><string name=\"pkgcomp-child\">Localized text</string></resources>")
 	if not TranslationHelper.strings.has("pkgcomp") or TranslationHelper.strings["pkgcomp"].get("child") != "Localized text":
 		_fail("Translation XML strings were not parsed.")
 		return

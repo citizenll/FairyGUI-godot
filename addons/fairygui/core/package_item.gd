@@ -21,6 +21,7 @@ var smoothing: bool = true
 var texture: Texture2D
 var audio: AudioStream
 var bitmap_font: FGUIBitmapFont
+var misc_asset: Variant
 var pixel_hit_test_data: FGUIPixelHitTestData
 var frames: Array = []
 var interval: int = 0
