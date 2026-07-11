@@ -1,11 +1,26 @@
 class_name FGUISlider
 extends FGUIProgressBar
 
-var whole_numbers: bool = false
+var whole_numbers: bool = false:
+	set(value):
+		if whole_numbers == value:
+			return
+		whole_numbers = value
+		update(_value)
 var change_on_click: bool = true
-var can_drag: bool = true
+var can_drag: bool = true:
+	set(value):
+		can_drag = value
+		if _grip_object != null:
+			_grip_object.draggable = value
+			if not value and _grip_object.dragging:
+				_grip_object.stop_drag()
+		if not value:
+			_dragging_grip = false
 var _grip_object: FGUIObject
 var _dragging_grip: bool = false
+var _grip_drag_start_position := Vector2.ZERO
+var _drag_start_percent: float = 0.0
 
 
 func construct_extension(buffer: FGUIByteBuffer) -> void:
@@ -26,28 +41,54 @@ func construct_extension(buffer: FGUIByteBuffer) -> void:
 		_bar_max_height_delta = height - _bar_object_v.height
 		_bar_start_y = _bar_object_v.y
 	if _grip_object != null:
-		_grip_object.draggable = true
+		_grip_object.draggable = can_drag
+		_grip_object.on(FGUIEvents.DRAG_START, _on_grip_drag_start)
 		_grip_object.on(FGUIEvents.DRAG_MOVE, _on_grip_drag_move)
+		_grip_object.on(FGUIEvents.DRAG_END, _on_grip_drag_end)
 	update(_value)
 
 
-func _on_grip_drag_move(event: Variant = null) -> void:
+func _on_grip_drag_start(event: Variant = null) -> void:
 	if not can_drag:
 		return
+	_dragging_grip = true
+	_grip_drag_start_position = _global_to_node_local(FGUIToolSet.get_pointer_position(event)) if event is InputEvent else Vector2.ZERO
+	_drag_start_percent = FGUIToolSet.clamp01((_value - min) / (max - min)) if not is_zero_approx(max - min) else 0.0
+
+
+func _on_grip_drag_move(event: Variant = null) -> void:
+	if not can_drag or not _dragging_grip:
+		return
 	var local := _global_to_node_local(FGUIToolSet.get_pointer_position(event)) if event is InputEvent else Vector2.ZERO
-	var percent := local.x / maxf(1.0, width) if _bar_object_h != null else local.y / maxf(1.0, height)
+	var delta := local.x - _grip_drag_start_position.x if _bar_object_h != null else local.y - _grip_drag_start_position.y
 	if reverse:
-		percent = 1.0 - percent
+		delta = -delta
+	var percent := _drag_start_percent + delta / _get_bar_length()
 	_set_value_by_percent(percent, event)
+
+
+func _on_grip_drag_end(_event: Variant = null) -> void:
+	_dragging_grip = false
 
 
 func _on_gui_input(event: InputEvent) -> void:
 	super._on_gui_input(event)
 	if change_on_click and FGUIToolSet.is_primary_pointer_press(event):
-		var local := _global_to_node_local(FGUIToolSet.get_pointer_position(event))
-		var percent := local.x / maxf(1.0, width) if _bar_object_h != null else local.y / maxf(1.0, height)
-		if reverse:
-			percent = 1.0 - percent
+		var pointer_position := FGUIToolSet.get_pointer_position(event)
+		if _grip_object != null and _grip_object.node != null and _grip_object.node.get_global_rect().has_point(pointer_position):
+			return
+		var current_percent := FGUIToolSet.clamp01((_value - min) / (max - min)) if not is_zero_approx(max - min) else 0.0
+		var percent: float
+		if _grip_object != null:
+			var grip_local := _grip_object._global_to_node_local(pointer_position)
+			var delta := grip_local.x if _bar_object_h != null else grip_local.y
+			percent = current_percent + (-delta if reverse else delta) / _get_bar_length()
+		else:
+			var local := _global_to_node_local(pointer_position)
+			var coordinate := local.x - _bar_start_x if _bar_object_h != null else local.y - _bar_start_y
+			percent = coordinate / _get_bar_length()
+			if reverse:
+				percent = 1.0 - percent
 		_set_value_by_percent(percent, event)
 
 
@@ -60,3 +101,7 @@ func _set_value_by_percent(percent: float, event: Variant = null) -> void:
 		_value = next_value
 		update(_value)
 		emit_event(FGUIEvents.STATE_CHANGED, event)
+
+
+func _get_bar_length() -> float:
+	return maxf(1.0, width - _bar_max_width_delta) if _bar_object_h != null else maxf(1.0, height - _bar_max_height_delta)

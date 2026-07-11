@@ -1,20 +1,37 @@
 class_name FGUIProgressBar
 extends FGUIComponent
 
-var title_type: int = FGUIEnums.PROGRESS_TITLE_PERCENT
-var reverse: bool = false
+var title_type: int = FGUIEnums.PROGRESS_TITLE_PERCENT:
+	set(next_value):
+		if title_type == next_value:
+			return
+		title_type = next_value
+		update(_value)
+var reverse: bool = false:
+	set(next_value):
+		if reverse == next_value:
+			return
+		reverse = next_value
+		update(_value)
 var min: float = 0.0:
-	set(value):
-		min = value
-		update(value)
+	set(next_value):
+		if is_equal_approx(min, next_value):
+			return
+		min = next_value
+		update(_value)
 var max: float = 100.0:
-	set(value):
-		max = value
+	set(next_value):
+		if is_equal_approx(max, next_value):
+			return
+		max = next_value
 		update(_value)
 var value: float:
 	get:
 		return _value
 	set(next_value):
+		if is_equal_approx(_value, next_value):
+			return
+		FGUIGTween.kill(self, false, Callable(self, "update"))
 		_value = next_value
 		update(_value)
 
@@ -44,6 +61,17 @@ func construct_extension(buffer: FGUIByteBuffer) -> void:
 		_bar_max_height_delta = height - _bar_object_v.height
 		_bar_start_y = _bar_object_v.y
 	update(_value)
+
+
+func tween_value(next_value: float, duration: float) -> FGUIGTweener:
+	var update_callback := Callable(self, "update")
+	var old_value := _value
+	var active_tween := FGUIGTween.get_tween(self, update_callback)
+	if active_tween != null:
+		old_value = active_tween.value.x
+		active_tween.kill()
+	_value = next_value
+	return FGUIGTween.to(old_value, _value, duration).set_target(self, update_callback).set_ease(FGUIEaseType.LINEAR)
 
 
 func update(new_value: float) -> void:
@@ -84,6 +112,21 @@ func _set_fill_amount(bar: FGUIObject, percent: float) -> bool:
 		(bar as FGUILoader).fill_amount = percent
 		return true
 	return false
+
+
+func _handle_size_changed() -> void:
+	super._handle_size_changed()
+	if not _under_construct:
+		update(_value)
+
+
+func dispose() -> void:
+	FGUIGTween.kill(self, false, Callable(self, "update"))
+	_title_object = null
+	_bar_object_h = null
+	_bar_object_v = null
+	_ani_object = null
+	super.dispose()
 
 
 func setup_after_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
