@@ -117,9 +117,11 @@ func _initialize() -> void:
 		return
 	combo.show_dropdown()
 	await process_frame
-	if dropdown.parent != null or button_controller.selected_page != FGUIButton.UP:
-		_fail(root_object, combo, "ComboBox dropdown toggle did not close and restore state.")
+	if dropdown.parent != root_object or button_controller.selected_page != FGUIButton.DOWN or root_object._popup_stack.count(dropdown) != 1:
+		_fail(root_object, combo, "Repeated ComboBox show_dropdown did not keep one active popup instance.")
 		return
+	root_object.hide_popup(dropdown)
+	await process_frame
 
 	combo.show_dropdown()
 	await process_frame

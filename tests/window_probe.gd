@@ -53,6 +53,11 @@ class ProbeSource extends FGUIUISource:
 		completion = Callable()
 
 
+class DeferredHideWindow extends ProbeWindow:
+	func do_hide_animation() -> void:
+		hide_animation_count += 1
+
+
 func _initialize() -> void:
 	var host := Control.new()
 	root.add_child(host)
@@ -177,6 +182,17 @@ func _initialize() -> void:
 		_fail("Disposing a loading window did not cancel its UI sources.")
 		return
 
+	var deferred_window := DeferredHideWindow.new()
+	deferred_window.show_on(gui_root)
+	gui_root.hide_window(deferred_window)
+	if deferred_window.parent != gui_root or deferred_window.hide_animation_count != 1 or deferred_window.hidden_count != 0:
+		_fail("GRoot hide_window bypassed the window hide animation hook.")
+		return
+	deferred_window.hide_immediately()
+	if deferred_window.parent != null or deferred_window.hidden_count != 1:
+		_fail("A deferred window hide did not finish through hide_immediately.")
+		return
+
 	var global_wait := FGUIComponent.new()
 	gui_root._modal_wait_pane = global_wait
 	gui_root.show_modal_wait("Loading")
@@ -216,6 +232,7 @@ func _initialize() -> void:
 	content.dispose()
 	second_window.dispose()
 	async_window.dispose()
+	deferred_window.dispose()
 	clamped_window.dispose()
 	global_wait.dispose()
 	close_button.dispose()

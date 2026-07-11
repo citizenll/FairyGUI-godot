@@ -108,14 +108,16 @@ func show_window(window: FGUIWindow) -> void:
 func hide_window(window: FGUIWindow) -> void:
 	if window == null:
 		return
+	window.hide()
+
+
+func hide_window_immediately(window: FGUIWindow) -> void:
+	if window == null:
+		return
 	window._hide_from_root()
 	if window.parent == self:
 		remove_child(window)
 	_adjust_modal_layer()
-
-
-func hide_window_immediately(window: FGUIWindow) -> void:
-	hide_window(window)
 
 
 func close_all_except_modals() -> void:
@@ -206,7 +208,7 @@ func dispose() -> void:
 	super.dispose()
 
 
-func show_popup(popup: FGUIObject, target: FGUIObject = null, direction: int = FGUIEnums.POPUP_AUTO) -> void:
+func show_popup(popup: FGUIObject, target: FGUIObject = null, direction: Variant = FGUIEnums.POPUP_AUTO) -> void:
 	if popup == null:
 		return
 	var existing_index := _popup_stack.find(popup)
@@ -222,27 +224,34 @@ func show_popup(popup: FGUIObject, target: FGUIObject = null, direction: int = F
 			current = current.parent
 	add_child(popup)
 	_adjust_modal_layer()
+	var target_position: Vector2
+	var target_size := Vector2.ZERO
 	if target != null:
-		var target_position := global_to_local(target.local_to_global(Vector2.ZERO))
-		var x := target_position.x
-		var y := target_position.y + target.height
-		if x + popup.width > width:
-			x = target_position.x + target.width - popup.width
-		if direction == FGUIEnums.POPUP_UP or (direction == FGUIEnums.POPUP_AUTO and y + popup.height > height):
-			y = target_position.y - popup.height - 1.0
-			if y < 0.0:
-				y = 0.0
-				x += target.width * 0.5
-		popup.set_xy(clampf(x, 0.0, maxf(0.0, width - popup.width)), clampf(y, 0.0, maxf(0.0, height - popup.height)))
+		target_position = global_to_local(target.local_to_global(Vector2.ZERO))
+		target_size = Vector2(target.width, target.height)
+	else:
+		var pointer_position := FGUIObject.get_last_pointer_position()
+		if pointer_position.is_zero_approx() and node != null:
+			pointer_position = node.get_global_mouse_position()
+		target_position = global_to_local(pointer_position)
+	var x := target_position.x
+	var y := target_position.y + target_size.y
+	if x + popup.width > width:
+		x = target_position.x + target_size.x - popup.width
+	var opens_up := (direction is bool and not bool(direction)) or (direction is int and int(direction) == FGUIEnums.POPUP_UP)
+	var automatic := not (direction is bool) and (not (direction is int) or int(direction) == FGUIEnums.POPUP_AUTO)
+	if opens_up or (automatic and target_position.y + popup.height > height):
+		y = target_position.y - popup.height - 1.0
+		if y < 0.0:
+			y = 0.0
+			x += target_size.x * 0.5
+	popup.set_xy(clampf(x, 0.0, maxf(0.0, width - popup.width)), clampf(y, 0.0, maxf(0.0, height - popup.height)))
 
 
-func toggle_popup(popup: FGUIObject, target: FGUIObject = null, direction: int = FGUIEnums.POPUP_AUTO) -> void:
+func toggle_popup(popup: FGUIObject, target: FGUIObject = null, direction: Variant = FGUIEnums.POPUP_AUTO) -> void:
 	if _just_closed_popups.has(popup):
 		return
-	if _popup_stack.has(popup):
-		hide_popup(popup)
-	else:
-		show_popup(popup, target, direction)
+	show_popup(popup, target, direction)
 
 
 func hide_popup(popup: FGUIObject = null) -> void:

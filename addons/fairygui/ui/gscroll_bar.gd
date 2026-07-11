@@ -12,6 +12,11 @@ var _bar: FGUIObject
 var _arrow_button1: FGUIObject
 var _arrow_button2: FGUIObject
 var _controls_bound: bool = false
+var _grip_cross_position: float = 0.0
+
+var min_size: float:
+	get:
+		return get_min_size()
 
 
 func set_scroll_pane(next_target: FGUIScrollPane, is_vertical: bool) -> void:
@@ -21,6 +26,7 @@ func set_scroll_pane(next_target: FGUIScrollPane, is_vertical: bool) -> void:
 
 
 func dispose() -> void:
+	grip_dragging = false
 	target = null
 	_grip = null
 	_bar = null
@@ -74,7 +80,11 @@ func _bind_controls() -> void:
 		return
 	_controls_bound = true
 	_grip.draggable = true
+	if _grip.node != null and not _grip.node.gui_input.is_connected(Callable(self, "_on_grip_gui_input")):
+		_grip.node.gui_input.connect(Callable(self, "_on_grip_gui_input"))
+	_grip.on(FGUIEvents.DRAG_START, Callable(self, "_on_grip_drag_start"))
 	_grip.on(FGUIEvents.DRAG_MOVE, Callable(self, "_on_grip_drag_move"))
+	_grip.on(FGUIEvents.DRAG_END, Callable(self, "_on_grip_drag_end"))
 	_bar.on("click", Callable(self, "_on_bar_click"))
 	if _arrow_button1 != null:
 		_arrow_button1.on("click", Callable(self, "_on_arrow1_click"))
@@ -82,17 +92,52 @@ func _bind_controls() -> void:
 		_arrow_button2.on("click", Callable(self, "_on_arrow2_click"))
 
 
+func _on_grip_drag_start(_event: Variant = null) -> void:
+	if _grip == null:
+		return
+	_grip_cross_position = _grip.x if vertical else _grip.y
+	_set_grip_dragging(true)
+
+
 func _on_grip_drag_move(_event: Variant = null) -> void:
 	if target == null or _grip == null or _bar == null:
 		return
 	var value := 0.0
 	if vertical:
+		_grip.x = _grip_cross_position
 		value = (_grip.y - _bar.y) / maxf(1.0, _bar.height - _grip.height)
-		target.set_perc_y(value)
+		target.set_perc_y(value, false)
 	else:
+		_grip.y = _grip_cross_position
 		value = (_grip.x - _bar.x) / maxf(1.0, _bar.width - _grip.width)
-		target.set_perc_x(value)
+		target.set_perc_x(value, false)
 	set_scroll_percent(value)
+
+
+func _on_grip_drag_end(_event: Variant = null) -> void:
+	if _grip != null:
+		if vertical:
+			_grip.x = _grip_cross_position
+		else:
+			_grip.y = _grip_cross_position
+	_set_grip_dragging(false)
+
+
+func _on_grip_gui_input(event: InputEvent) -> void:
+	if FGUIToolSet.is_primary_pointer_press(event):
+		if _grip != null:
+			_grip_cross_position = _grip.x if vertical else _grip.y
+		_set_grip_dragging(true)
+	elif FGUIToolSet.is_primary_pointer_release(event) and (_grip == null or not _grip.dragging):
+		_set_grip_dragging(false)
+
+
+func _set_grip_dragging(value: bool) -> void:
+	if grip_dragging == value:
+		return
+	grip_dragging = value
+	if target != null:
+		target.update_scroll_bar_visible()
 
 
 func _on_bar_click(event: Variant = null) -> void:

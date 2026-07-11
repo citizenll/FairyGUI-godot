@@ -177,16 +177,41 @@ func _initialize() -> void:
 	track.set_size(10, 100)
 	scroll_bar.add_child(track)
 	var grip := FGUIObject.new()
+	grip.set_xy(4, 0)
 	grip.set_size(10, 20)
 	scroll_bar.add_child(grip)
+	var arrow1 := FGUIObject.new()
+	arrow1.set_size(10, 8)
+	scroll_bar.add_child(arrow1)
+	var arrow2 := FGUIObject.new()
+	arrow2.set_size(10, 12)
+	scroll_bar.add_child(arrow2)
 	scroll_bar._bar = track
 	scroll_bar._grip = grip
+	scroll_bar._arrow_button1 = arrow1
+	scroll_bar._arrow_button2 = arrow2
 	scroll_bar.set_scroll_pane(pane, true)
+	if scroll_bar.min_size != 20.0:
+		_fail("Custom scroll bar did not expose the combined arrow minimum size.")
+		return
 	scroll_bar.set_display_percent(pane.view_height / pane.content_height)
-	grip.y = track.height - grip.height
-	scroll_bar._on_grip_drag_move()
-	if not pane.is_bottom_most():
-		_fail("Custom scroll bar grip did not drive ScrollPane position.")
+	scroll_bar._on_grip_gui_input(_mouse_button_event(Vector2.ZERO, true))
+	if not scroll_bar.grip_dragging:
+		_fail("Custom scroll bar did not enter grip dragging state on pointer press.")
+		return
+	scroll_bar._on_grip_gui_input(_mouse_button_event(Vector2.ZERO, false))
+	if scroll_bar.grip_dragging:
+		_fail("Custom scroll bar did not leave grip dragging state after an un-dragged release.")
+		return
+	grip.emit_event(FGUIEvents.DRAG_START)
+	grip.set_xy(40, track.height - grip.height)
+	grip.emit_event(FGUIEvents.DRAG_MOVE)
+	if not pane.is_bottom_most() or not scroll_bar.grip_dragging or grip.x != 4.0:
+		_fail("Custom scroll bar grip did not drive ScrollPane position while preserving its cross axis.")
+		return
+	grip.emit_event(FGUIEvents.DRAG_END)
+	if scroll_bar.grip_dragging:
+		_fail("Custom scroll bar did not clear its grip dragging state.")
 		return
 
 	var pull_owner := FGUIComponent.new()

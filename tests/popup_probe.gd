@@ -34,6 +34,25 @@ func _initialize() -> void:
 		_fail("GRoot did not close a popup and its nested stack entries.")
 		return
 
+	FGUIObject._last_pointer_position = ui_root.local_to_global(Vector2(30.0, 20.0))
+	FGUIObject._has_last_pointer_position = true
+	ui_root.show_popup(popup)
+	if not Vector2(popup.x, popup.y).is_equal_approx(Vector2(30.0, 20.0)):
+		_fail("GRoot did not position a targetless popup at the latest pointer location.")
+		return
+	ui_root.toggle_popup(popup)
+	if popup.parent != ui_root or not ui_root.has_any_popup():
+		_fail("GRoot toggle_popup unexpectedly closed an already displayed popup.")
+		return
+	ui_root.hide_popup()
+	target.set_xy(20.0, 50.0)
+	ui_root.show_popup(popup, target, false)
+	if not Vector2(popup.x, popup.y).is_equal_approx(Vector2(20.0, 19.0)):
+		_fail("GRoot did not honor the legacy false/up popup direction.")
+		return
+	ui_root.hide_popup()
+	target.set_xy(160.0, 80.0)
+
 	ui_root.show_popup(popup, target, FGUIEnums.POPUP_DOWN)
 	ui_root._on_gui_input(_screen_touch(Vector2(5.0, 5.0), true))
 	if popup.parent != null or ui_root.has_any_popup():
