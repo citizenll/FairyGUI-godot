@@ -30,6 +30,7 @@ var _button_touch_index: int = -2
 var _down: bool = false
 var _over: bool = false
 var _down_scaled: bool = false
+var _fire_click_token: int = 0
 
 var selected: bool:
 	get:
@@ -168,9 +169,27 @@ func set_state(value: String) -> void:
 			_down_scaled = false
 
 
-func fire_click() -> void:
+func fire_click(down_effect: bool = true) -> void:
+	if down_effect and mode == FGUIEnums.BUTTON_COMMON:
+		_fire_click_token += 1
+		set_state(OVER)
+		_play_fire_click_effect.call_deferred(_fire_click_token)
 	emit_event("click")
 	_handle_click(null)
+
+
+func _play_fire_click_effect(token: int) -> void:
+	if node == null or not node.is_inside_tree():
+		if token == _fire_click_token:
+			set_state(UP)
+		return
+	await node.get_tree().create_timer(0.1).timeout
+	if token != _fire_click_token or node == null or not node.is_inside_tree():
+		return
+	set_state(DOWN)
+	await node.get_tree().create_timer(0.1).timeout
+	if token == _fire_click_token and node != null:
+		set_state(UP)
 
 
 func handle_controller_changed(controller: FGUIController) -> void:
@@ -222,6 +241,9 @@ func get_prop(index: int) -> Variant:
 			return selected
 		FGUIEnums.OBJECT_PROP_COLOR:
 			return title_color
+		FGUIEnums.OBJECT_PROP_OUTLINE_COLOR:
+			var field := get_text_field()
+			return field.stroke_color if field != null else Color.BLACK
 		FGUIEnums.OBJECT_PROP_FONT_SIZE:
 			return title_font_size
 		_:
@@ -235,6 +257,10 @@ func set_prop(index: int, value: Variant) -> void:
 		FGUIEnums.OBJECT_PROP_COLOR:
 			if value is Color:
 				title_color = value
+		FGUIEnums.OBJECT_PROP_OUTLINE_COLOR:
+			var field := get_text_field()
+			if field != null and value is Color:
+				field.stroke_color = value
 		FGUIEnums.OBJECT_PROP_FONT_SIZE:
 			title_font_size = int(value)
 		_:
@@ -247,7 +273,13 @@ func _on_gui_input(event: InputEvent) -> void:
 		_down = true
 		if mode == FGUIEnums.BUTTON_COMMON:
 			_refresh_button_state()
+		if linked_popup != null:
+			var root_object := root
+			if root_object != null:
+				root_object._check_popups(FGUIToolSet.get_pointer_position(event))
 		_toggle_linked_popup()
+		if linked_popup != null and node != null:
+			node.accept_event()
 	elif FGUIToolSet.is_primary_pointer_release(event) and _button_touch_index == FGUIToolSet.get_pointer_id(event):
 		_down = false
 		if mode == FGUIEnums.BUTTON_COMMON:
@@ -318,3 +350,15 @@ func _toggle_linked_popup() -> void:
 	var root_object := root
 	if root_object != null:
 		root_object.toggle_popup(linked_popup, self)
+
+
+func dispose() -> void:
+	_fire_click_token += 1
+	if _down_scaled:
+		set_state(UP)
+	linked_popup = null
+	related_controller = null
+	_button_controller = null
+	_title_object = null
+	_icon_object = null
+	super.dispose()

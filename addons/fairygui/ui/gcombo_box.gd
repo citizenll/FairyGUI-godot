@@ -307,6 +307,9 @@ func _on_gui_input(event: InputEvent) -> void:
 	if FGUIToolSet.is_primary_pointer_press(event):
 		_button_touch_index = FGUIToolSet.get_pointer_id(event)
 		_down = true
+		var root_object := root
+		if root_object != null:
+			root_object._check_popups(FGUIToolSet.get_pointer_position(event))
 		show_dropdown()
 		if node != null:
 			node.accept_event()

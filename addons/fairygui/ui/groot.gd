@@ -18,6 +18,7 @@ var content_scale_factor: float = 1.0:
 var _modal_layer: FGUIGraph
 var _modal_wait_pane: FGUIObject
 var _popup_stack: Array[FGUIObject] = []
+var _just_closed_popups: Array[FGUIObject] = []
 var _tooltip_win: FGUIObject
 var _default_tooltip_win: FGUIObject
 var _focus_object: FGUIObject
@@ -236,6 +237,8 @@ func show_popup(popup: FGUIObject, target: FGUIObject = null, direction: int = F
 
 
 func toggle_popup(popup: FGUIObject, target: FGUIObject = null, direction: int = FGUIEnums.POPUP_AUTO) -> void:
+	if _just_closed_popups.has(popup):
+		return
 	if _popup_stack.has(popup):
 		hide_popup(popup)
 	else:
@@ -265,6 +268,8 @@ func _on_gui_input(event: InputEvent) -> void:
 
 
 func _check_popups(global_position: Vector2) -> void:
+	_just_closed_popups.clear()
+	_clear_just_closed_popups.call_deferred()
 	if _popup_stack.is_empty():
 		return
 	var keep_index := -1
@@ -273,9 +278,22 @@ func _check_popups(global_position: Vector2) -> void:
 		if popup != null and popup.parent == self and popup.node != null and popup.node.get_global_rect().has_point(global_position):
 			keep_index = index
 	if keep_index < 0:
+		_remember_closing_popups(0)
 		_close_popups_from(0)
 	elif keep_index + 1 < _popup_stack.size():
+		_remember_closing_popups(keep_index + 1)
 		_close_popups_from(keep_index + 1)
+
+
+func _remember_closing_popups(index: int) -> void:
+	for popup_index in range(index, _popup_stack.size()):
+		var popup: FGUIObject = _popup_stack[popup_index]
+		if popup != null and not _just_closed_popups.has(popup):
+			_just_closed_popups.append(popup)
+
+
+func _clear_just_closed_popups() -> void:
+	_just_closed_popups.clear()
 
 
 func _close_popups_from(index: int) -> void:

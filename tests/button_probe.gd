@@ -8,8 +8,12 @@ func _initialize() -> void:
 	ui_root.set_size(200.0, 100.0)
 	host.add_child(ui_root.node)
 	var button := FGUIButton.new()
+	button.set_size(100.0, 20.0)
 	button.mode = FGUIEnums.BUTTON_CHECK
 	button._button_controller = _make_button_controller(button)
+	var title := FGUITextField.new()
+	button.add_child(title)
+	button._title_object = title
 	ui_root.add_child(button)
 	button.selected = true
 	if button._button_controller.selected_page != FGUIButton.DOWN:
@@ -51,6 +55,34 @@ func _initialize() -> void:
 	button._on_gui_input(_screen_touch(Vector2(5.0, 5.0), true))
 	if popup.parent != null:
 		_fail("Linked button popups were not hidden on a second pointer press.")
+		return
+	if ui_root.has_any_popup():
+		_fail("Linked button popup closure left a stale popup stack entry.")
+		return
+	button._on_gui_input(_screen_touch(Vector2(5.0, 5.0), false))
+
+	button.set_prop(FGUIEnums.OBJECT_PROP_OUTLINE_COLOR, Color("aa2200"))
+	if button.get_prop(FGUIEnums.OBJECT_PROP_OUTLINE_COLOR) != Color("aa2200"):
+		_fail("Button outline properties were not forwarded to the title field.")
+		return
+	var click_count := [0]
+	var fire_states: Array[String] = []
+	button._button_controller.on(FGUIEvents.STATE_CHANGED, func(_controller: FGUIController) -> void: fire_states.append(button._button_controller.selected_page))
+	button.on("click", func(_event: Variant = null) -> void: click_count[0] += 1)
+	button.fire_click()
+	if button._button_controller.selected_page != FGUIButton.OVER or click_count[0] != 1:
+		_fail("Button fire_click did not begin its programmatic down effect and dispatch a click.")
+		return
+	var waited := 0.0
+	while button._button_controller.selected_page != FGUIButton.UP and waited < 1.0:
+		await create_timer(0.05).timeout
+		waited += 0.05
+	if button._button_controller.selected_page != FGUIButton.UP or not fire_states.has(FGUIButton.DOWN) or not fire_states.has(FGUIButton.UP):
+		_fail("Button fire_click did not complete the delayed Over/Down/Up state sequence: %s" % [fire_states])
+		return
+	button.fire_click(false)
+	if button._button_controller.selected_page != FGUIButton.UP or click_count[0] != 2:
+		_fail("Button fire_click(false) incorrectly applied a visual effect or missed the click.")
 		return
 
 	popup.dispose()
