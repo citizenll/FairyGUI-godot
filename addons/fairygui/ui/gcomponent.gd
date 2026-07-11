@@ -438,6 +438,15 @@ func hit_test(view_point: Vector2, force_test: bool = false) -> FGUIObject:
 	return self
 
 
+func _accepts_native_input_at(local_point: Vector2) -> bool:
+	if node == null or not Rect2(Vector2.ZERO, Vector2(width, height)).has_point(local_point):
+		return false
+	var global_point := node.get_global_transform() * local_point
+	if hit_test_child != null and not _contains_hit_test_child(global_point):
+		return false
+	return hit_test(global_point) != null
+
+
 func set_bounds_changed_flag() -> void:
 	if scroll_pane == null and not track_bounds:
 		return

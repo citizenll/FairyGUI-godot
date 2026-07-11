@@ -41,6 +41,15 @@ var _reversed_mask_material: ShaderMaterial
 var _white_texture: ImageTexture
 
 
+func _has_point(point: Vector2) -> bool:
+	if not has_meta("fgui_owner"):
+		return Rect2(Vector2.ZERO, size).has_point(point)
+	var owner := get_meta("fgui_owner")
+	if owner != null and owner.has_method("_accepts_native_input_at"):
+		return bool(owner.call("_accepts_native_input_at", point))
+	return Rect2(Vector2.ZERO, size).has_point(point)
+
+
 func set_mask(value: FGUIObject, reversed: bool = false) -> void:
 	if mask_object == value and reversed_mask == reversed:
 		return

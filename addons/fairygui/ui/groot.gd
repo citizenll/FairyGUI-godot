@@ -53,6 +53,10 @@ var focus: FGUIObject:
 				value.node.call_deferred("grab_focus")
 
 
+func _accepts_native_input_at(local_point: Vector2) -> bool:
+	return Rect2(Vector2.ZERO, Vector2(width, height)).has_point(local_point)
+
+
 func _init() -> void:
 	super._init()
 	inst = self
