@@ -7,6 +7,7 @@ var storage: Dictionary = {}
 
 func init() -> void:
 	default_value = int(owner.get_prop(FGUIEnums.OBJECT_PROP_FONT_SIZE))
+	storage.clear()
 
 
 func add_status(page_id: Variant, buffer: FGUIByteBuffer) -> void:
@@ -18,9 +19,10 @@ func add_status(page_id: Variant, buffer: FGUIByteBuffer) -> void:
 
 
 func apply() -> void:
+	owner._gear_locked = true
 	owner.set_prop(FGUIEnums.OBJECT_PROP_FONT_SIZE, storage.get(_active_page_id(), default_value))
+	owner._gear_locked = false
 
 
 func update_state() -> void:
 	storage[_active_page_id()] = int(owner.get_prop(FGUIEnums.OBJECT_PROP_FONT_SIZE))
-

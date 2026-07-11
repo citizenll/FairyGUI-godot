@@ -7,6 +7,7 @@ var storage: Dictionary = {}
 
 func init() -> void:
 	default_value = owner.get_text()
+	storage.clear()
 
 
 func add_status(page_id: Variant, buffer: FGUIByteBuffer) -> void:
@@ -18,9 +19,10 @@ func add_status(page_id: Variant, buffer: FGUIByteBuffer) -> void:
 
 
 func apply() -> void:
+	owner._gear_locked = true
 	owner.set_text(storage.get(_active_page_id(), default_value))
+	owner._gear_locked = false
 
 
 func update_state() -> void:
 	storage[_active_page_id()] = owner.get_text()
-

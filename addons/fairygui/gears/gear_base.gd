@@ -1,9 +1,29 @@
 class_name FGUIGearBase
 extends RefCounted
 
+static var disable_all_tween_effect: bool = false
+
 var owner: FGUIObject
-var controller: FGUIController
-var tween_config: Dictionary = {"tween": false, "ease_type": FGUIEaseType.QUAD_OUT, "duration": 0.3, "delay": 0.0, "custom_ease": null}
+var _controller: FGUIController
+var controller: FGUIController:
+	get:
+		return _controller
+	set(value):
+		if _controller == value:
+			return
+		_cancel_tween(false)
+		_controller = value
+		if _controller != null:
+			init()
+var tween_config: Dictionary = {
+	"tween": false,
+	"ease_type": FGUIEaseType.QUAD_OUT,
+	"duration": 0.3,
+	"delay": 0.0,
+	"custom_ease": null,
+	"display_lock_token": 0,
+	"tweener": null,
+}
 
 
 static func create(owner: FGUIObject, index: int) -> FGUIGearBase:
@@ -37,7 +57,8 @@ func _init(p_owner: FGUIObject = null) -> void:
 
 
 func dispose() -> void:
-	controller = null
+	_cancel_tween(false)
+	_controller = null
 	owner = null
 	tween_config.clear()
 
@@ -46,7 +67,6 @@ func setup(buffer: FGUIByteBuffer) -> void:
 	var controller_index := buffer.read_i16()
 	if controller_index >= 0 and owner != null and owner.parent != null:
 		controller = owner.parent.get_controller_at(controller_index)
-	init()
 	var count := buffer.read_i16()
 	if self is FGUIGearDisplay or self is FGUIGearDisplay2:
 		var page_ids := buffer.read_s_array(count)
@@ -102,6 +122,51 @@ func apply() -> void:
 
 func update_state() -> void:
 	pass
+
+
+func _can_tween() -> bool:
+	return owner != null and bool(tween_config.get("tween", false)) and FGUIPackage.constructing == 0 and not disable_all_tween_effect
+
+
+func _active_tweener() -> FGUIGTweener:
+	return tween_config.get("tweener") as FGUIGTweener
+
+
+func _start_tween(tweener: FGUIGTweener) -> FGUIGTweener:
+	if tweener == null:
+		return null
+	if owner != null and owner.check_gear_controller(0, controller):
+		tween_config["display_lock_token"] = owner.add_display_lock()
+	tween_config["tweener"] = tweener
+	return tweener.set_delay(float(tween_config.get("delay", 0.0))).set_ease(
+		int(tween_config.get("ease_type", FGUIEaseType.QUAD_OUT)),
+		tween_config.get("custom_ease") as FGUICustomEase
+	).set_target(self)
+
+
+func _cancel_tween(set_to_complete: bool) -> void:
+	var tweener := _active_tweener()
+	if tweener != null:
+		tweener.kill(set_to_complete)
+		if _active_tweener() == tweener:
+			tween_config["tweener"] = null
+			_release_display_lock()
+
+
+func _finish_tween(tweener: FGUIGTweener) -> void:
+	if _active_tweener() != tweener:
+		return
+	tween_config["tweener"] = null
+	_release_display_lock()
+	if owner != null and not owner.is_disposed:
+		owner.emit_event(FGUIEvents.GEAR_STOP, self)
+
+
+func _release_display_lock() -> void:
+	var token := int(tween_config.get("display_lock_token", 0))
+	tween_config["display_lock_token"] = 0
+	if token != 0 and owner != null and not owner.is_disposed:
+		owner.release_display_lock(token)
 
 
 func _read_custom_ease_path(buffer: FGUIByteBuffer) -> FGUIGPath:

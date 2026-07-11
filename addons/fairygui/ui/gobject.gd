@@ -668,7 +668,10 @@ func release_display_lock(token: int) -> void:
 
 func handle_controller_changed(controller: FGUIController) -> void:
 	_handling_controller = true
-	for gear in _gears.values():
+	var gear_indices := _gears.keys()
+	gear_indices.sort()
+	for index in gear_indices:
+		var gear: FGUIGearBase = _gears[index]
 		if gear.controller == controller:
 			gear.apply()
 	_handling_controller = false
