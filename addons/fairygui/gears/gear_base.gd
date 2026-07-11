@@ -106,6 +106,14 @@ func setup(buffer: FGUIByteBuffer) -> void:
 			var custom_ease := FGUICustomEase.new()
 			custom_ease.create_from_path(custom_path)
 			tween_config["custom_ease"] = custom_ease
+	if buffer.version >= 6 and self is FGUIGearAnimation:
+		var animation_gear := self as FGUIGearAnimation
+		for index in count:
+			var page_id = buffer.read_s()
+			if page_id != null:
+				animation_gear.add_ext_status(page_id, buffer)
+		if buffer.read_bool():
+			animation_gear.add_ext_status(null, buffer)
 
 
 func init() -> void:

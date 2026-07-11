@@ -30,6 +30,11 @@ var _bounds_update_queued: bool = false
 var _content_node: Control
 var _sorting_child_count: int = 0
 var _applying_controller: FGUIController
+var _configured_click_sound: Variant = null
+var _configured_click_sound_volume: float = 1.0
+var _configured_click_sound_bound: bool = false
+var _added_to_stage_sound: String = ""
+var _removed_from_stage_sound: String = ""
 
 var display_list_container: Control:
 	get:
@@ -115,6 +120,9 @@ func dispose() -> void:
 		scroll_pane = null
 	_content_node = null
 	super.dispose()
+	_configured_click_sound = null
+	_added_to_stage_sound = ""
+	_removed_from_stage_sound = ""
 
 
 func add_child_at(child: FGUIObject, index: int) -> FGUIObject:
@@ -745,6 +753,9 @@ func _setup_component_metadata(buffer: FGUIByteBuffer, content_item: FGUIPackage
 				pixel_hit_test.scale_y = height / source_height
 	elif hit_offset_x != 0 and child_hit_index != -1:
 		hit_test_child = get_child_at(child_hit_index)
+	if buffer.version >= 5:
+		_added_to_stage_sound = _string_or_empty(buffer.read_s())
+		_removed_from_stage_sound = _string_or_empty(buffer.read_s())
 
 
 func _setup_transitions(buffer: FGUIByteBuffer) -> void:
@@ -764,11 +775,33 @@ func _setup_transitions(buffer: FGUIByteBuffer) -> void:
 func _on_component_entered_tree() -> void:
 	for transition: FGUITransition in transitions:
 		transition.on_owner_added_to_stage()
+	_play_configured_sound(_added_to_stage_sound, 1.0)
 
 
 func _on_component_exiting_tree() -> void:
 	for transition: FGUITransition in transitions:
 		transition.on_owner_removed_from_stage()
+	_play_configured_sound(_removed_from_stage_sound, 1.0)
+
+
+func _set_click_sound(sound: Variant, volume_scale: float = 1.0) -> void:
+	_configured_click_sound = null if sound == null or str(sound) == "" else sound
+	_configured_click_sound_volume = volume_scale
+	if not _configured_click_sound_bound:
+		_configured_click_sound_bound = true
+		on("click", Callable(self, "_play_configured_click_sound"))
+
+
+func _play_configured_click_sound(_event: Variant = null) -> void:
+	_play_configured_sound(_configured_click_sound, _configured_click_sound_volume)
+
+
+func _play_configured_sound(sound: Variant, volume_scale: float) -> void:
+	if sound == null or str(sound) == "":
+		return
+	var root_object := root
+	if root_object != null:
+		root_object.play_one_shot_sound(sound, volume_scale)
 
 
 func _skip_relation_block(buffer: FGUIByteBuffer) -> void:

@@ -136,4 +136,8 @@ func setup_after_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 		max = buffer.read_i32()
 		if buffer.version >= 2:
 			min = buffer.read_i32()
+		if buffer.version >= 5:
+			var click_sound = buffer.read_s()
+			var click_sound_volume := buffer.read_float32()
+			_set_click_sound(click_sound, click_sound_volume)
 	update(_value)

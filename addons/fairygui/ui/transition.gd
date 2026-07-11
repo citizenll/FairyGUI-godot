@@ -866,6 +866,12 @@ func _apply_value(item: Dictionary, source_value: Dictionary) -> void:
 				target.set_prop(FGUIEnums.OBJECT_PROP_FRAME, int(value["frame"]))
 			target.set_prop(FGUIEnums.OBJECT_PROP_PLAYING, bool(value.get("playing", true)))
 			target.set_prop(FGUIEnums.OBJECT_PROP_TIME_SCALE, _time_scale)
+			if target is FGUILoader3D:
+				var loader := target as FGUILoader3D
+				if value.get("animation_name") != null:
+					loader.animation_name = str(value["animation_name"])
+				if value.get("skin_name") != null:
+					loader.skin_name = str(value["skin_name"])
 		ACTION_VISIBLE:
 			target.visible = bool(value.get("visible", true))
 		ACTION_SOUND:
@@ -1074,6 +1080,9 @@ func _decode_value(item: Dictionary, buffer: FGUIByteBuffer, value: Dictionary) 
 		ACTION_ANIMATION:
 			value["playing"] = buffer.read_bool()
 			value["frame"] = buffer.read_i32()
+			if buffer.version >= 6:
+				value["animation_name"] = buffer.read_s()
+				value["skin_name"] = buffer.read_s()
 		ACTION_VISIBLE:
 			value["visible"] = buffer.read_bool()
 		ACTION_SOUND:
@@ -1128,6 +1137,10 @@ func _set_decoded_value_args(type: int, value: Dictionary, args: Array) -> void:
 			value["frame"] = int(args[0])
 			if args[1] != null:
 				value["playing"] = bool(args[1])
+			if args[2] != null:
+				value["animation_name"] = String(args[2])
+			if args[3] != null:
+				value["skin_name"] = String(args[3])
 		ACTION_VISIBLE:
 			value["visible"] = bool(args[0])
 		ACTION_SOUND:

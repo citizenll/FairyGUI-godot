@@ -114,6 +114,10 @@ func setup_after_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 				text_input.password = true
 		else:
 			buffer.skip(13)
+	if buffer.version >= 5:
+		var click_sound = buffer.read_s()
+		var click_sound_volume := buffer.read_float32()
+		_set_click_sound(click_sound, click_sound_volume)
 
 
 func get_prop(index: int) -> Variant:

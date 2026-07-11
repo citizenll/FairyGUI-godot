@@ -189,6 +189,10 @@ func setup_after_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 	var controller_index := buffer.read_i16()
 	if controller_index >= 0 and parent != null:
 		selection_controller = parent.get_controller_at(controller_index)
+	if buffer.version >= 5:
+		var click_sound = buffer.read_s()
+		var click_sound_volume := buffer.read_float32()
+		_set_click_sound(click_sound, click_sound_volume)
 	_items_updated = true
 
 
