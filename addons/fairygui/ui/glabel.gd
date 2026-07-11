@@ -35,6 +35,17 @@ var title_font_size: int:
 		var field := get_text_field()
 		if field != null:
 			field.font_size = value
+var color: Color:
+	get:
+		return title_color
+	set(value):
+		title_color = value
+var editable: bool:
+	get:
+		return (_title_object as FGUITextInput).editable if _title_object is FGUITextInput else false
+	set(value):
+		if _title_object is FGUITextInput:
+			(_title_object as FGUITextInput).editable = value
 
 
 func construct_extension(_buffer: FGUIByteBuffer) -> void:
@@ -83,6 +94,26 @@ func setup_after_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 	var size := buffer.read_i32()
 	if size != 0:
 		title_font_size = size
+	if buffer.read_bool():
+		var input := get_text_field()
+		if input is FGUITextInput:
+			var text_input := input as FGUITextInput
+			var value = buffer.read_s()
+			if value != null:
+				text_input.prompt_text = str(value)
+			value = buffer.read_s()
+			if value != null:
+				text_input.restrict = str(value)
+			var int_value := buffer.read_i32()
+			if int_value != 0:
+				text_input.max_length = int_value
+			int_value = buffer.read_i32()
+			if int_value != 0:
+				text_input.keyboard_type = int_value
+			if buffer.read_bool():
+				text_input.password = true
+		else:
+			buffer.skip(13)
 
 
 func get_prop(index: int) -> Variant:
@@ -93,6 +124,9 @@ func get_prop(index: int) -> Variant:
 			return icon
 		FGUIEnums.OBJECT_PROP_COLOR:
 			return title_color
+		FGUIEnums.OBJECT_PROP_OUTLINE_COLOR:
+			var field := get_text_field()
+			return field.stroke_color if field != null else Color.BLACK
 		FGUIEnums.OBJECT_PROP_FONT_SIZE:
 			return title_font_size
 		_:
@@ -108,6 +142,10 @@ func set_prop(index: int, value: Variant) -> void:
 		FGUIEnums.OBJECT_PROP_COLOR:
 			if value is Color:
 				title_color = value
+		FGUIEnums.OBJECT_PROP_OUTLINE_COLOR:
+			var field := get_text_field()
+			if field != null and value is Color:
+				field.stroke_color = value
 		FGUIEnums.OBJECT_PROP_FONT_SIZE:
 			title_font_size = int(value)
 		_:
