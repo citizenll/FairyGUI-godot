@@ -214,6 +214,121 @@ func _initialize() -> void:
 		return
 	explicit_item_size_row.dispose()
 
+	var visibility_virtual := _create_virtual_list(
+		host,
+		Vector2(60.0, 20.0),
+		FGUIEnums.SCROLL_HORIZONTAL,
+		FGUIEnums.LIST_LAYOUT_SINGLE_ROW,
+		Vector2(20.0, 20.0)
+	)
+	visibility_virtual.auto_resize_item = false
+	visibility_virtual.set_virtual()
+	visibility_virtual.num_items = 10
+	await process_frame
+	visibility_virtual.scroll_to_view(2)
+	if absf(visibility_virtual.scroll_pane.pos_x) > 0.1:
+		_fail("Virtual list scroll_to_view moved an already visible item.")
+		return
+	visibility_virtual.scroll_to_view(3)
+	if absf(visibility_virtual.scroll_pane.pos_x - 20.0) > 0.1:
+		_fail("Virtual list scroll_to_view did not use the minimum scroll distance.")
+		return
+	visibility_virtual.scroll_to_view(4, false, true)
+	if absf(visibility_virtual.scroll_pane.pos_x - 80.0) > 0.1:
+		_fail("Virtual list scroll_to_view ignored set_first alignment.")
+		return
+	visibility_virtual.dispose()
+
+	var auto_column := _create_virtual_list(
+		host,
+		Vector2(100.0, 60.0),
+		FGUIEnums.SCROLL_VERTICAL,
+		FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN,
+		Vector2(40.0, 20.0)
+	)
+	auto_column.set_virtual()
+	auto_column.num_items = 2
+	await process_frame
+	if absf(auto_column.get_child_at(0).width - 100.0) > 0.1 or absf(auto_column.scroll_pane.content_width - 100.0) > 0.1:
+		_fail("Virtual single-column auto_resize_item did not fill the viewport width.")
+		return
+	auto_column.dispose()
+
+	var auto_row := _create_virtual_list(
+		host,
+		Vector2(100.0, 60.0),
+		FGUIEnums.SCROLL_HORIZONTAL,
+		FGUIEnums.LIST_LAYOUT_SINGLE_ROW,
+		Vector2(30.0, 20.0)
+	)
+	auto_row.set_virtual()
+	auto_row.num_items = 2
+	await process_frame
+	if absf(auto_row.get_child_at(0).height - 60.0) > 0.1 or absf(auto_row.scroll_pane.content_height - 60.0) > 0.1:
+		_fail("Virtual single-row auto_resize_item did not fill the viewport height.")
+		return
+	auto_row.dispose()
+
+	var auto_flow_horizontal := _create_virtual_list(
+		host,
+		Vector2(100.0, 50.0),
+		FGUIEnums.SCROLL_VERTICAL,
+		FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL,
+		Vector2(30.0, 20.0)
+	)
+	auto_flow_horizontal.column_gap = 4
+	auto_flow_horizontal.column_count = 2
+	auto_flow_horizontal.set_virtual()
+	auto_flow_horizontal.num_items = 4
+	await process_frame
+	if absf(auto_flow_horizontal.get_child_at(0).width - 48.0) > 0.1 or absf(auto_flow_horizontal.scroll_pane.content_width - 100.0) > 0.1:
+		_fail("Virtual flow-horizontal auto_resize_item did not distribute column widths.")
+		return
+	if not _expect_item_position(auto_flow_horizontal, 1, Vector2(52.0, 0.0), "auto-sized flow-horizontal item"):
+		return
+	auto_flow_horizontal.dispose()
+
+	var auto_flow_vertical := _create_virtual_list(
+		host,
+		Vector2(50.0, 60.0),
+		FGUIEnums.SCROLL_HORIZONTAL,
+		FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL,
+		Vector2(30.0, 20.0)
+	)
+	auto_flow_vertical.line_gap = 2
+	auto_flow_vertical.line_count = 2
+	auto_flow_vertical.set_virtual()
+	auto_flow_vertical.num_items = 4
+	await process_frame
+	if absf(auto_flow_vertical.get_child_at(0).height - 29.0) > 0.1 or absf(auto_flow_vertical.scroll_pane.content_height - 60.0) > 0.1:
+		_fail("Virtual flow-vertical auto_resize_item did not distribute row heights.")
+		return
+	if not _expect_item_position(auto_flow_vertical, 1, Vector2(0.0, 31.0), "auto-sized flow-vertical item"):
+		return
+	auto_flow_vertical.dispose()
+
+	var auto_pagination := _create_virtual_list(
+		host,
+		Vector2(100.0, 60.0),
+		FGUIEnums.SCROLL_HORIZONTAL,
+		FGUIEnums.LIST_LAYOUT_PAGINATION,
+		Vector2(30.0, 20.0)
+	)
+	auto_pagination.column_gap = 4
+	auto_pagination.line_gap = 2
+	auto_pagination.column_count = 2
+	auto_pagination.line_count = 2
+	auto_pagination.set_virtual()
+	auto_pagination.num_items = 4
+	await process_frame
+	var auto_pagination_item := auto_pagination.get_child_at(0)
+	if not Vector2(auto_pagination_item.width, auto_pagination_item.height).is_equal_approx(Vector2(48.0, 29.0)):
+		_fail("Virtual pagination auto_resize_item did not distribute its page cells.")
+		return
+	if not _expect_item_position(auto_pagination, 3, Vector2(52.0, 31.0), "auto-sized pagination item"):
+		return
+	auto_pagination.dispose()
+
 	var large_variable_column := _create_virtual_list(
 		host,
 		Vector2(100.0, 100.0),
@@ -249,6 +364,7 @@ func _initialize() -> void:
 	flow_horizontal.column_gap = 5
 	flow_horizontal.line_gap = 4
 	flow_horizontal.column_count = 2
+	flow_horizontal.auto_resize_item = false
 	flow_horizontal.set_virtual()
 	flow_horizontal.num_items = 5
 	await process_frame
@@ -283,6 +399,7 @@ func _initialize() -> void:
 	flow_vertical.column_gap = 4
 	flow_vertical.line_gap = 3
 	flow_vertical.line_count = 2
+	flow_vertical.auto_resize_item = false
 	flow_vertical.set_virtual()
 	flow_vertical.num_items = 5
 	await process_frame
@@ -318,6 +435,7 @@ func _initialize() -> void:
 	pagination.line_gap = 3
 	pagination.column_count = 3
 	pagination.line_count = 2
+	pagination.auto_resize_item = false
 	pagination.set_virtual()
 	pagination.num_items = 7
 	await process_frame
@@ -351,6 +469,7 @@ func _initialize() -> void:
 	looping_pagination.line_gap = 3
 	looping_pagination.column_count = 3
 	looping_pagination.line_count = 2
+	looping_pagination.auto_resize_item = false
 	looping_pagination.set_virtual_and_loop()
 	looping_pagination.num_items = 12
 	await process_frame
@@ -396,6 +515,7 @@ func _initialize() -> void:
 	partial_page_loop.line_gap = 3
 	partial_page_loop.column_count = 3
 	partial_page_loop.line_count = 2
+	partial_page_loop.auto_resize_item = false
 	var partial_page_indices: Array[int] = []
 	partial_page_loop.item_provider = func(index: int) -> String:
 		partial_page_indices.append(index)

@@ -433,6 +433,8 @@ func refresh_virtual_list() -> void:
 		var obj := add_item_from_pool(str(url))
 		if obj != null and variable_primary:
 			_apply_cached_virtual_item_size(obj, item_index)
+		if obj != null:
+			_apply_virtual_auto_size(obj, layout_info)
 		if obj != null and item_renderer.is_valid():
 			item_renderer.call(item_index, obj)
 		if obj != null:
@@ -461,14 +463,9 @@ func scroll_to_view(index: int, animated: bool = false, set_first: bool = false)
 			if layout_info.is_empty():
 				return
 			var horizontal := bool(layout_info["horizontal"])
-			var span := float(layout_info["primary_span"])
 			var variable_primary := bool(layout_info.get("variable_primary", false))
 			var physical_index := _nearest_variable_physical_item_index(index, horizontal) if variable_primary else _nearest_physical_item_index(index, layout_info, horizontal)
-			var target_position := _get_virtual_primary_start(physical_index) if variable_primary else floori(float(physical_index) / float(layout_info["items_per_group"])) * span
-			if horizontal:
-				scroll_pane.set_pos(target_position, scroll_pane.pos_y, animated)
-			else:
-				scroll_pane.set_pos(scroll_pane.pos_x, target_position, animated)
+			scroll_pane.scroll_to_view(_get_virtual_item_rect(physical_index, layout_info), animated, set_first)
 		return
 	var obj := get_child_at(index)
 	if scroll_pane != null and obj != null:
@@ -950,6 +947,20 @@ func _get_virtual_layout_info(item_count: int) -> Dictionary:
 	var viewport_height := maxf(1.0, view_height if view_height > 0.0 else height)
 	var cell_width := maxf(1.0, _virtual_item_size.x)
 	var cell_height := maxf(1.0, _virtual_item_size.y)
+	if auto_resize_item:
+		if layout == FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN:
+			cell_width = viewport_width
+		elif layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW:
+			cell_height = viewport_height
+		elif layout == FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL and column_count > 0:
+			cell_width = maxf(1.0, (viewport_width - float(column_gap * (column_count - 1))) / float(column_count))
+		elif layout == FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL and line_count > 0:
+			cell_height = maxf(1.0, (viewport_height - float(line_gap * (line_count - 1))) / float(line_count))
+		elif layout == FGUIEnums.LIST_LAYOUT_PAGINATION:
+			if column_count > 0:
+				cell_width = maxf(1.0, (viewport_width - float(column_gap * (column_count - 1))) / float(column_count))
+			if line_count > 0:
+				cell_height = maxf(1.0, (viewport_height - float(line_gap * (line_count - 1))) / float(line_count))
 	var horizontal_span := maxf(1.0, cell_width + float(column_gap))
 	var vertical_span := maxf(1.0, cell_height + float(line_gap))
 	if _supports_variable_virtual_primary():
@@ -1133,6 +1144,39 @@ func _get_virtual_item_position(physical_index: int, layout_info: Dictionary) ->
 		_:
 			position = Vector2(0.0, float(physical_index) * vertical_span)
 	return position + _align_offset
+
+
+func _get_virtual_item_rect(physical_index: int, layout_info: Dictionary) -> Rect2:
+	var item_index := _physical_to_item_index(physical_index)
+	var item_size := _get_cached_virtual_item_size(item_index) if bool(layout_info.get("variable_primary", false)) else Vector2(float(layout_info["cell_width"]), float(layout_info["cell_height"]))
+	if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW and auto_resize_item:
+		item_size.y = maxf(1.0, view_height)
+	elif layout == FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN and auto_resize_item:
+		item_size.x = maxf(1.0, view_width)
+	return Rect2(_get_virtual_item_position(physical_index, layout_info), item_size)
+
+
+func _apply_virtual_auto_size(obj: FGUIObject, layout_info: Dictionary) -> void:
+	if not auto_resize_item:
+		return
+	var next_size := Vector2(obj.width, obj.height)
+	match layout:
+		FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN:
+			next_size.x = float(layout_info["cell_width"])
+		FGUIEnums.LIST_LAYOUT_SINGLE_ROW:
+			next_size.y = float(layout_info["cell_height"])
+		FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL:
+			if column_count > 0:
+				next_size.x = float(layout_info["cell_width"])
+		FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL:
+			if line_count > 0:
+				next_size.y = float(layout_info["cell_height"])
+		FGUIEnums.LIST_LAYOUT_PAGINATION:
+			if column_count > 0:
+				next_size.x = float(layout_info["cell_width"])
+			if line_count > 0:
+				next_size.y = float(layout_info["cell_height"])
+	obj.set_size(next_size.x, next_size.y, true)
 
 
 func _get_align_offset(content_size: Vector2) -> Vector2:
