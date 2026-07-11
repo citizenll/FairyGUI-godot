@@ -339,6 +339,96 @@ func _initialize() -> void:
 		_fail("Pagination virtual list scroll_to_view did not target the page.")
 		return
 	pagination.dispose()
+
+	var looping_pagination := _create_virtual_list(
+		host,
+		Vector2(100.0, 60.0),
+		FGUIEnums.SCROLL_HORIZONTAL,
+		FGUIEnums.LIST_LAYOUT_PAGINATION,
+		Vector2(30.0, 20.0)
+	)
+	looping_pagination.column_gap = 2
+	looping_pagination.line_gap = 3
+	looping_pagination.column_count = 3
+	looping_pagination.line_count = 2
+	looping_pagination.set_virtual_and_loop()
+	looping_pagination.num_items = 12
+	await process_frame
+	if looping_pagination._virtual_real_num_items != 72 or absf(looping_pagination.scroll_pane.content_width - 1200.0) > 0.1:
+		_fail("Looping pagination did not allocate six physical item copies.")
+		return
+	if absf(looping_pagination.scroll_pane.pos_x - 601.0) > 1.1 or looping_pagination.get_first_child_in_view() != 0:
+		_fail("Looping pagination did not start in the middle logical copy.")
+		return
+	looping_pagination.add_selection(5)
+	var looping_selected_child := looping_pagination.item_index_to_child_index(5)
+	if looping_selected_child < 0 or not (looping_pagination.get_child_at(looping_selected_child) as FGUIButton).selected:
+		_fail("Looping pagination did not preserve visible logical selection.")
+		return
+	looping_pagination.scroll_to_view(11)
+	await process_frame
+	if looping_pagination.item_index_to_child_index(11) < 0:
+		_fail("Looping pagination scroll_to_view did not select a visible physical copy.")
+		return
+	looping_pagination.scroll_pane.set_pos(0.0, 0.0)
+	await process_frame
+	if looping_pagination.scroll_pane.pos_x < 500.0 or looping_pagination.get_first_child_in_view() != 0:
+		_fail("Looping pagination did not recenter from the leading physical pages.")
+		return
+	looping_pagination.scroll_pane.set_pos(looping_pagination.scroll_pane.content_width - looping_pagination.scroll_pane.view_width, 0.0)
+	await process_frame
+	if looping_pagination.scroll_pane.pos_x > 600.0 or looping_pagination.get_first_child_in_view() != 0:
+		_fail("Looping pagination did not recenter from the trailing physical pages.")
+		return
+	if looping_pagination.created_count > 24:
+		_fail("Looping pagination did not recycle page item objects: %s created." % looping_pagination.created_count)
+		return
+	looping_pagination.dispose()
+
+	var partial_page_loop := _create_virtual_list(
+		host,
+		Vector2(100.0, 60.0),
+		FGUIEnums.SCROLL_HORIZONTAL,
+		FGUIEnums.LIST_LAYOUT_PAGINATION,
+		Vector2(30.0, 20.0)
+	)
+	partial_page_loop.column_gap = 2
+	partial_page_loop.line_gap = 3
+	partial_page_loop.column_count = 3
+	partial_page_loop.line_count = 2
+	var partial_page_indices: Array[int] = []
+	partial_page_loop.item_provider = func(index: int) -> String:
+		partial_page_indices.append(index)
+		return ""
+	partial_page_loop.set_virtual_and_loop()
+	partial_page_loop.num_items = 7
+	await process_frame
+	if partial_page_loop._virtual_real_num_items != 42 or absf(partial_page_loop.scroll_pane.content_width - 700.0) > 0.1:
+		_fail("Partial-page looping pagination allocated an incorrect physical list.")
+		return
+	if absf(partial_page_loop.scroll_pane.pos_x - 351.0) > 1.1 or partial_page_loop.get_first_child_in_view() != 4:
+		_fail("Partial-page looping pagination did not preserve its physical page offset.")
+		return
+	for item_index in partial_page_indices:
+		if item_index < 0 or item_index >= partial_page_loop.num_items:
+			_fail("Partial-page looping pagination passed a physical index to its item provider: %s" % item_index)
+			return
+	partial_page_loop.scroll_to_view(0)
+	await process_frame
+	if partial_page_loop.item_index_to_child_index(0) < 0:
+		_fail("Partial-page looping pagination scroll_to_view did not find a visible logical item.")
+		return
+	partial_page_loop.scroll_pane.set_pos(0.0, 0.0)
+	await process_frame
+	if absf(partial_page_loop.scroll_pane.pos_x - 351.0) > 1.1 or partial_page_loop.get_first_child_in_view() != 4:
+		_fail("Partial-page looping pagination did not recenter from its leading boundary.")
+		return
+	partial_page_loop.scroll_pane.set_pos(partial_page_loop.scroll_pane.content_width - partial_page_loop.scroll_pane.view_width, 0.0)
+	await process_frame
+	if absf(partial_page_loop.scroll_pane.pos_x - 249.0) > 1.1 or partial_page_loop.get_first_child_in_view() != 5:
+		_fail("Partial-page looping pagination did not recenter from its trailing boundary.")
+		return
+	partial_page_loop.dispose()
 	host.queue_free()
 	await process_frame
 	quit(0)

@@ -360,8 +360,8 @@ func _set_virtual(loop: bool) -> void:
 	if scroll_pane == null:
 		push_error("FairyGUI virtual list must be scrollable.")
 		return
-	if loop and layout != FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN and layout != FGUIEnums.LIST_LAYOUT_SINGLE_ROW:
-		push_error("FairyGUI loop virtual lists currently require a single-column or single-row layout.")
+	if loop and (layout == FGUIEnums.LIST_LAYOUT_FLOW_HORIZONTAL or layout == FGUIEnums.LIST_LAYOUT_FLOW_VERTICAL):
+		push_error("FairyGUI loop virtual lists do not support FlowHorizontal or FlowVertical layouts.")
 		return
 	_virtual = true
 	_loop = loop
@@ -463,7 +463,7 @@ func scroll_to_view(index: int, animated: bool = false, set_first: bool = false)
 			var horizontal := bool(layout_info["horizontal"])
 			var span := float(layout_info["primary_span"])
 			var variable_primary := bool(layout_info.get("variable_primary", false))
-			var physical_index := _nearest_variable_physical_item_index(index, horizontal) if variable_primary else _nearest_physical_item_index(index, maxf(1.0, span), horizontal)
+			var physical_index := _nearest_variable_physical_item_index(index, horizontal) if variable_primary else _nearest_physical_item_index(index, layout_info, horizontal)
 			var target_position := _get_virtual_primary_start(physical_index) if variable_primary else floori(float(physical_index) / float(layout_info["items_per_group"])) * span
 			if horizontal:
 				scroll_pane.set_pos(target_position, scroll_pane.pos_y, animated)
@@ -1063,10 +1063,12 @@ func _get_virtual_layout_info(item_count: int) -> Dictionary:
 			var rows := line_count if line_count > 0 else maxi(1, int(floorf((viewport_height + float(line_gap)) / vertical_span)))
 			var page_capacity := maxi(1, columns * rows)
 			var page_count := maxi(1, int(ceilf(float(item_count) / float(page_capacity))))
+			var loop_segment_span := (float(page_count) * viewport_width + float(column_gap)) / 6.0 if _loop else 0.0
 			return {
 				"layout": layout,
 				"horizontal": true,
 				"primary_span": viewport_width,
+				"loop_segment_span": loop_segment_span,
 				"items_per_group": page_capacity,
 				"group_count": page_count,
 				"view_primary": viewport_width,
@@ -1165,15 +1167,18 @@ func _physical_to_item_index(physical_index: int) -> int:
 	return physical_index % _num_items if _loop else physical_index
 
 
-func _nearest_physical_item_index(item_index: int, span: float, horizontal: bool) -> int:
+func _nearest_physical_item_index(item_index: int, layout_info: Dictionary, horizontal: bool) -> int:
 	if not _loop or _num_items <= 0:
 		return item_index
 	var scroll_pos := scroll_pane.pos_x if horizontal else scroll_pane.pos_y
+	var span := maxf(1.0, float(layout_info["primary_span"]))
+	var items_per_group := maxi(1, int(layout_info["items_per_group"]))
 	var nearest := item_index
 	var nearest_distance := INF
 	for copy_index in 6:
 		var physical_index := item_index + copy_index * _num_items
-		var distance := absf(physical_index * span - scroll_pos)
+		var primary_start := float(physical_index / items_per_group) * span
+		var distance := absf(primary_start - scroll_pos)
 		if distance < nearest_distance:
 			nearest = physical_index
 			nearest_distance = distance
