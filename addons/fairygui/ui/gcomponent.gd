@@ -466,13 +466,23 @@ func _update_bounds_deferred() -> void:
 
 
 func update_bounds() -> void:
-	_bounds_changed = false
+	var min_pos := Vector2.ZERO
 	var max_pos := Vector2.ZERO
-	for child: FGUIObject in children:
-		max_pos.x = maxf(max_pos.x, child.x + child.width * absf(child._scale.x))
-		max_pos.y = maxf(max_pos.y, child.y + child.height * absf(child._scale.y))
+	if not children.is_empty():
+		min_pos = Vector2(INF, INF)
+		max_pos = Vector2(-INF, -INF)
+		for child: FGUIObject in children:
+			min_pos.x = minf(min_pos.x, child.x)
+			min_pos.y = minf(min_pos.y, child.y)
+			max_pos.x = maxf(max_pos.x, child.x + child.actual_width)
+			max_pos.y = maxf(max_pos.y, child.y + child.actual_height)
+	set_bounds(min_pos.x, min_pos.y, max_pos.x - min_pos.x, max_pos.y - min_pos.y)
+
+
+func set_bounds(x: float, y: float, bounds_width: float, bounds_height: float) -> void:
+	_bounds_changed = false
 	if scroll_pane != null:
-		scroll_pane.set_content_size(max_pos.x, max_pos.y)
+		scroll_pane.set_content_size(roundf(x + bounds_width), roundf(y + bounds_height))
 
 
 func child_sorting_order_changed(child: FGUIObject, old_value: int, new_value: int) -> void:

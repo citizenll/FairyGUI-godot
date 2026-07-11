@@ -278,6 +278,46 @@ func _initialize() -> void:
 	if absf(api_pane.scrolling_pos_x - 60.0) > 1.5 or absf(api_pane.scrolling_pos_y - 80.0) > 1.5 or api_pane.hz_scroll_bar != api_pane.horizontal_scroll_bar or api_pane.vt_scroll_bar != api_pane.vertical_scroll_bar:
 		_fail("ScrollPane axis accessors did not expose the native scroll state.")
 		return
+	api_pane.set_content_size(300.0, 300.0)
+	api_pane.set_pos(200.0, 200.0)
+	api_pane.change_content_size_on_scrolling(100.0, 100.0, 0.0, 0.0)
+	if absf(api_pane.pos_x - 300.0) > 1.5 or absf(api_pane.pos_y - 300.0) > 1.5:
+		_fail("ScrollPane dynamic content growth did not keep a trailing-edge position attached.")
+		return
+	api_pane.set_pos(100.0, 100.0)
+	api_pane.change_content_size_on_scrolling(50.0, 50.0, 20.0, 15.0)
+	if absf(api_pane.pos_x - 100.0) > 1.5 or absf(api_pane.pos_y - 100.0) > 1.5:
+		_fail("ScrollPane dynamic content growth shifted an idle non-edge position.")
+		return
+	api_pane._pointer_dragging = true
+	api_pane._last_drag_scroll_position = Vector2(100.0, 100.0)
+	api_pane.change_content_size_on_scrolling(50.0, 50.0, 25.0, 30.0)
+	api_pane._pointer_dragging = false
+	if absf(api_pane.pos_x - 125.0) > 1.5 or absf(api_pane.pos_y - 130.0) > 1.5 or not api_pane._last_drag_scroll_position.is_equal_approx(Vector2(125.0, 130.0)):
+		_fail("ScrollPane dynamic content growth did not compensate an active drag.")
+		return
+	api_pane.set_content_size(300.0, 100.0)
+	api_pane.set_pos(0.0, 0.0)
+	api_pane.set_pos(200.0, 0.0, true)
+	await create_timer(0.04).timeout
+	api_pane.change_content_size_on_scrolling(100.0, 0.0, 0.0, 0.0)
+	await create_timer(0.35).timeout
+	if absf(api_pane.pos_x - 300.0) > 1.5:
+		_fail("ScrollPane dynamic content growth did not retarget a trailing-edge animation: %s" % api_pane.pos_x)
+		return
+	api_pane.set_content_size(500.0, 100.0)
+	api_pane.set_pos(100.0, 0.0)
+	api_pane._start_scroll_tween(Vector2(250.0, 0.0), 0.2, true)
+	await create_timer(0.03).timeout
+	api_pane.change_content_size_on_scrolling(50.0, 0.0, 30.0, 0.0)
+	await create_timer(0.25).timeout
+	if absf(api_pane.pos_x - 280.0) > 1.5:
+		_fail("ScrollPane dynamic content growth did not preserve an inertia target: %s" % api_pane.pos_x)
+		return
+	api_owner.set_bounds(-20.0, -10.0, 140.0, 90.0)
+	if absf(api_pane.content_width - 120.0) > 0.1 or absf(api_pane.content_height - 80.0) > 0.1:
+		_fail("Component set_bounds did not publish the rounded content extent to its ScrollPane.")
+		return
 	api_pane._begin_pull_gesture(Vector2.ZERO, -1)
 	api_pane._track_pull_gesture(Vector2(10.0, 0.0))
 	if not api_pane.is_dragged:

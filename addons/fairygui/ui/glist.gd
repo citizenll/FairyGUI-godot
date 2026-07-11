@@ -69,6 +69,8 @@ var _virtual_primary_total: float = 0.0
 var _virtual_cross_size: float = 0.0
 var _virtual_size_layout_dirty: bool = true
 var _virtual_size_refresh_queued: bool = false
+var _virtual_size_content_refresh_pending: bool = false
+var _virtual_pending_primary_shift: float = 0.0
 var _virtual_first_index: int = 0
 var _virtual_real_num_items: int = 0
 var _virtual_loop_position_initialized: bool = false
@@ -397,6 +399,10 @@ func refresh_virtual_list() -> void:
 	if _refreshing_virtual:
 		return
 	_refreshing_virtual = true
+	var adjust_content_while_scrolling := _virtual_size_content_refresh_pending
+	var pending_primary_shift := _virtual_pending_primary_shift
+	_virtual_size_content_refresh_pending = false
+	_virtual_pending_primary_shift = 0.0
 	remove_children_to_pool()
 	if _num_items <= 0:
 		_virtual_real_num_items = 0
@@ -420,11 +426,22 @@ func refresh_virtual_list() -> void:
 	var span := float(layout_info["primary_span"])
 	var variable_primary := bool(layout_info.get("variable_primary", false))
 	if scroll_pane != null:
-		scroll_pane.set_content_size(float(layout_info["content_width"]), float(layout_info["content_height"]))
+		var next_content_width := float(layout_info["content_width"])
+		var next_content_height := float(layout_info["content_height"])
+		if adjust_content_while_scrolling:
+			scroll_pane.change_content_size_on_scrolling(
+				next_content_width - scroll_pane.content_width,
+				next_content_height - scroll_pane.content_height,
+				pending_primary_shift if horizontal else 0.0,
+				pending_primary_shift if not horizontal else 0.0
+			)
+		else:
+			scroll_pane.set_content_size(next_content_width, next_content_height)
 		if _loop:
 			_update_virtual_loop_position(horizontal, float(layout_info.get("loop_segment_span", float(_num_items) * span)))
 	var scroll_pos := scroll_pane.pos_x if horizontal and scroll_pane != null else (scroll_pane.pos_y if scroll_pane != null else 0.0)
 	var visible_count: int
+	var previous_first_index := _virtual_first_index
 	if variable_primary:
 		_virtual_first_index = _get_virtual_first_physical_index(scroll_pos)
 		visible_count = _get_variable_visible_count(_virtual_first_index, scroll_pos, float(layout_info["view_primary"]))
@@ -447,8 +464,12 @@ func refresh_virtual_list() -> void:
 		if obj != null and item_renderer.is_valid():
 			item_renderer.call(item_index, obj)
 		if obj != null:
-			if variable_primary and _record_virtual_item_size(item_index, obj):
-				item_sizes_changed = true
+			if variable_primary:
+				var previous_size := _get_cached_virtual_item_size(item_index)
+				if _record_virtual_item_size(item_index, obj):
+					item_sizes_changed = true
+					if physical_index == _virtual_first_index and previous_first_index > _virtual_first_index:
+						_virtual_pending_primary_shift += (obj.width - previous_size.x) if horizontal else (obj.height - previous_size.y)
 			obj.data = item_index
 			if obj is FGUIButton:
 				obj.selected = _selected_indices.has(item_index)
@@ -871,6 +892,12 @@ func _queue_virtual_size_refresh() -> void:
 func _refresh_virtual_after_size_change() -> void:
 	_virtual_size_refresh_queued = false
 	if _virtual:
+		_virtual_size_content_refresh_pending = scroll_pane != null and (
+			scroll_pane._pointer_dragging
+			or scroll_pane._scroll_tween != null
+			or scroll_pane.pos_x > 0.5
+			or scroll_pane.pos_y > 0.5
+		)
 		refresh_virtual_list()
 
 

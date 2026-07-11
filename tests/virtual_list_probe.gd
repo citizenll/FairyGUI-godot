@@ -147,6 +147,9 @@ func _initialize() -> void:
 	if absf(variable_column.scroll_pane.content_height - 126.0) > 0.1:
 		_fail("Variable-height virtual column list content size is incorrect: %s" % variable_column.scroll_pane.content_height)
 		return
+	if variable_column.scroll_pane.pos_y > 0.1:
+		_fail("Initial variable-height measurement unexpectedly moved the list to its trailing edge.")
+		return
 	if not _expect_item_position(variable_column, 1, Vector2(0.0, 22.0), "variable column item 1"):
 		return
 	if not _expect_item_position(variable_column, 2, Vector2(0.0, 59.0), "variable column item 2"):
@@ -164,6 +167,40 @@ func _initialize() -> void:
 		_fail("Variable-height virtual column list did not use cached item positions for scroll_to_view.")
 		return
 	variable_column.dispose()
+
+	var anchored_column := _create_virtual_list(
+		host,
+		Vector2(100.0, 60.0),
+		FGUIEnums.SCROLL_VERTICAL,
+		FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN,
+		Vector2(50.0, 20.0)
+	)
+	anchored_column.auto_resize_item = false
+	var anchored_heights: Array[float] = []
+	anchored_heights.resize(20)
+	anchored_heights.fill(20.0)
+	anchored_column.item_renderer = func(index: int, item: FGUIObject) -> void:
+		item.set_size(50.0, anchored_heights[index])
+	anchored_column.set_virtual()
+	anchored_column.num_items = anchored_heights.size()
+	await process_frame
+	await process_frame
+	anchored_column.scroll_pane.set_pos(0.0, 100.0)
+	await process_frame
+	anchored_heights[4] = 40.0
+	anchored_column.scroll_pane._pointer_dragging = true
+	anchored_column.scroll_pane._last_drag_scroll_position = Vector2(0.0, 100.0)
+	anchored_column.scroll_pane.set_pos(0.0, 80.0)
+	await process_frame
+	await process_frame
+	anchored_column.scroll_pane._pointer_dragging = false
+	if absf(anchored_column.scroll_pane.pos_y - 100.0) > 1.5 or absf(anchored_column.scroll_pane.content_height - 420.0) > 0.1:
+		_fail("Variable-height virtual list did not compensate a newly measured leading item: pos=%s height=%s" % [anchored_column.scroll_pane.pos_y, anchored_column.scroll_pane.content_height])
+		return
+	if anchored_column.get_first_child_in_view() != 4:
+		_fail("Variable-height virtual list lost its leading logical item after size compensation.")
+		return
+	anchored_column.dispose()
 
 	var variable_loop_row := _create_virtual_list(
 		host,

@@ -53,6 +53,10 @@ var _pull_down_distance: float = 0.0
 var _pull_up_distance: float = 0.0
 var _scroll_tween: Tween
 var _tweening_scroll: bool = false
+var _scroll_tween_target := Vector2.ZERO
+var _scroll_tween_duration: float = 0.0
+var _scroll_tween_started_at_ms: int = 0
+var _scroll_tween_inertia: bool = false
 var _elastic_offset := Vector2.ZERO
 var _elastic_tween: Tween
 
@@ -186,6 +190,57 @@ func setup(buffer: FGUIByteBuffer) -> void:
 
 
 func set_content_size(width: float, height: float) -> void:
+	var current := Vector2(pos_x, pos_y)
+	_apply_content_size(width, height)
+	set_pos(current.x, current.y)
+
+
+func change_content_size_on_scrolling(delta_width: float, delta_height: float, delta_pos_x: float, delta_pos_y: float) -> void:
+	if is_zero_approx(delta_width) and is_zero_approx(delta_height) and is_zero_approx(delta_pos_x) and is_zero_approx(delta_pos_y):
+		return
+	var old_max := Vector2(maxf(0.0, content_width - view_width), maxf(0.0, content_height - view_height))
+	var current := Vector2(pos_x, pos_y)
+	var was_rightmost := current.x >= old_max.x - 0.5
+	var was_bottom := current.y >= old_max.y - 0.5
+	var tween_active := _scroll_tween != null and is_instance_valid(_scroll_tween)
+	var tween_target := _scroll_tween_target
+	var tween_inertia := _scroll_tween_inertia
+	var tween_remaining := _scroll_tween_duration
+	var target_was_rightmost := tween_target.x >= old_max.x - 0.5
+	var target_was_bottom := tween_target.y >= old_max.y - 0.5
+	if tween_active:
+		var elapsed := maxf(0.0, float(Time.get_ticks_msec() - _scroll_tween_started_at_ms) * 0.001)
+		tween_remaining = maxf(0.001, _scroll_tween_duration - elapsed)
+		_cancel_scroll_tween()
+
+	_apply_content_size(content_width + delta_width, content_height + delta_height)
+	var new_max := Vector2(maxf(0.0, content_width - view_width), maxf(0.0, content_height - view_height))
+	var position_delta := Vector2(delta_pos_x, delta_pos_y)
+	if tween_active:
+		if tween_inertia:
+			current += position_delta
+			tween_target += position_delta
+		if not is_zero_approx(delta_width) and target_was_rightmost:
+			tween_target.x = new_max.x
+		if not is_zero_approx(delta_height) and target_was_bottom:
+			tween_target.y = new_max.y
+	elif _pointer_dragging:
+		current += position_delta
+		_last_drag_scroll_position += position_delta
+	else:
+		if not is_zero_approx(delta_width) and was_rightmost:
+			current.x = new_max.x
+		if not is_zero_approx(delta_height) and was_bottom:
+			current.y = new_max.y
+
+	current = Vector2(_clamp_x(current.x), _clamp_y(current.y))
+	_set_pos_immediate(current)
+	if tween_active:
+		tween_target = Vector2(_clamp_x(tween_target.x), _clamp_y(tween_target.y))
+		_start_scroll_tween(tween_target, tween_remaining, tween_inertia)
+
+
+func _apply_content_size(width: float, height: float) -> void:
 	content_width = maxf(0.0, width)
 	content_height = maxf(0.0, height)
 	var next_size := Vector2(content_width, content_height)
@@ -197,7 +252,6 @@ func set_content_size(width: float, height: float) -> void:
 		content.size = next_size
 	_layout_scroll_bars()
 	_sync_native_ranges()
-	set_pos(pos_x, pos_y)
 
 
 func scroll_to_view(target: Variant, animated: bool = false, set_first: bool = false) -> void:
@@ -257,7 +311,7 @@ func _can_animate_scroll(target: Vector2) -> bool:
 	return container != null and owner != null and owner.node != null and owner.node.is_inside_tree() and not Vector2(pos_x, pos_y).is_equal_approx(target)
 
 
-func _start_scroll_tween(target: Vector2, duration: float = SCROLL_TWEEN_DURATION) -> void:
+func _start_scroll_tween(target: Vector2, duration: float = SCROLL_TWEEN_DURATION, inertia: bool = false) -> void:
 	_cancel_scroll_tween()
 	if owner == null or owner.node == null:
 		_set_pos_immediate(target)
@@ -267,7 +321,11 @@ func _start_scroll_tween(target: Vector2, duration: float = SCROLL_TWEEN_DURATIO
 	tween.set_trans(Tween.TRANS_QUAD)
 	tween.set_ease(Tween.EASE_OUT)
 	_scroll_tween = tween
-	tween.tween_method(Callable(self, "_set_pos_from_tween"), Vector2(pos_x, pos_y), target, maxf(duration, 0.001))
+	_scroll_tween_target = target
+	_scroll_tween_duration = maxf(duration, 0.001)
+	_scroll_tween_started_at_ms = Time.get_ticks_msec()
+	_scroll_tween_inertia = inertia
+	tween.tween_method(Callable(self, "_set_pos_from_tween"), Vector2(pos_x, pos_y), target, _scroll_tween_duration)
 	tween.finished.connect(Callable(self, "_on_scroll_tween_finished").bind(tween))
 
 
@@ -280,7 +338,7 @@ func _set_pos_from_tween(value: Vector2) -> void:
 func _on_scroll_tween_finished(tween: Tween) -> void:
 	if tween != _scroll_tween:
 		return
-	_scroll_tween = null
+	_reset_scroll_tween_state()
 	if owner != null:
 		owner.emit_event(FGUIEvents.SCROLL_END)
 
@@ -288,7 +346,15 @@ func _on_scroll_tween_finished(tween: Tween) -> void:
 func _cancel_scroll_tween() -> void:
 	if _scroll_tween != null and is_instance_valid(_scroll_tween):
 		_scroll_tween.kill()
+	_reset_scroll_tween_state()
+
+
+func _reset_scroll_tween_state() -> void:
 	_scroll_tween = null
+	_scroll_tween_target = Vector2.ZERO
+	_scroll_tween_duration = 0.0
+	_scroll_tween_started_at_ms = 0
+	_scroll_tween_inertia = false
 
 
 func set_perc_x(value: float, animated: bool = false) -> void:
@@ -784,7 +850,7 @@ func _end_pull_gesture() -> void:
 	var defer_scroll_end := false
 	if not target.is_equal_approx(Vector2(pos_x, pos_y)):
 		var duration := _get_inertia_duration(_drag_velocity) if not inertia_disabled else SCROLL_TWEEN_DURATION
-		_start_scroll_tween(target, duration)
+		_start_scroll_tween(target, duration, true)
 		defer_scroll_end = _scroll_tween != null
 	_start_elastic_return()
 	if owner != null:
