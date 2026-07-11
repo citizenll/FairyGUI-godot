@@ -90,6 +90,21 @@ func _initialize() -> void:
 		return
 	first.dispose()
 	second.dispose()
+	var initialized_objects := [0]
+	pool.init_callback = func(_obj: FGUIObject) -> void: initialized_objects[0] += 1
+	var newly_created := pool.get_object(url)
+	if newly_created == null or initialized_objects[0] != 1:
+		expected.dispose()
+		FGUIPackage.remove_package(pkg.id)
+		_fail("FGUIObjectPool did not invoke init_callback for a newly created object.")
+		return
+	pool.return_object(newly_created)
+	if pool.get_object(url) != newly_created or initialized_objects[0] != 1:
+		expected.dispose()
+		FGUIPackage.remove_package(pkg.id)
+		_fail("FGUIObjectPool invoked init_callback while reusing a pooled object.")
+		return
+	newly_created.dispose()
 
 	var saved_frame_budget := FGUIConfig.frame_time_for_async_ui_construction
 	FGUIConfig.frame_time_for_async_ui_construction = 0.0

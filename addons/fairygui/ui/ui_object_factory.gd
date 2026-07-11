@@ -30,6 +30,12 @@ static func set_loader3d_extension(script: Variant) -> void:
 	loader3d_type = script
 
 
+static func clear() -> void:
+	extensions.clear()
+	loader_type = null
+	loader3d_type = null
+
+
 static func resolve_package_item_extension(item: FGUIPackageItem) -> void:
 	var by_id := "ui://%s%s" % [item.owner.id, item.id]
 	var by_name := "ui://%s/%s" % [item.owner.name, item.name]
@@ -37,16 +43,24 @@ static func resolve_package_item_extension(item: FGUIPackageItem) -> void:
 		item.extension_type = extensions[by_id]
 	elif extensions.has(by_name):
 		item.extension_type = extensions[by_name]
+	else:
+		item.extension_type = null
 
 
 static func new_object_from_item(item: FGUIPackageItem, user_class: Variant = null) -> FGUIObject:
+	if item == null:
+		return null
 	var obj: FGUIObject = null
 	if item.type == FGUIEnums.PACKAGE_ITEM_COMPONENT:
 		if user_class != null:
-			obj = user_class.new()
+			obj = _create_from(user_class)
 		elif item.extension_type != null:
-			obj = item.extension_type.new()
-		else:
+			obj = _create_from(item.extension_type)
+		if obj != null and not obj is FGUIComponent:
+			push_error("FairyGUI package component creator must return FGUIComponent.")
+			obj.dispose()
+			obj = null
+		if obj == null:
 			obj = new_object(item.object_type)
 	else:
 		obj = new_object(item.object_type)
@@ -65,9 +79,21 @@ static func new_object(object_type: int) -> FGUIObject:
 		FGUIEnums.OBJECT_GRAPH:
 			return FGUIGraph.new()
 		FGUIEnums.OBJECT_LOADER:
-			return loader_type.new() if loader_type != null else FGUILoader.new()
+			var custom_loader := _create_from(loader_type)
+			if custom_loader is FGUILoader:
+				return custom_loader
+			if custom_loader != null:
+				push_error("FairyGUI Loader creator must return FGUILoader.")
+				custom_loader.dispose()
+			return FGUILoader.new()
 		FGUIEnums.OBJECT_LOADER_3D:
-			return loader3d_type.new() if loader3d_type != null else Loader3D.new()
+			var custom_loader3d := _create_from(loader3d_type)
+			if custom_loader3d is FGUILoader3D:
+				return custom_loader3d
+			if custom_loader3d != null:
+				push_error("FairyGUI Loader3D creator must return FGUILoader3D.")
+				custom_loader3d.dispose()
+			return Loader3D.new()
 		FGUIEnums.OBJECT_GROUP:
 			return FGUIGroup.new()
 		FGUIEnums.OBJECT_MOVIE_CLIP:
@@ -96,3 +122,21 @@ static func new_object(object_type: int) -> FGUIObject:
 			return FGUIComponent.new()
 		_:
 			return FGUIObject.new()
+
+
+static func _create_from(creator: Variant) -> FGUIObject:
+	if creator == null:
+		return null
+	var value: Variant = null
+	if creator is Callable:
+		value = creator.call()
+	elif creator is Script:
+		value = creator.new()
+	else:
+		push_error("FairyGUI object factory creator must be a Script or Callable.")
+		return null
+	if value is FGUIObject:
+		return value
+	if value != null:
+		push_error("FairyGUI object factory creator must return FGUIObject.")
+	return null
