@@ -11,6 +11,12 @@ class ProbeTree extends FGUITree:
 			var button := FGUIButton.new()
 			button.mode = FGUIEnums.BUTTON_CHECK
 			button.set_size(120, 24)
+			var expanded_controller := FGUIController.new()
+			expanded_controller.name = "expanded"
+			expanded_controller.add_page("collapsed")
+			expanded_controller.add_page("expanded")
+			expanded_controller.selected_index = 0
+			button.add_controller(expanded_controller)
 			obj = button
 		else:
 			obj = recycled.pop_back()
@@ -40,8 +46,15 @@ func _initialize() -> void:
 	host.add_child(tree.node)
 	tree.tree_node_render = func(node: FGUITreeNode, item: FGUIObject) -> void:
 		item.set_text(str(node.data))
+	var expand_events: Array = []
+	tree.tree_node_will_expand = func(node: FGUITreeNode, expanded: bool) -> void:
+		expand_events.append([node, expanded])
 
 	var folder := FGUITreeNode.new(true, "Folder")
+	if folder.expanded:
+		_fail("New tree folders must be collapsed until explicitly expanded.")
+		return
+	folder.expanded = true
 	var first_leaf := FGUITreeNode.new(false, "First")
 	folder.add_child(first_leaf)
 	tree.root_node.add_child(folder)
@@ -51,14 +64,19 @@ func _initialize() -> void:
 	if tree.get_child_at(0).get_text() != "Folder":
 		_fail("Tree renderer was not called for a visible node.")
 		return
-
-	folder.expanded = false
-	if tree.num_children != 1 or first_leaf.cell != null:
-		_fail("Collapsing a folder did not remove descendant cells.")
+	if expand_events.is_empty() or expand_events[0][0] != folder or not expand_events[0][1]:
+		_fail("Attaching a pre-expanded tree node did not invoke tree_node_will_expand.")
 		return
-	folder.expanded = true
+
+	var expanded_controller := (folder.cell as FGUIComponent).get_controller("expanded")
+	expanded_controller.selected_index = 0
+	if tree.num_children != 1 or first_leaf.cell != null:
+		_fail("The expanded controller did not collapse its tree folder.")
+		return
+	expanded_controller = (folder.cell as FGUIComponent).get_controller("expanded")
+	expanded_controller.selected_index = 1
 	if tree.num_children != 2 or first_leaf.cell == null:
-		_fail("Expanding a folder did not restore descendant cells.")
+		_fail("The expanded controller did not restore its tree folder descendants.")
 		return
 
 	tree.click_to_expand = 1
@@ -76,6 +94,14 @@ func _initialize() -> void:
 	if tree.num_children != 3:
 		_fail("Adding a node after tree construction did not refresh the visible list.")
 		return
+	folder.swap_children_at(0, 1)
+	if tree.get_child_at(1).data != second_leaf or tree.get_child_at(2).data != first_leaf:
+		_fail("Swapping tree children by index did not update visible ordering.")
+		return
+	folder.swap_children(first_leaf, second_leaf)
+	if tree.get_child_at(1).data != first_leaf or tree.get_child_at(2).data != second_leaf:
+		_fail("Swapping tree child objects did not restore visible ordering.")
+		return
 	folder.set_child_index(second_leaf, 0)
 	if tree.get_child_at(1).data != second_leaf:
 		_fail("Moving a tree node did not update visible ordering.")
@@ -83,6 +109,14 @@ func _initialize() -> void:
 	folder.remove_child(second_leaf)
 	if tree.num_children != 2:
 		_fail("Removing a tree node did not update visible cells.")
+		return
+
+	var collapsed_folder := FGUITreeNode.new(true, "Collapsed")
+	var hidden_leaf := FGUITreeNode.new(false, "Hidden")
+	collapsed_folder.add_child(hidden_leaf)
+	tree.root_node.add_child(collapsed_folder)
+	if tree.num_children != 3 or hidden_leaf.cell != null:
+		_fail("A newly attached collapsed folder exposed its descendants.")
 		return
 
 	tree.dispose()

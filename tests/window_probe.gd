@@ -5,6 +5,8 @@ class ProbeWindow extends FGUIWindow:
 	var init_count: int = 0
 	var shown_count: int = 0
 	var hidden_count: int = 0
+	var show_animation_count: int = 0
+	var hide_animation_count: int = 0
 
 
 	func on_init() -> void:
@@ -19,6 +21,38 @@ class ProbeWindow extends FGUIWindow:
 		hidden_count += 1
 
 
+	func do_show_animation() -> void:
+		show_animation_count += 1
+		super.do_show_animation()
+
+
+	func do_hide_animation() -> void:
+		hide_animation_count += 1
+		super.do_hide_animation()
+
+
+class ProbeSource extends FGUIUISource:
+	var load_count: int = 0
+	var cancel_count: int = 0
+	var completion: Callable
+
+
+	func load(callback: Callable) -> void:
+		load_count += 1
+		completion = callback
+
+
+	func complete() -> void:
+		loaded = true
+		if completion.is_valid():
+			completion.call()
+
+
+	func cancel() -> void:
+		cancel_count += 1
+		completion = Callable()
+
+
 func _initialize() -> void:
 	var host := Control.new()
 	root.add_child(host)
@@ -29,9 +63,9 @@ func _initialize() -> void:
 	var window := ProbeWindow.new()
 	var content := FGUIComponent.new()
 	content.set_size(120, 80)
-	window.set_content_pane(content)
+	window.content_pane = content
 	window.show()
-	if window.parent != gui_root or not window.shown or window.init_count != 1 or window.shown_count != 1:
+	if window.parent != gui_root or not window.shown or window.init_count != 1 or window.shown_count != 1 or window.show_animation_count != 1:
 		_fail("Window show did not attach through GRoot and initialize once.")
 		return
 	if gui_root.focus != window:
@@ -40,6 +74,11 @@ func _initialize() -> void:
 	if window.width != 120 or window.height != 80:
 		_fail("Window content pane did not define window size.")
 		return
+	window.set_size(180, 100)
+	if content.width != 180 or content.height != 100:
+		_fail("Window content pane did not retain its size relation to the window.")
+		return
+	window.set_size(120, 80)
 	window.show()
 	if window.init_count != 1 or window.shown_count != 1:
 		_fail("Showing an already visible window repeated its lifecycle callbacks.")
@@ -67,9 +106,33 @@ func _initialize() -> void:
 		_fail("Window center_on did not use root dimensions.")
 		return
 
+	var framed_content := FGUIComponent.new()
+	framed_content.set_size(160, 100)
+	var frame := FGUIComponent.new()
+	frame.name = "frame"
+	frame.set_xy(10, 15)
+	var drag_area := FGUIGraph.new()
+	drag_area.name = "dragArea"
+	drag_area.set_size(80, 20)
+	var content_area := FGUIObject.new()
+	content_area.name = "contentArea"
+	content_area.set_xy(5, 7)
+	content_area.set_size(90, 50)
+	frame.add_child(drag_area)
+	frame.add_child(content_area)
+	framed_content.add_child(frame)
+	window.content_pane = framed_content
+	if window.frame != frame or window.drag_area != drag_area or window.content_area != content_area or not drag_area.draggable or drag_area.type != FGUIGraph.TYPE_RECT:
+		_fail("Window frame controls were not discovered and configured.")
+		return
+
 	var wait_pane := FGUIComponent.new()
 	window._modal_wait_pane = wait_pane
 	window.show_modal_wait(7)
+	if wait_pane.x != 15 or wait_pane.y != 22 or wait_pane.width != 90 or wait_pane.height != 50 or window.modal_waiting_pane != wait_pane:
+		_fail("Window modal wait pane did not use the nested content area coordinates.")
+		return
+	window.show_modal_wait()
 	if not window.modal_waiting or window.close_modal_wait(8):
 		_fail("Window modal wait request filtering is incorrect.")
 		return
@@ -80,12 +143,38 @@ func _initialize() -> void:
 	var close_button := FGUIObject.new()
 	window.close_button = close_button
 	close_button.emit_event("click")
-	if window.parent != null or window.shown or window.hidden_count != 1 or gui_root._modal_layer.parent != null:
+	if window.parent != null or window.shown or window.hidden_count != 1 or window.hide_animation_count != 1 or gui_root._modal_layer.parent != null:
 		_fail("Window close button did not hide and detach the window.")
 		return
 	window.show()
 	if window.init_count != 1 or window.shown_count != 2:
 		_fail("Window reopen did not preserve initialization state.")
+		return
+
+	var async_window := ProbeWindow.new()
+	var async_source := ProbeSource.new()
+	async_window.add_ui_source(async_source)
+	async_window.show_on(gui_root)
+	if async_source.load_count != 1 or async_window.init_count != 0 or async_window.shown_count != 0:
+		_fail("Window initialized before all asynchronous UI sources loaded.")
+		return
+	async_window.show_on(gui_root)
+	if async_source.load_count != 1:
+		_fail("Window started an asynchronous UI source more than once.")
+		return
+	async_source.complete()
+	if async_window.init_count != 1 or async_window.shown_count != 1 or not async_window._inited:
+		_fail("Window did not initialize after its asynchronous UI sources completed.")
+		return
+	async_window.hide()
+
+	var cancelled_window := ProbeWindow.new()
+	var cancelled_source := ProbeSource.new()
+	cancelled_window.add_ui_source(cancelled_source)
+	cancelled_window.show_on(gui_root)
+	cancelled_window.dispose()
+	if cancelled_source.cancel_count != 1:
+		_fail("Disposing a loading window did not cancel its UI sources.")
 		return
 
 	var global_wait := FGUIComponent.new()
@@ -124,7 +213,9 @@ func _initialize() -> void:
 		return
 
 	window.dispose()
+	content.dispose()
 	second_window.dispose()
+	async_window.dispose()
 	clamped_window.dispose()
 	global_wait.dispose()
 	close_button.dispose()

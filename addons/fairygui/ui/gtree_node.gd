@@ -52,7 +52,6 @@ var icon: String:
 
 func _init(has_child: bool = false, node_data: Variant = null, node_res_url: String = "") -> void:
 	_is_folder = has_child
-	_expanded = has_child
 	data = node_data
 	res_url = node_res_url
 
@@ -161,6 +160,17 @@ func swap_children(child_a: FGUITreeNode, child_b: FGUITreeNode) -> void:
 	if index_a == -1 or index_b == -1:
 		push_error("Tree node is not a child of this parent.")
 		return
+	swap_children_at(index_a, index_b)
+
+
+func swap_children_at(index_a: int, index_b: int) -> void:
+	if index_a < 0 or index_a >= children.size() or index_b < 0 or index_b >= children.size():
+		push_error("Invalid tree child index.")
+		return
+	if index_a == index_b:
+		return
+	var child_a := children[index_a]
+	var child_b := children[index_b]
 	children[index_a] = child_b
 	children[index_b] = child_a
 	if _tree != null:
@@ -176,5 +186,7 @@ func expand_to_root() -> void:
 
 func _set_tree(value: FGUITree) -> void:
 	_tree = value
+	if _tree != null and _expanded and _tree.tree_node_will_expand.is_valid():
+		_tree.tree_node_will_expand.call(self, true)
 	for child in children:
 		child._set_tree(value)

@@ -197,12 +197,22 @@ func _configure_node_cell(node: FGUITreeNode, obj: FGUIObject) -> void:
 		var component := obj as FGUIComponent
 		var expanded_controller := component.get_controller("expanded")
 		if expanded_controller != null:
+			expanded_controller.off(FGUIEvents.STATE_CHANGED, Callable(self, "_expanded_controller_changed"))
+			expanded_controller.on(FGUIEvents.STATE_CHANGED, Callable(self, "_expanded_controller_changed"))
 			expanded_controller.selected_index = 1 if node.expanded else 0
 		var leaf_controller := component.get_controller("leaf")
 		if leaf_controller != null:
 			leaf_controller.selected_index = 0 if node.is_folder else 1
 	if tree_node_render.is_valid():
 		tree_node_render.call(node, obj)
+
+
+func _expanded_controller_changed(controller: FGUIController) -> void:
+	if controller == null or controller.parent == null or not (controller.parent.data is FGUITreeNode):
+		return
+	var tree_node := controller.parent.data as FGUITreeNode
+	if tree_node.is_folder:
+		tree_node.expanded = controller.selected_index == 1
 
 
 func _clear_node_cells(node: FGUITreeNode) -> void:
