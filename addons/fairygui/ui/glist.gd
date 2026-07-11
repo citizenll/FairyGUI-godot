@@ -148,22 +148,31 @@ func add_child_at(child: FGUIObject, index: int) -> FGUIObject:
 	return added
 
 
-func add_item(url: String = "") -> FGUIObject:
-	var obj := FGUIPackage.create_object_from_url(url if url != "" else default_item)
+func add_item(url: Variant = null) -> FGUIObject:
+	var obj := FGUIPackage.create_object_from_url(_resolve_item_url(url))
 	return add_child(obj) if obj != null else null
 
 
-func add_item_from_pool(url: String = "") -> FGUIObject:
-	var obj := get_from_pool(url)
+func add_item_from_pool(url: Variant = null) -> FGUIObject:
+	var obj := get_from_pool(_resolve_item_url(url))
 	return add_child(obj) if obj != null else null
 
 
 func get_from_pool(url: String = "") -> FGUIObject:
-	var actual_url := url if url != "" else default_item
+	var actual_url := _resolve_item_url(url)
 	var obj := item_pool.get_object(actual_url)
 	if obj != null:
 		obj.visible = true
 	return obj
+
+
+func _resolve_item_url(url: Variant) -> String:
+	if url == null:
+		return default_item
+	var value := str(url)
+	if value == "":
+		return default_item
+	return FGUIPackage.normalize_url(value)
 
 
 func return_to_pool(obj: FGUIObject) -> void:
@@ -430,7 +439,7 @@ func refresh_virtual_list() -> void:
 		var physical_index := _virtual_first_index + offset
 		var item_index := _physical_to_item_index(physical_index)
 		var url := item_provider.call(item_index) if item_provider.is_valid() else default_item
-		var obj := add_item_from_pool(str(url))
+		var obj := add_item_from_pool(url)
 		if obj != null and variable_primary:
 			_apply_cached_virtual_item_size(obj, item_index)
 		if obj != null:

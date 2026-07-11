@@ -4,10 +4,12 @@ extends SceneTree
 class ProbeList extends FGUIList:
 	var recycled: Array[FGUIObject] = []
 	var created_count: int = 0
+	var requested_urls: Array[String] = []
 	var item_size := Vector2(50.0, 40.0)
 
 
-	func get_from_pool(_url: String = "") -> FGUIObject:
+	func get_from_pool(url: String = "") -> FGUIObject:
+		requested_urls.append(url)
 		var obj: FGUIObject
 		if recycled.is_empty():
 			var button := FGUIButton.new()
@@ -238,6 +240,23 @@ func _initialize() -> void:
 		_fail("Virtual list scroll_to_view ignored set_first alignment.")
 		return
 	visibility_virtual.dispose()
+
+	var provider_fallback := _create_virtual_list(
+		host,
+		Vector2(60.0, 20.0),
+		FGUIEnums.SCROLL_HORIZONTAL,
+		FGUIEnums.LIST_LAYOUT_SINGLE_ROW,
+		Vector2(20.0, 20.0)
+	)
+	provider_fallback.default_item = "ui://fallback"
+	provider_fallback.item_provider = func(_index: int) -> Variant: return null
+	provider_fallback.set_virtual()
+	provider_fallback.num_items = 1
+	await process_frame
+	if provider_fallback.requested_urls.is_empty() or provider_fallback.requested_urls.back() != "ui://fallback":
+		_fail("Virtual list item_provider null values did not fall back to default_item.")
+		return
+	provider_fallback.dispose()
 
 	var auto_column := _create_virtual_list(
 		host,
