@@ -18,7 +18,9 @@ var actions: Array = []
 var _event_listeners: Dictionary = {}
 var selected_page_id: String:
 	set(value):
-		_set_selected_index(page_ids.find(value), true)
+		var index := page_ids.find(value)
+		if index >= 0:
+			_set_selected_index(index, true)
 	get:
 		return page_ids[_selected_index] if _selected_index >= 0 and _selected_index < page_ids.size() else ""
 var selected_page: String:
@@ -71,7 +73,7 @@ func setup(buffer: FGUIByteBuffer) -> void:
 			1:
 				home_page_index = buffer.read_i16()
 			2:
-				home_page_index = max(0, page_names.find(FGUIPackage.get_var("branch")))
+				home_page_index = max(0, page_names.find(FGUIPackage.branch))
 			3:
 				home_page_index = max(0, page_names.find(FGUIPackage.get_var(_string_or_empty(buffer.read_s()))))
 
@@ -99,15 +101,20 @@ func set_selected_index(value: int) -> void:
 	_set_selected_index(value, false)
 
 
+func set_selected_page(value: String) -> void:
+	var index := page_names.find(value)
+	_set_selected_index(index if index >= 0 else (0 if not page_names.is_empty() else -1), false)
+
+
 func add_page(page_name: String = "") -> void:
 	add_page_at(page_name, page_ids.size())
 
 
 func add_page_at(page_name: String, index: int) -> void:
-	var page_id := str(_next_page_id)
+	var page_id := "_%s" % _next_page_id
 	_next_page_id += 1
 	while page_ids.has(page_id):
-		page_id = str(_next_page_id)
+		page_id = "_%s" % _next_page_id
 		_next_page_id += 1
 	var insert_index := clampi(index, 0, page_ids.size())
 	page_ids.insert(insert_index, page_id)

@@ -14,6 +14,9 @@ func _initialize() -> void:
 	if controller.page_count != 3 or controller.get_page_name(1) != "second" or controller.get_page_name_by_id(controller.get_page_id(2)) != "third":
 		_fail("Controller dynamic page insertion did not preserve page IDs and names.")
 		return
+	if not controller.get_page_id(0).begins_with("_"):
+		_fail("Controller runtime page IDs did not use the FairyGUI dynamic-page format.")
+		return
 	controller.on(FGUIEvents.STATE_CHANGED, Callable(self, "_on_state_changed"))
 	controller.selected_index = 1
 	if controller.selected_page != "second" or state_change_count != 1:
@@ -22,6 +25,14 @@ func _initialize() -> void:
 	controller.set_selected_index(2)
 	if controller.selected_page != "third" or state_change_count != 1:
 		_fail("Controller set_selected_index should update state without emitting an event.")
+		return
+	controller.set_selected_page("second")
+	if controller.selected_page != "second" or state_change_count != 1:
+		_fail("Controller set_selected_page should update state without emitting an event.")
+		return
+	controller.selected_page_id = "missing"
+	if controller.selected_page != "second" or state_change_count != 1:
+		_fail("Controller selected_page_id changed selection for an unknown page ID.")
 		return
 	controller.selected_page = "missing"
 	if controller.selected_index != 0 or state_change_count != 2:
@@ -38,6 +49,17 @@ func _initialize() -> void:
 	controller.clear_pages()
 	if controller.page_count != 0 or controller.selected_index != -1:
 		_fail("Controller clear_pages did not reset selection.")
+		return
+
+	FGUIPackage.branch = "BranchB"
+	var branch_controller := FGUIController.new()
+	var branch_buffer := FGUIByteBuffer.new(_make_branch_controller_bytes())
+	branch_buffer.version = 2
+	branch_buffer.string_table = ["branch", "page_a", "BranchA", "page_b", "BranchB"]
+	branch_controller.setup(branch_buffer)
+	FGUIPackage.branch = ""
+	if branch_controller.selected_page != "BranchB":
+		_fail("Controller branch home page did not use FGUIPackage.branch.")
 		return
 
 	var radio_parent := FGUIComponent.new()
@@ -76,6 +98,42 @@ func _initialize() -> void:
 		return
 	await process_frame
 	quit(0)
+
+
+func _make_branch_controller_bytes() -> PackedByteArray:
+	var block0 := PackedByteArray()
+	_append_u16(block0, 0)
+	block0.append(0)
+	var block1 := PackedByteArray()
+	_append_i16(block1, 2)
+	_append_u16(block1, 1)
+	_append_u16(block1, 2)
+	_append_u16(block1, 3)
+	_append_u16(block1, 4)
+	block1.append(2)
+	var block2 := PackedByteArray()
+	_append_i16(block2, 0)
+	return _make_indexed_blocks([block0, block1, block2])
+
+
+func _make_indexed_blocks(blocks: Array[PackedByteArray]) -> PackedByteArray:
+	var bytes := PackedByteArray([blocks.size(), 1])
+	var offset := 2 + blocks.size() * 2
+	for block in blocks:
+		_append_u16(bytes, offset)
+		offset += block.size()
+	for block in blocks:
+		bytes.append_array(block)
+	return bytes
+
+
+func _append_u16(bytes: PackedByteArray, value: int) -> void:
+	bytes.append((value >> 8) & 0xff)
+	bytes.append(value & 0xff)
+
+
+func _append_i16(bytes: PackedByteArray, value: int) -> void:
+	_append_u16(bytes, value & 0xffff)
 
 
 func _on_state_changed(_controller: FGUIController) -> void:
