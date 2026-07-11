@@ -90,6 +90,150 @@ func _initialize() -> void:
 	stage_owner.dispose()
 	auto_owner.dispose()
 
+	var initial_delay_stop_transition := FGUITransition.new(owner)
+	var initial_delay_item := _make_alpha_tween_item(0.4)
+	initial_delay_item["target_id"] = child.id
+	initial_delay_stop_transition._items.append(initial_delay_item)
+	var initial_delay_callback := [false]
+	child.alpha = 0.0
+	initial_delay_stop_transition.play(func() -> void: initial_delay_callback[0] = true, 1, 0.2)
+	await create_timer(0.03).timeout
+	initial_delay_stop_transition.stop(true, true)
+	if absf(child.alpha) > 0.01 or not initial_delay_callback[0]:
+		push_error("Transition stop during its initial delay incorrectly completed timeline items.")
+		quit(1)
+		return
+
+	var breakpoint_stop_transition := FGUITransition.new(owner)
+	var breakpoint_end_hooks := [0]
+	breakpoint_stop_transition._items.append({
+		"type": FGUITransition.ACTION_XY,
+		"time": 0.0,
+		"target_id": child.id,
+		"target": null,
+		"label": "breakpoint_stop",
+		"value": {},
+		"tween_config": {
+			"duration": 1.0,
+			"ease_type": FGUIEaseType.LINEAR,
+			"repeat": 0,
+			"yoyo": false,
+			"end_label": "breakpoint_stop_end",
+			"start_value": {"b1": true, "b2": true, "f1": 0.0, "f2": 0.0},
+			"end_value": {"b1": true, "b2": true, "f1": 100.0, "f2": 0.0},
+			"end_hook": func() -> void: breakpoint_end_hooks[0] += 1,
+			"path": null,
+		},
+		"hook": Callable(),
+	})
+	child.set_xy(0.0, 0.0)
+	breakpoint_stop_transition.play(Callable(), 1, 0.0, 0.0, 0.25)
+	await process_frame
+	breakpoint_stop_transition.stop(true, false)
+	if absf(child.x - 25.0) > 0.1 or breakpoint_end_hooks[0] != 0:
+		push_error("Transition stop ignored its end-time breakpoint: x=%s hooks=%s" % [child.x, breakpoint_end_hooks[0]])
+		quit(1)
+		return
+
+	var scheduled_stop_transition := FGUITransition.new(owner)
+	scheduled_stop_transition._items = [
+		{
+			"type": FGUITransition.ACTION_ALPHA,
+			"time": 0.05,
+			"target_id": child.id,
+			"target": null,
+			"label": "scheduled_alpha",
+			"value": {"f1": 0.5},
+			"tween_config": null,
+			"hook": Callable(),
+		},
+		{
+			"type": FGUITransition.ACTION_ALPHA,
+			"time": 0.2,
+			"target_id": child.id,
+			"target": null,
+			"label": "outside_alpha",
+			"value": {"f1": 1.0},
+			"tween_config": null,
+			"hook": Callable(),
+		},
+	]
+	child.alpha = 0.0
+	scheduled_stop_transition.play(Callable(), 1, 0.0, 0.0, 0.1)
+	await process_frame
+	scheduled_stop_transition.stop(true, false)
+	if absf(child.alpha - 0.5) > 0.01:
+		push_error("Transition stop completed an item outside the active playback range: %s" % child.alpha)
+		quit(1)
+		return
+
+	var full_stop_transition := FGUITransition.new(owner)
+	var full_stop_start_hooks := [0]
+	var full_stop_end_hooks := [0]
+	var full_stop_item := breakpoint_stop_transition._items[0].duplicate(true)
+	full_stop_item["label"] = "full_stop"
+	full_stop_item["tween_config"]["end_label"] = "full_stop_end"
+	full_stop_item["hook"] = func() -> void: full_stop_start_hooks[0] += 1
+	full_stop_item["tween_config"]["end_hook"] = func() -> void: full_stop_end_hooks[0] += 1
+	full_stop_transition._items.append(full_stop_item)
+	child.set_xy(0.0, 0.0)
+	full_stop_transition.play()
+	await process_frame
+	full_stop_transition.stop(true, false)
+	if absf(child.x - 100.0) > 0.1 or full_stop_start_hooks[0] != 1 or full_stop_end_hooks[0] != 1:
+		push_error("Transition stop did not complete the active tween and hooks exactly once.")
+		quit(1)
+		return
+
+	var reentrant_stop_transition := FGUITransition.new(owner)
+	var reentrant_restarts := [0]
+	var reentrant_completed := [false]
+	var reentrant_item := _make_alpha_tween_item(0.04)
+	reentrant_item["target_id"] = child.id
+	reentrant_item["tween_config"]["end_hook"] = func() -> void:
+		if reentrant_restarts[0] == 0:
+			reentrant_restarts[0] += 1
+			reentrant_stop_transition.play(func() -> void: reentrant_completed[0] = true)
+	reentrant_stop_transition._items.append(reentrant_item)
+	child.alpha = 0.0
+	reentrant_stop_transition.play()
+	await process_frame
+	reentrant_stop_transition.stop(true, false)
+	waited = 0.0
+	while not reentrant_completed[0] and waited < 0.5:
+		await create_timer(0.03).timeout
+		waited += 0.03
+	if not reentrant_completed[0] or reentrant_restarts[0] != 1:
+		push_error("Transition stop clobbered playback restarted from an end hook.")
+		quit(1)
+		return
+
+	var idempotent_auto_transition := FGUITransition.new(owner)
+	idempotent_auto_transition._items.append(_make_alpha_tween_item(0.4))
+	idempotent_auto_transition.set_auto_play(true, -1, 0.0)
+	var auto_play_id := idempotent_auto_transition._play_id
+	idempotent_auto_transition.set_auto_play(true, 1, 0.2)
+	if idempotent_auto_transition._play_id != auto_play_id:
+		push_error("Transition set_auto_play restarted an unchanged auto-play state.")
+		quit(1)
+		return
+	idempotent_auto_transition.stop(false, false)
+
+	var external_target := FGUIObject.new()
+	var retarget_transition := FGUITransition.new(owner)
+	var retarget_item := _make_alpha_tween_item(0.4)
+	retarget_item["label"] = "retarget"
+	retarget_item["target_id"] = child.id
+	retarget_transition._items.append(retarget_item)
+	retarget_transition.play()
+	retarget_transition.set_target("retarget", external_target)
+	if retarget_transition._items[0]["target"] != null:
+		push_error("Transition accepted a runtime target outside its owner component.")
+		quit(1)
+		return
+	retarget_transition.stop(false, false)
+	external_target.dispose()
+
 	var repeat_transition := FGUITransition.new(owner)
 	repeat_transition._items.append({
 		"type": FGUITransition.ACTION_XY,
@@ -651,6 +795,13 @@ func _initialize() -> void:
 	animation_pause_transition.stop(false, false)
 
 	transition.dispose()
+	initial_delay_stop_transition.dispose()
+	breakpoint_stop_transition.dispose()
+	scheduled_stop_transition.dispose()
+	full_stop_transition.dispose()
+	reentrant_stop_transition.dispose()
+	idempotent_auto_transition.dispose()
+	retarget_transition.dispose()
 	repeat_transition.dispose()
 	delayed_capture_transition.dispose()
 	instant_hook_transition.dispose()
