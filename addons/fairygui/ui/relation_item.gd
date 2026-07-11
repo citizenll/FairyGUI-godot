@@ -17,8 +17,6 @@ var _target_x: float = 0.0
 var _target_y: float = 0.0
 var _target_width: float = 0.0
 var _target_height: float = 0.0
-var _target_init_x: float = 0.0
-var _target_init_y: float = 0.0
 
 
 func _init(p_owner: FGUIObject = null) -> void:
@@ -175,7 +173,7 @@ func _apply_on_size_changed(def: Dictionary) -> void:
 			else:
 				owner.y += delta * (_relation_factor(def["type"]) - pivot)
 		FGUIEnums.RELATION_WIDTH:
-			value = owner.source_width - target.init_width if owner == target.parent else owner._raw_width - _target_width
+			value = owner.source_width - target.init_width if owner._under_construct and owner == target.parent else owner._raw_width - _target_width
 			if percent:
 				value *= delta
 			if target == owner.parent:
@@ -188,7 +186,7 @@ func _apply_on_size_changed(def: Dictionary) -> void:
 			else:
 				owner.width = target._width + value
 		FGUIEnums.RELATION_HEIGHT:
-			value = owner.source_height - target.init_height if owner == target.parent else owner._raw_height - _target_height
+			value = owner.source_height - target.init_height if owner._under_construct and owner == target.parent else owner._raw_height - _target_height
 			if percent:
 				value *= delta
 			if target == owner.parent:
@@ -209,9 +207,15 @@ func _apply_on_size_changed(def: Dictionary) -> void:
 			tmp = owner.x_min
 			if int(def["type"]) == FGUIEnums.RELATION_RIGHT_EXT_RIGHT and owner == target.parent:
 				if percent:
-					owner.width = pos + target._width - target._width * pivot + (owner.source_width - _target_init_x - target.init_width + target.init_width * pivot) * delta
+					if owner._under_construct:
+						owner.width = pos + target._width - target._width * pivot + (owner.source_width - pos - target.init_width + target.init_width * pivot) * delta
+					else:
+						owner.width = pos + (owner._raw_width - pos) * delta
 				else:
-					owner.width = owner.source_width + pos - _target_init_x + (target._width - target.init_width) * (1.0 - pivot)
+					if owner._under_construct:
+						owner.width = owner.source_width + (target._width - target.init_width) * (1.0 - pivot)
+					else:
+						owner.width = owner._raw_width + delta * (1.0 - pivot)
 			else:
 				value = (pos + (tmp + owner._raw_width - pos) * delta - (tmp + owner._raw_width)) if percent else delta * (_relation_factor(def["type"]) - pivot)
 				owner.width = owner._raw_width + value
@@ -225,9 +229,15 @@ func _apply_on_size_changed(def: Dictionary) -> void:
 			tmp = owner.y_min
 			if int(def["type"]) == FGUIEnums.RELATION_BOTTOM_EXT_BOTTOM and owner == target.parent:
 				if percent:
-					owner.height = pos + target._height - target._height * pivot + (owner.source_height - _target_init_y - target.init_height + target.init_height * pivot) * delta
+					if owner._under_construct:
+						owner.height = pos + target._height - target._height * pivot + (owner.source_height - pos - target.init_height + target.init_height * pivot) * delta
+					else:
+						owner.height = pos + (owner._raw_height - pos) * delta
 				else:
-					owner.height = owner.source_height + pos - _target_init_y + (target._height - target.init_height) * (1.0 - pivot)
+					if owner._under_construct:
+						owner.height = owner.source_height + (target._height - target.init_height) * (1.0 - pivot)
+					else:
+						owner.height = owner._raw_height + delta * (1.0 - pivot)
 			else:
 				value = (pos + (tmp + owner._raw_height - pos) * delta - (tmp + owner._raw_height)) if percent else delta * (_relation_factor(def["type"]) - pivot)
 				owner.height = owner._raw_height + value
@@ -243,8 +253,6 @@ func _add_ref_target() -> void:
 	target.on(FGUIEvents.SIZE_DELAY_CHANGE, Callable(self, "_target_size_will_change"))
 	_target_x = target.x
 	_target_y = target.y
-	_target_init_x = target.x
-	_target_init_y = target.y
 	_target_width = target._width
 	_target_height = target._height
 
@@ -283,7 +291,7 @@ func _target_size_changed() -> void:
 		return
 	if owner.relations.size_dirty:
 		owner.relations.ensure_relations_size_correct()
-	if owner.relations.handling != null:
+	if owner.relations.handling != null or (owner.group != null and owner.group is FGUIGroup and owner.group._updating > 0):
 		_target_width = target._width
 		_target_height = target._height
 		return
