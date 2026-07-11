@@ -407,6 +407,7 @@ func _schedule_item(item: Dictionary, token: int) -> bool:
 			var complete_start := _get_tween_start_value(item).duplicate(true)
 			var complete_end := _get_tween_end_value(item).duplicate(true)
 			_prepare_missing_tween_values(item, complete_start, complete_end)
+			_call_hook(item, false)
 			_apply_tween_variant(_variant_at_tween_elapsed(item, complete_start, complete_end, total_span), item, complete_start)
 			_call_hook(item, true)
 			return false
@@ -418,7 +419,6 @@ func _schedule_item(item: Dictionary, token: int) -> bool:
 		var delay := maxf(0.0, action_time - _start_time)
 		var start_value := _get_tween_start_value(item).duplicate(true)
 		var end_value := _get_tween_end_value(item).duplicate(true)
-		_prepare_missing_tween_values(item, start_value, end_value)
 		if repeat < 0 and end_limit == INF:
 			return _schedule_infinite_tween_cycle(item, token, delay, offset, start_value, end_value, true)
 		var tween := _make_tween()
@@ -426,7 +426,7 @@ func _schedule_item(item: Dictionary, token: int) -> bool:
 			return false
 		if delay > 0.0:
 			tween.tween_interval(delay)
-		tween.tween_callback(Callable(self, "_call_hook").bind(item, false))
+		tween.tween_callback(Callable(self, "_prepare_tween_start").bind(item, start_value, end_value))
 		tween.tween_method(Callable(self, "_apply_tween_elapsed").bind(item, start_value, end_value), offset, offset + play_duration, play_duration)
 		if total_span < INF and offset + play_duration >= total_span - 0.0001:
 			tween.tween_callback(Callable(self, "_call_hook").bind(item, true))
@@ -501,7 +501,7 @@ func _schedule_infinite_tween_cycle(item: Dictionary, token: int, delay: float, 
 	if delay > 0.0:
 		tween.tween_interval(delay)
 	if call_start_hook:
-		tween.tween_callback(Callable(self, "_call_hook").bind(item, false))
+		tween.tween_callback(Callable(self, "_prepare_tween_start").bind(item, start_value, end_value))
 	var segment_duration := maxf(0.0001, next_offset - offset)
 	tween.tween_method(Callable(self, "_apply_tween_elapsed").bind(item, start_value, end_value), offset, next_offset, segment_duration)
 	tween.finished.connect(Callable(self, "_on_infinite_tween_cycle_finished").bind(token, tween, item, next_offset, start_value, end_value))
@@ -586,11 +586,11 @@ func _finish_playback(token: int) -> void:
 	if token != _play_id or not playing:
 		return
 	if _total_times < 0:
-		_internal_play(token)
+		_queue_next_play_cycle(token)
 		return
 	_total_times -= 1
 	if _total_times > 0:
-		_internal_play(token)
+		_queue_next_play_cycle(token)
 		return
 	playing = false
 	_release_display_locks()
@@ -598,6 +598,29 @@ func _finish_playback(token: int) -> void:
 	_on_complete = Callable()
 	if callback.is_valid():
 		callback.call()
+
+
+func _queue_next_play_cycle(token: int) -> void:
+	var cycle_tween := _make_tween()
+	if cycle_tween == null:
+		if token != _play_id or not playing:
+			return
+		playing = false
+		_release_display_locks()
+		var callback := _on_complete
+		_on_complete = Callable()
+		if callback.is_valid():
+			callback.call()
+		return
+	cycle_tween.tween_interval(0.0)
+	cycle_tween.finished.connect(Callable(self, "_on_next_play_cycle_finished").bind(token, cycle_tween))
+
+
+func _on_next_play_cycle_finished(token: int, tween: Tween) -> void:
+	_active_tweens.erase(tween)
+	if token != _play_id or not playing:
+		return
+	_internal_play(token)
 
 
 func _resolve_targets() -> void:
@@ -668,6 +691,11 @@ func _apply_tween_variant(value: Variant, item: Dictionary, start_value: Diction
 
 func _apply_tween_elapsed(elapsed: float, item: Dictionary, start_value: Dictionary, end_value: Dictionary) -> void:
 	_apply_tween_variant(_variant_at_tween_elapsed(item, start_value, end_value, elapsed), item, start_value)
+
+
+func _prepare_tween_start(item: Dictionary, start_value: Dictionary, end_value: Dictionary) -> void:
+	_prepare_missing_tween_values(item, start_value, end_value)
+	_call_hook(item, false)
 
 
 func _apply_shake_elapsed(elapsed: float, item: Dictionary, duration: float, amplitude: float) -> void:

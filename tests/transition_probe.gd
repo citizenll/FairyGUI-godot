@@ -123,6 +123,105 @@ func _initialize() -> void:
 		quit(1)
 		return
 
+	var delayed_capture_transition := FGUITransition.new(owner)
+	delayed_capture_transition._items.append({
+		"type": FGUITransition.ACTION_XY,
+		"time": 0.08,
+		"target_id": child.id,
+		"target": null,
+		"label": "capture_delayed_xy",
+		"value": {},
+		"tween_config": {
+			"duration": 0.3,
+			"ease_type": FGUIEaseType.LINEAR,
+			"repeat": 0,
+			"yoyo": false,
+			"end_label": "capture_delayed_xy_end",
+			"start_value": {"b1": false, "b2": true, "f1": 0.0, "f2": 0.0},
+			"end_value": {"b1": true, "b2": true, "f1": 100.0, "f2": 0.0},
+			"end_hook": Callable(),
+			"path": null
+		},
+		"hook": Callable()
+	})
+	child.set_xy(10.0, 0.0)
+	delayed_capture_transition.play()
+	await create_timer(0.03).timeout
+	child.set_xy(60.0, 0.0)
+	await create_timer(0.11).timeout
+	if child.x < 55.0:
+		push_error("Transition delayed tween did not capture its missing start value at action time: %s" % child.x)
+		quit(1)
+		return
+	delayed_capture_transition.stop(false, false)
+
+	var instant_hook_transition := FGUITransition.new(owner)
+	var instant_start_hook_count := [0]
+	var instant_end_hook_count := [0]
+	instant_hook_transition._items.append({
+		"type": FGUITransition.ACTION_ALPHA,
+		"time": 0.0,
+		"target_id": child.id,
+		"target": null,
+		"label": "instant_alpha",
+		"value": {},
+		"tween_config": {
+			"duration": 0.0,
+			"ease_type": FGUIEaseType.LINEAR,
+			"repeat": 0,
+			"yoyo": false,
+			"end_label": "instant_alpha_end",
+			"start_value": {"f1": 0.25},
+			"end_value": {"f1": 0.75},
+			"end_hook": func() -> void: instant_end_hook_count[0] += 1,
+			"path": null
+		},
+		"hook": func() -> void: instant_start_hook_count[0] += 1
+	})
+	child.alpha = 0.0
+	instant_hook_transition.play()
+	await process_frame
+	if absf(child.alpha - 0.75) > 0.01 or instant_start_hook_count[0] != 1 or instant_end_hook_count[0] != 1:
+		push_error("Transition zero-duration tween did not apply hooks and final state exactly once.")
+		quit(1)
+		return
+
+	var instant_repeat_transition := FGUITransition.new(owner)
+	var instant_repeat_count := [0]
+	var instant_repeat_item: Dictionary = instant_hook_transition._items[0].duplicate(true)
+	instant_repeat_item["label"] = "instant_repeat"
+	instant_repeat_item["tween_config"]["end_label"] = "instant_repeat_end"
+	instant_repeat_item["hook"] = func() -> void: instant_repeat_count[0] += 1
+	instant_repeat_item["tween_config"]["end_hook"] = Callable()
+	instant_repeat_transition._items.append(instant_repeat_item)
+	var instant_repeat_completed := [false]
+	instant_repeat_transition.play(func() -> void: instant_repeat_completed[0] = true, 3)
+	var instant_repeat_frames := 0
+	while not instant_repeat_completed[0] and instant_repeat_frames < 8:
+		await process_frame
+		instant_repeat_frames += 1
+	if not instant_repeat_completed[0] or instant_repeat_count[0] != 3:
+		push_error("Transition zero-task repeat did not complete across deferred cycles: completed=%s hooks=%s" % [instant_repeat_completed[0], instant_repeat_count[0]])
+		quit(1)
+		return
+
+	var instant_infinite_transition := FGUITransition.new(owner)
+	var instant_infinite_count := [0]
+	var instant_infinite_item: Dictionary = instant_hook_transition._items[0].duplicate(true)
+	instant_infinite_item["label"] = "instant_infinite"
+	instant_infinite_item["tween_config"]["end_label"] = "instant_infinite_end"
+	instant_infinite_item["hook"] = func() -> void: instant_infinite_count[0] += 1
+	instant_infinite_item["tween_config"]["end_hook"] = Callable()
+	instant_infinite_transition._items.append(instant_infinite_item)
+	instant_infinite_transition.play(Callable(), -1)
+	for frame in 3:
+		await process_frame
+	if not instant_infinite_transition.playing or instant_infinite_count[0] < 2:
+		push_error("Transition zero-task infinite repeat did not stay active across frames: hooks=%s" % instant_infinite_count[0])
+		quit(1)
+		return
+	instant_infinite_transition.stop(false, false)
+
 	child.set_size(20.0, 20.0)
 	child.set_pivot(0.5, 0.5, true)
 	var property_transition := FGUITransition.new(owner)
@@ -553,6 +652,10 @@ func _initialize() -> void:
 
 	transition.dispose()
 	repeat_transition.dispose()
+	delayed_capture_transition.dispose()
+	instant_hook_transition.dispose()
+	instant_repeat_transition.dispose()
+	instant_infinite_transition.dispose()
 	property_transition.dispose()
 	yoyo_transition.dispose()
 	speed_transition.dispose()
