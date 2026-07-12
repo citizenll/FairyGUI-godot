@@ -116,3 +116,9 @@ func _apply_fill() -> void:
 	image_node.self_modulate = Color.WHITE if not use_fill else Color(1.0, 1.0, 1.0, 0.0)
 	fill_renderer.visible = use_fill
 	fill_renderer.configure(image_node.texture, fill_method, fill_origin, fill_clockwise, fill_amount)
+	FGUIToolSet.set_blend_mode(fill_renderer, blend_mode)
+
+
+func _handle_blend_changed() -> void:
+	if fill_renderer != null:
+		FGUIToolSet.set_blend_mode(fill_renderer, blend_mode)

@@ -14,6 +14,7 @@ shader_type canvas_item;
 
 uniform vec4 fgui_filter = vec4(0.0);
 uniform bool fgui_grayed = false;
+__SCREEN_UNIFORM__
 
 const vec3 FGUI_LUMA = vec3(0.299, 0.587, 0.114);
 
@@ -57,12 +58,13 @@ void fragment() {
 		rgb += vec3(clamp(fgui_filter.x, -1.0, 1.0));
 		rgb = apply_saturation(rgb, fgui_filter.z);
 	}
-	COLOR = vec4(clamp(rgb, vec3(0.0), vec3(1.0)), source.a);
+	vec4 filtered = vec4(clamp(rgb, vec3(0.0), vec3(1.0)), source.a);
+	__BLEND_OUTPUT__
 }
 """
 
 static var _color_filter_shaders: Dictionary = {}
-static var _add_blend_material: CanvasItemMaterial
+static var _blend_materials: Dictionary = {}
 
 
 static func starts_with(source: String, value: String, ignore_case: bool = false) -> bool:
@@ -195,10 +197,14 @@ static func get_blend_mode(control: CanvasItem) -> int:
 	return int(control.get_meta(_BLEND_MODE_META, FGUIEnums.BLEND_NORMAL))
 
 
+static func normalize_blend_mode(mode: int) -> int:
+	return mode if mode >= FGUIEnums.BLEND_NORMAL and mode <= FGUIEnums.BLEND_CUSTOM_3 else FGUIEnums.BLEND_NORMAL
+
+
 static func set_blend_mode(control: CanvasItem, mode: int) -> void:
 	if control == null:
 		return
-	var normalized_mode := FGUIEnums.BLEND_ADD if mode == FGUIEnums.BLEND_ADD else FGUIEnums.BLEND_NORMAL
+	var normalized_mode := normalize_blend_mode(mode)
 	control.set_meta(_BLEND_MODE_META, normalized_mode)
 	if bool(control.get_meta(_FILTER_GRAY_META, false)) or control.has_meta(_FILTER_VALUES_META):
 		control.remove_meta(_FILTER_MATERIAL_META)
@@ -238,42 +244,101 @@ static func detach_color_filter(control: CanvasItem, filter_owner: CanvasItem) -
 
 
 static func _get_color_filter_shader(blend_mode: int) -> Shader:
-	var normalized_mode := FGUIEnums.BLEND_ADD if blend_mode == FGUIEnums.BLEND_ADD else FGUIEnums.BLEND_NORMAL
+	var normalized_mode := normalize_blend_mode(blend_mode)
 	if not _color_filter_shaders.has(normalized_mode):
 		var shader := Shader.new()
-		var render_mode := "\nrender_mode blend_add;" if normalized_mode == FGUIEnums.BLEND_ADD else ""
-		shader.code = _COLOR_FILTER_SHADER_CODE.replace("shader_type canvas_item;", "shader_type canvas_item;" + render_mode)
+		shader.code = _build_blend_shader_code(normalized_mode)
 		_color_filter_shaders[normalized_mode] = shader
 	return _color_filter_shaders[normalized_mode]
 
 
 static func _apply_direct_blend_mode(control: CanvasItem) -> void:
 	var blend_mode := get_blend_mode(control)
-	var blend_material: CanvasItemMaterial = control.get_meta(_BLEND_MATERIAL_META) if control.has_meta(_BLEND_MATERIAL_META) else null
-	if blend_mode == FGUIEnums.BLEND_ADD:
-		if blend_material == null:
-			control.set_meta(_BLEND_PREVIOUS_MATERIAL_META, control.material)
-			control.set_meta(_BLEND_PREVIOUS_PARENT_META, control.use_parent_material)
-			blend_material = _get_add_blend_material()
-			control.set_meta(_BLEND_MATERIAL_META, blend_material)
-		control.material = blend_material
-		control.use_parent_material = false
+	var current_material: Material = control.get_meta(_BLEND_MATERIAL_META) if control.has_meta(_BLEND_MATERIAL_META) else null
+	var desired_material := _get_direct_blend_material(blend_mode)
+	if current_material == desired_material:
 		return
-	if blend_material == null:
-		return
-	if control.material == blend_material:
+	if current_material != null and control.material == current_material:
 		control.material = control.get_meta(_BLEND_PREVIOUS_MATERIAL_META, null)
 		control.use_parent_material = bool(control.get_meta(_BLEND_PREVIOUS_PARENT_META, false))
+	if desired_material != null:
+		if current_material == null:
+			control.set_meta(_BLEND_PREVIOUS_MATERIAL_META, control.material)
+			control.set_meta(_BLEND_PREVIOUS_PARENT_META, control.use_parent_material)
+		control.set_meta(_BLEND_MATERIAL_META, desired_material)
+		control.material = desired_material
+		control.use_parent_material = false
+		return
 	control.remove_meta(_BLEND_MATERIAL_META)
 	control.remove_meta(_BLEND_PREVIOUS_MATERIAL_META)
 	control.remove_meta(_BLEND_PREVIOUS_PARENT_META)
 
 
-static func _get_add_blend_material() -> CanvasItemMaterial:
-	if _add_blend_material == null:
-		_add_blend_material = CanvasItemMaterial.new()
-		_add_blend_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	return _add_blend_material
+static func _get_direct_blend_material(blend_mode: int) -> Material:
+	blend_mode = normalize_blend_mode(blend_mode)
+	if blend_mode == FGUIEnums.BLEND_NORMAL or blend_mode >= FGUIEnums.BLEND_CUSTOM_1:
+		return null
+	if _blend_materials.has(blend_mode):
+		return _blend_materials[blend_mode]
+	var material: Material
+	match blend_mode:
+		FGUIEnums.BLEND_ADD:
+			var canvas_material := CanvasItemMaterial.new()
+			canvas_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+			material = canvas_material
+		FGUIEnums.BLEND_MULTIPLY:
+			material = _new_shader_material(blend_mode)
+		FGUIEnums.BLEND_OFF:
+			material = _new_shader_material(blend_mode)
+		FGUIEnums.BLEND_ONE_ONE_MINUS_SRC_ALPHA:
+			material = _new_shader_material(blend_mode)
+		_:
+			material = _new_shader_material(blend_mode)
+	_blend_materials[blend_mode] = material
+	return material
+
+
+static func _new_shader_material(blend_mode: int) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = _get_color_filter_shader(blend_mode)
+	material.set_shader_parameter("fgui_filter", Vector4.ZERO)
+	material.set_shader_parameter("fgui_grayed", false)
+	return material
+
+
+static func _build_blend_shader_code(blend_mode: int) -> String:
+	var render_mode := ""
+	var screen_uniform := ""
+	var blend_output := "COLOR = filtered;"
+	match blend_mode:
+		FGUIEnums.BLEND_ADD:
+			render_mode = "\nrender_mode blend_add;"
+		FGUIEnums.BLEND_MULTIPLY:
+			render_mode = "\nrender_mode blend_mul;"
+			blend_output = "COLOR = vec4(mix(vec3(1.0), filtered.rgb, filtered.a), 1.0);"
+		FGUIEnums.BLEND_OFF:
+			render_mode = "\nrender_mode blend_disabled;"
+			blend_output = "if (filtered.a <= 0.0001) { discard; } COLOR = filtered;"
+		FGUIEnums.BLEND_ONE_ONE_MINUS_SRC_ALPHA:
+			render_mode = "\nrender_mode blend_premul_alpha;"
+			blend_output = "COLOR = vec4(filtered.rgb * filtered.a, filtered.a);"
+		FGUIEnums.BLEND_NONE, FGUIEnums.BLEND_SCREEN, FGUIEnums.BLEND_ERASE, FGUIEnums.BLEND_MASK, FGUIEnums.BLEND_BELOW:
+			render_mode = "\nrender_mode blend_disabled;"
+			screen_uniform = "uniform sampler2D fgui_screen_texture : hint_screen_texture, repeat_disable, filter_nearest;"
+			match blend_mode:
+				FGUIEnums.BLEND_NONE:
+					blend_output = "if (filtered.a <= 0.0001) { discard; } vec4 background = textureLod(fgui_screen_texture, SCREEN_UV, 0.0); COLOR = min(background + filtered, vec4(1.0));"
+				FGUIEnums.BLEND_SCREEN:
+					blend_output = "if (filtered.a <= 0.0001) { discard; } vec4 background = textureLod(fgui_screen_texture, SCREEN_UV, 0.0); vec3 source_rgb = filtered.rgb * filtered.a; COLOR = vec4(vec3(1.0) - (vec3(1.0) - background.rgb) * (vec3(1.0) - source_rgb), filtered.a + background.a * (1.0 - filtered.a));"
+				FGUIEnums.BLEND_ERASE:
+					blend_output = "if (filtered.a <= 0.0001) { discard; } vec4 background = textureLod(fgui_screen_texture, SCREEN_UV, 0.0); COLOR = background * (1.0 - filtered.a);"
+				FGUIEnums.BLEND_MASK:
+					blend_output = "if (filtered.a <= 0.0001) { discard; } vec4 background = textureLod(fgui_screen_texture, SCREEN_UV, 0.0); COLOR = background * filtered.a;"
+				FGUIEnums.BLEND_BELOW:
+					blend_output = "if (filtered.a <= 0.0001) { discard; } vec4 background = textureLod(fgui_screen_texture, SCREEN_UV, 0.0); COLOR = filtered * (1.0 - background.a) + background * background.a;"
+	var code := _COLOR_FILTER_SHADER_CODE.replace("shader_type canvas_item;", "shader_type canvas_item;" + render_mode)
+	code = code.replace("__SCREEN_UNIFORM__", screen_uniform)
+	return code.replace("__BLEND_OUTPUT__", blend_output)
 
 
 static func _apply_filter_to_tree(node: Node, material: ShaderMaterial, owner_id: int, owner_root: CanvasItem) -> void:

@@ -93,7 +93,18 @@ const FLIP_VERTICAL := 2
 const FLIP_BOTH := 3
 
 const BLEND_NORMAL := 0
+const BLEND_NONE := 1
 const BLEND_ADD := 2
+const BLEND_MULTIPLY := 3
+const BLEND_SCREEN := 4
+const BLEND_ERASE := 5
+const BLEND_MASK := 6
+const BLEND_BELOW := 7
+const BLEND_OFF := 8
+const BLEND_ONE_ONE_MINUS_SRC_ALPHA := 9
+const BLEND_CUSTOM_1 := 10
+const BLEND_CUSTOM_2 := 11
+const BLEND_CUSTOM_3 := 12
 
 const CHILDREN_RENDER_ASCENT := 0
 const CHILDREN_RENDER_DESCENT := 1

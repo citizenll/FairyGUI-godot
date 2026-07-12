@@ -184,9 +184,12 @@ func _update_graph() -> void:
 	graph_node.sides = _sides
 	graph_node.start_angle = _start_angle
 	graph_node.distances = _distances.duplicate()
+	graph_node.mask_revision += 1
 	if color_rect != null:
 		color_rect.visible = _type == TYPE_EMPTY
 	graph_node.queue_redraw()
+	if parent != null and parent.has_method("_refresh_mask") and parent.get("mask") == self:
+		parent.call("_refresh_mask")
 
 
 func _to_float_array(value: Variant) -> Array[float]:

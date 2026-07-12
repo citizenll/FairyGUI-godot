@@ -9,7 +9,7 @@ This repository starts from the TypeScript `FairyGUI-layabox/source` runtime bec
 - Loads uncompressed FairyGUI `.fui` descriptors and raw-deflate compressed package bodies used by FairyGUI exports.
 - Parses package items, string tables, atlas sprite regions, component raw data, controllers, relations, gears, and child display lists.
 - Creates Godot controls for components, images, movie clips, text, rich text, input text, loaders, Loader3D adapters, graphs, groups, labels, buttons, progress bars, sliders, scroll bars, combo boxes, lists, trees, roots, windows, popups, and drag/drop helpers.
-- Parses and runs controller actions and common transition timelines for position, size, scale, pivot, alpha, rotation, color, visibility, animation state, text, icon, nested transitions, and hooks; exported additive blend mode is mapped to Godot canvas rendering.
+- Parses and runs controller actions and common transition timelines for position, size, scale, pivot, alpha, rotation, color, visibility, animation state, text, icon, nested transitions, and hooks; standard FairyGUI blend modes through `One_OneMinusSrcAlpha` are mapped to native or destination-aware Godot canvas shaders.
 - Provides FairyGUI-style `FGUIEventContext` capture, target, bubble, broadcast, `PreventDefault`, and `CaptureTouch` dispatch while retaining the earlier raw-payload `on`/`off` API for compatibility.
 - Supports loader alignment/fill options, `FGUIConfig.loader_error_sign`, horizontal/vertical/Radial90/Radial180/Radial360 image fills, component loader targets, bitmap-font package parsing/rendering, packaged audio playback, pixel hit-test masks, and flow/pagination list layout.
 - `FGUILoader3D` supports external `PackedScene`, CanvasItem, Control, and Node3D content; package Spine/DragonBones content is connected through `FGUILoader3D.set_content_factory` so projects can choose their licensed Godot runtime integration.
@@ -58,6 +58,8 @@ The repository is checked against Godot 4.7 Steam:
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/component_metadata_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/bounds_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/blend_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/render_parity_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/mask_shape_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/pixel_hit_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/native_hit_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/relation_probe.gd
@@ -88,7 +90,7 @@ The repository is checked against Godot 4.7 Steam:
 
 ## Commercial Readiness
 
-This is still a pure-GDScript port in progress, not a certified drop-in replacement for every FairyGUI runtime feature. The current milestone is suitable for loading real packages, using `.fui` resources from the Inspector, and validating Godot integration. Before shipping a commercial product on it, finish parity testing for complex transition timelines, very large virtual lists, visual comparison, and large UI performance.
+This is still a pure-GDScript port in progress, not a certified drop-in replacement for every FairyGUI runtime feature. The current milestone is suitable for loading real packages, using `.fui` resources from the Inspector, and validating Godot integration. Before shipping a commercial product on it, finish parity testing for complex transition timelines, very large virtual lists, target-platform exports, and large UI performance.
 
 ## License
 

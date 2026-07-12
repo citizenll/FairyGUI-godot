@@ -308,6 +308,7 @@ func _load_from_package(item_url: String) -> void:
 				content_movie_clip.time_scale = _time_scale
 				texture_rect.visible = false
 				node.add_child(content_movie_clip.node)
+				_handle_blend_changed()
 				update_layout()
 			else:
 				if obj != null:
@@ -319,6 +320,7 @@ func _load_from_package(item_url: String) -> void:
 				content_component = obj
 				texture_rect.visible = false
 				node.add_child(content_component.node)
+				_handle_blend_changed()
 				update_layout()
 			else:
 				if obj != null:
@@ -452,6 +454,7 @@ func _set_error_state() -> void:
 		push_warning("FairyGUI loader content not found or unsupported: %s" % url)
 		return
 	_error_sign.set_size(width, height)
+	_error_sign.blend_mode = blend_mode
 	if _error_sign.node.get_parent() != node:
 		node.add_child(_error_sign.node)
 
@@ -470,6 +473,7 @@ func _set_texture(texture: Texture2D) -> void:
 		return
 	texture_rect.texture = texture
 	_apply_fill()
+	_handle_blend_changed()
 
 
 func _apply_fill() -> void:
@@ -480,6 +484,19 @@ func _apply_fill() -> void:
 	fill_renderer.visible = use_fill
 	fill_renderer.modulate = color
 	fill_renderer.configure(texture_rect.texture, fill_method, fill_origin, fill_clockwise, fill_amount)
+
+
+func _handle_blend_changed() -> void:
+	if texture_rect != null:
+		FGUIToolSet.set_blend_mode(texture_rect, blend_mode)
+	if fill_renderer != null:
+		FGUIToolSet.set_blend_mode(fill_renderer, blend_mode)
+	if content_component != null:
+		content_component.blend_mode = blend_mode
+	if content_movie_clip != null:
+		content_movie_clip.blend_mode = blend_mode
+	if _error_sign != null:
+		_error_sign.blend_mode = blend_mode
 
 
 func _handle_size_changed() -> void:

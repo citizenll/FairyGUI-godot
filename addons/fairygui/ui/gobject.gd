@@ -97,12 +97,13 @@ var blend_mode: int:
 	get:
 		return _blend_mode
 	set(value):
-		var next_mode := FGUIEnums.BLEND_ADD if value == FGUIEnums.BLEND_ADD else FGUIEnums.BLEND_NORMAL
+		var next_mode := FGUIToolSet.normalize_blend_mode(value)
 		if _blend_mode == next_mode:
 			return
 		_blend_mode = next_mode
 		if node != null:
 			FGUIToolSet.set_blend_mode(node, _blend_mode)
+		_handle_blend_changed()
 var enabled: bool:
 	get:
 		return not _grayed and _touchable
@@ -920,6 +921,10 @@ func _handle_touchable_changed() -> void:
 func _handle_grayed_changed() -> void:
 	if node != null:
 		FGUIToolSet.set_color_filter(node, _grayed)
+
+
+func _handle_blend_changed() -> void:
+	pass
 
 
 func _on_gui_input(event: InputEvent) -> void:

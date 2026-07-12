@@ -435,7 +435,7 @@ func hit_test(view_point: Vector2, force_test: bool = false) -> FGUIObject:
 	if node.clip_contents and outside_content:
 		return null
 	if _mask != null:
-		var mask_hit := _mask.hit_test(view_point, true) != null
+		var mask_hit := _contains_mask(view_point)
 		if (_reversed_mask and mask_hit) or (not _reversed_mask and not mask_hit):
 			return null
 	var display_children := _get_display_children()
@@ -871,6 +871,8 @@ func _contains_mask(global_position: Vector2) -> bool:
 	var local_position := _mask._global_to_node_local(global_position)
 	if _mask.pixel_hit_test != null:
 		return _mask.pixel_hit_test.contains(local_position.x, local_position.y)
+	if _mask.node.has_method("get_mask_alpha_at"):
+		return float(_mask.node.call("get_mask_alpha_at", local_position)) > 0.001
 	return Rect2(Vector2.ZERO, Vector2(_mask.width, _mask.height)).has_point(local_position)
 
 

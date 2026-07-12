@@ -16,6 +16,7 @@ var polygon_points: PackedVector2Array = PackedVector2Array()
 var sides: int = 0
 var start_angle: float = 0.0
 var distances: Array[float] = []
+var mask_revision: int = 0
 var compatibility_color_rect: ColorRect
 var color: Color:
 	get:
@@ -53,6 +54,89 @@ func get_mask_alpha() -> float:
 	if graph_type == TYPE_EMPTY and compatibility_color_rect != null:
 		return compatibility_color_rect.color.a
 	return fill_color.a
+
+
+func get_mask_alpha_at(point: Vector2) -> float:
+	if not Rect2(Vector2.ZERO, size).has_point(point):
+		return 0.0
+	if graph_type == TYPE_EMPTY:
+		return compatibility_color_rect.color.a if compatibility_color_rect != null else 0.0
+	var inside := _contains_shape_point(point)
+	var alpha := fill_color.a if inside else 0.0
+	if line_size > 0.0 and line_color.a > 0.0 and _is_on_shape_outline(point):
+		alpha = maxf(alpha, line_color.a)
+	return alpha
+
+
+func _contains_shape_point(point: Vector2) -> bool:
+	match graph_type:
+		TYPE_RECT:
+			return _contains_rounded_rect(point, 0.0)
+		TYPE_ELLIPSE:
+			var radius := size * 0.5
+			if radius.x <= 0.0 or radius.y <= 0.0:
+				return false
+			var normalized := (point - radius) / radius
+			return normalized.length_squared() <= 1.0
+		TYPE_POLYGON, TYPE_REGULAR_POLYGON:
+			var points := get_draw_points()
+			return points.size() >= 3 and Geometry2D.is_point_in_polygon(point, points)
+	return false
+
+
+func _is_on_shape_outline(point: Vector2) -> bool:
+	var half_line := line_size * 0.5
+	match graph_type:
+		TYPE_RECT:
+			return _contains_rounded_rect(point, -half_line) and not _contains_rounded_rect(point, half_line)
+		TYPE_ELLIPSE:
+			var radius := size * 0.5
+			if radius.x <= 0.0 or radius.y <= 0.0:
+				return false
+			var center := radius
+			var outer_radius := radius + Vector2(half_line, half_line)
+			var inner_radius := Vector2(maxf(0.001, radius.x - half_line), maxf(0.001, radius.y - half_line))
+			var outer := ((point - center) / outer_radius).length_squared() <= 1.0
+			var inner := ((point - center) / inner_radius).length_squared() <= 1.0
+			return outer and not inner
+		TYPE_POLYGON, TYPE_REGULAR_POLYGON:
+			var points := get_draw_points()
+			if points.size() < 2:
+				return false
+			for index in points.size():
+				var closest := Geometry2D.get_closest_point_to_segment(point, points[index], points[(index + 1) % points.size()])
+				if point.distance_to(closest) <= half_line:
+					return true
+	return false
+
+
+func _contains_rounded_rect(point: Vector2, inset: float) -> bool:
+	var rect := Rect2(Vector2(inset, inset), size - Vector2(inset * 2.0, inset * 2.0))
+	if rect.size.x <= 0.0 or rect.size.y <= 0.0 or not rect.has_point(point):
+		return false
+	if corner_radii.is_empty():
+		return true
+	var radii := [
+		maxf(0.0, _corner_radius_at(0) - inset),
+		maxf(0.0, _corner_radius_at(1) - inset),
+		maxf(0.0, _corner_radius_at(2) - inset),
+		maxf(0.0, _corner_radius_at(3) - inset),
+	]
+	var corners := [
+		Vector2(rect.position.x + radii[0], rect.position.y + radii[0]),
+		Vector2(rect.end.x - radii[1], rect.position.y + radii[1]),
+		Vector2(rect.position.x + radii[2], rect.end.y - radii[2]),
+		Vector2(rect.end.x - radii[3], rect.end.y - radii[3]),
+	]
+	if point.x < corners[0].x and point.y < corners[0].y:
+		return point.distance_squared_to(corners[0]) <= radii[0] * radii[0]
+	if point.x > corners[1].x and point.y < corners[1].y:
+		return point.distance_squared_to(corners[1]) <= radii[1] * radii[1]
+	if point.x < corners[2].x and point.y > corners[2].y:
+		return point.distance_squared_to(corners[2]) <= radii[2] * radii[2]
+	if point.x > corners[3].x and point.y > corners[3].y:
+		return point.distance_squared_to(corners[3]) <= radii[3] * radii[3]
+	return true
 
 
 func _draw_rect_shape() -> void:
