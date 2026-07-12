@@ -28,6 +28,17 @@ var color: Color:
 		queue_redraw()
 
 
+func _has_point(point: Vector2) -> bool:
+	if not Rect2(Vector2.ZERO, size).has_point(point):
+		return false
+	if not has_meta("fgui_owner"):
+		return true
+	var owner := get_meta("fgui_owner")
+	if owner != null and owner.has_method("_accepts_native_input_at"):
+		return bool(owner.call("_accepts_native_input_at", point))
+	return true
+
+
 func _draw() -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
 		return

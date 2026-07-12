@@ -74,6 +74,8 @@ var _view: FGUIComponent
 var _close_button: FGUIObject
 var _current_demo_name := ""
 var _session_id := 0
+var _pending_navigation := ""
+var _navigation_scheduled := false
 var _rng := RandomNumberGenerator.new()
 var _owned_objects: Array[FGUIObject] = []
 var _windows: Array[FGUIWindow] = []
@@ -259,7 +261,27 @@ func _show_main_menu() -> void:
 
 
 func _on_menu_button_clicked(_event: Variant, demo_name: String) -> void:
-	_start_demo(demo_name)
+	_queue_navigation(demo_name)
+
+
+func _queue_navigation(target: String) -> void:
+	_pending_navigation = target
+	if _navigation_scheduled:
+		return
+	_navigation_scheduled = true
+	call_deferred("_flush_navigation")
+
+
+func _flush_navigation() -> void:
+	_navigation_scheduled = false
+	var target := _pending_navigation
+	_pending_navigation = ""
+	if target == "" or not is_inside_tree():
+		return
+	if target == "MainMenu":
+		_show_main_menu()
+	else:
+		_start_demo(target)
 
 
 func _start_demo(demo_name: String) -> void:
@@ -334,7 +356,7 @@ func _add_close_button() -> void:
 
 
 func _on_demo_closed(_event: Variant = null) -> void:
-	_show_main_menu()
+	_queue_navigation("MainMenu")
 
 
 func _cleanup_current() -> void:

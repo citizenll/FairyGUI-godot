@@ -47,6 +47,18 @@ var _num_children: int = 0
 var _updating: int = 0
 
 
+func _create_display_object() -> void:
+	super._create_display_object()
+	# GGroup is a logical layout object. Its bounds must never block the
+	# controls it groups, even when the package leaves touchable enabled.
+	node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+func _handle_touchable_changed() -> void:
+	if node != null:
+		node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
 func dispose() -> void:
 	_bounds_changed = false
 	super.dispose()

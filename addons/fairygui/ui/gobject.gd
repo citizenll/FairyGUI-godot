@@ -764,6 +764,24 @@ func hit_test(view_point: Vector2, force_test: bool = false) -> FGUIObject:
 	return self
 
 
+func _accepts_native_input_at(local_point: Vector2) -> bool:
+	if node == null or not Rect2(Vector2.ZERO, Vector2(width, height)).has_point(local_point):
+		return false
+	var global_point := node.get_global_transform() * local_point
+	if not _allows_native_input_through_ancestors(global_point):
+		return false
+	return hit_test(global_point) != null
+
+
+func _allows_native_input_through_ancestors(global_point: Vector2) -> bool:
+	var ancestor := parent
+	while ancestor != null:
+		if ancestor is FGUIComponent and not (ancestor as FGUIComponent)._allows_descendant_native_input_at(global_point):
+			return false
+		ancestor = ancestor.parent
+	return true
+
+
 func _global_to_node_local(point: Vector2) -> Vector2:
 	return node.get_global_transform().affine_inverse() * point if node != null else point
 
@@ -857,10 +875,10 @@ func dispose() -> void:
 	data = null
 	if node != null:
 		node.remove_meta("fgui_owner")
-		if node.is_inside_tree():
-			node.queue_free()
-		else:
-			node.free()
+		# QueueFree is safe while Godot is dispatching a signal or GUI event.
+		# A child can already be detached by remove_child(..., true), so using
+		# free() here would fail when that child is the current event emitter.
+		node.queue_free()
 		node = null
 
 

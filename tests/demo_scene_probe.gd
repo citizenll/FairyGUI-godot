@@ -26,6 +26,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	root.size = Vector2i(1136, 640)
 	var packed := load("res://demo.tscn") as PackedScene
 	if packed == null:
 		_fail("Root demo.tscn could not be loaded.")
@@ -44,13 +45,20 @@ func _run() -> void:
 		if button == null:
 			_fail("MainMenu button is missing: %s" % button_name)
 			return
-		button.emit_event("click")
+		await _native_click(button)
 		await _wait_frames(2)
 		if _demo.get_current_demo_name() != str(MENU_BINDINGS[button_name]):
 			_fail("MainMenu button %s did not open %s." % [button_name, MENU_BINDINGS[button_name]])
 			return
-		_demo.return_to_menu()
+		var close_button := _find_close_button()
+		if close_button == null:
+			_fail("Demo close button was not attached for %s." % MENU_BINDINGS[button_name])
+			return
+		await _native_click(close_button)
 		await _wait_frames(2)
+		if _demo.get_current_demo_name() != "MainMenu":
+			_fail("Demo close button did not return from %s." % MENU_BINDINGS[button_name])
+			return
 
 	for demo_name: String in _demo.get_demo_names():
 		if not _demo.open_demo(demo_name):
@@ -100,6 +108,35 @@ func _run() -> void:
 func _wait_frames(count: int) -> void:
 	for _index in count:
 		await process_frame
+
+
+func _native_click(object: FGUIObject) -> void:
+	var position := object.node.get_global_rect().get_center()
+	var motion := InputEventMouseMotion.new()
+	motion.position = position
+	motion.global_position = position
+	root.push_input(motion)
+	await process_frame
+	root.push_input(_mouse_button(position, true))
+	await process_frame
+	root.push_input(_mouse_button(position, false))
+	await process_frame
+
+
+func _find_close_button() -> FGUIObject:
+	for child: FGUIObject in FGUIRoot.get_inst().children:
+		if child.sorting_order == 100000:
+			return child
+	return null
+
+
+func _mouse_button(position: Vector2, pressed: bool) -> InputEventMouseButton:
+	var event := InputEventMouseButton.new()
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.pressed = pressed
+	event.position = position
+	event.global_position = position
+	return event
 
 
 func _fail(message: String) -> void:

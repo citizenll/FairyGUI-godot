@@ -454,9 +454,27 @@ func _accepts_native_input_at(local_point: Vector2) -> bool:
 	if node == null or not Rect2(Vector2.ZERO, Vector2(width, height)).has_point(local_point):
 		return false
 	var global_point := node.get_global_transform() * local_point
+	if not _allows_native_input_through_ancestors(global_point):
+		return false
 	if hit_test_child != null and not _contains_hit_test_child(global_point):
 		return false
 	return hit_test(global_point) != null
+
+
+func _allows_descendant_native_input_at(global_point: Vector2) -> bool:
+	if node == null:
+		return false
+	var local_point := _global_to_node_local(global_point)
+	var outside_content := local_point.x < 0.0 or local_point.y < 0.0 or local_point.x > width or local_point.y > height
+	if node.clip_contents and outside_content:
+		return false
+	if hit_test_child != null and not _contains_hit_test_child(global_point):
+		return false
+	if _mask != null:
+		var mask_hit := _contains_mask(global_point)
+		if (_reversed_mask and mask_hit) or (not _reversed_mask and not mask_hit):
+			return false
+	return true
 
 
 func set_bounds_changed_flag() -> void:
