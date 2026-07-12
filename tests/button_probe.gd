@@ -19,11 +19,11 @@ func _initialize() -> void:
 	if button._button_controller.selected_page != FGUIButton.DOWN:
 		_fail("Selected buttons did not enter the down state.")
 		return
-	button._on_mouse_entered()
+	button._handle_roll_over()
 	if button._button_controller.selected_page != FGUIButton.SELECTED_OVER:
 		_fail("Selected buttons did not enter selectedOver on pointer rollover.")
 		return
-	button._on_mouse_exited()
+	button._handle_roll_out()
 	if button._button_controller.selected_page != FGUIButton.DOWN:
 		_fail("Selected buttons did not restore down state on pointer rollout.")
 		return

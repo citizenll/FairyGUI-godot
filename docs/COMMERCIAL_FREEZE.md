@@ -2,7 +2,7 @@
 
 ## Current Result
 
-The 2026-07-12 freeze run completed with 77 passed checks, 0 failures, and 0 skipped checks on Godot `4.7.stable.steam.5b4e0cb0f`.
+The 2026-07-12 freeze run completed with 82 passed checks, 0 warnings, 0 failures, and 0 skipped checks on Godot `4.7.stable.steam.5b4e0cb0f`.
 
 Run the same gate with:
 
@@ -15,9 +15,9 @@ Machine-readable and Markdown results are written to the ignored `.commercial-fr
 ## Verified Scope
 
 - The complete FairyGUI preload graph parses under Godot 4.7.
-- 53 headless behavior probes and the all-package component smoke test pass.
+- 55 headless behavior and all-package construction checks pass.
 - `.fui` editor import, Inspector assignment, component selection, and `FGUIView` editor preview pass.
-- Pixel, fill, blend, forward-mask, and reversed-mask probes pass on Compatibility/OpenGL, Mobile/D3D12, and Forward+/D3D12.
+- Pixel, fill, blend, tiled-image, forward-mask, reversed-mask, demo hover, and guide-overlay probes pass on Compatibility/OpenGL, Mobile/D3D12, and Forward+/D3D12.
 - Uniform million-item lists, sparse variable sizes, distant seeking, count mutation, loop mode, and bounded object recycling pass.
 - Windows debug export starts and constructs every component in every bundled demo package from the exported PCK.
 - Linux, Web, Android arm64, unsigned universal macOS, and iOS Xcode project exports are generated from official Godot 4.7 templates.

@@ -325,15 +325,15 @@ func _on_gui_input(event: InputEvent) -> void:
 	super._on_gui_input(event)
 
 
-func _on_mouse_entered() -> void:
-	super._on_mouse_entered()
+func _handle_roll_over() -> void:
+	super._handle_roll_over()
 	_over = true
 	if not _down and (dropdown == null or dropdown.parent == null):
 		set_state(FGUIButton.OVER)
 
 
-func _on_mouse_exited() -> void:
-	super._on_mouse_exited()
+func _handle_roll_out() -> void:
+	super._handle_roll_out()
 	_over = false
 	if not _down and (dropdown == null or dropdown.parent == null):
 		set_state(FGUIButton.UP)

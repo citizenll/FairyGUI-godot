@@ -98,8 +98,8 @@ func _initialize() -> void:
 	image = root.get_texture().get_image()
 	inside = image.get_pixel(35, 25)
 	outside = image.get_pixel(15, 25)
-	if outside.r <= inside.r + 0.3:
-		_fail("Reversed alpha masking did not clip child rendering inside the mask.")
+	if outside.r <= inside.r + 0.3 or outside.g > 0.35 or outside.b > 0.35:
+		_fail("Reversed alpha masking did not preserve child color outside the mask: %s / %s" % [outside, inside])
 		return
 	reverse_component.dispose()
 	await process_frame
@@ -124,8 +124,8 @@ func _initialize() -> void:
 	image = root.get_texture().get_image()
 	var opaque_mask_pixel := image.get_pixel(135, 25)
 	var transparent_mask_pixel := image.get_pixel(155, 25)
-	if transparent_mask_pixel.r <= opaque_mask_pixel.r + 0.3:
-		_fail("Reversed texture masks did not respect source alpha.")
+	if transparent_mask_pixel.r <= opaque_mask_pixel.r + 0.3 or transparent_mask_pixel.g > 0.35 or transparent_mask_pixel.b > 0.35:
+		_fail("Reversed texture masks did not preserve child color while respecting source alpha.")
 		return
 	texture_component.dispose()
 	host.queue_free()

@@ -143,8 +143,43 @@ func _exercise_basic_panel(demo_type: String, panel: FGUIComponent) -> bool:
 				_fail("Basics depth buttons did not add normal and sorted children.")
 				return false
 		"Grid":
-			if (panel.get_child("list1") as FGUIList).num_children != 6 or (panel.get_child("list2") as FGUIList).num_children != 6:
+			var list_1 := panel.get_child("list1") as FGUIList
+			if list_1.num_children != 6 or (panel.get_child("list2") as FGUIList).num_children != 6:
 				_fail("Basics grid renderer did not populate both data grids.")
+				return false
+			var row := list_1.get_child_at(0) as FGUIButton
+			var stars := row.get_child("star") as FGUIProgressBar
+			var star_bar := stars.get_child("bar") as FGUIImage
+			if star_bar == null or not star_bar.content_item.scale_by_tile \
+				or star_bar.image_node.axis_stretch_horizontal != NinePatchRect.AXIS_STRETCH_MODE_TILE \
+				or star_bar.image_node.axis_stretch_vertical != NinePatchRect.AXIS_STRETCH_MODE_TILE:
+				_fail("Grid star progress image did not retain FairyGUI tiled-image semantics.")
+				return false
+			var sound_players := {"count": 0}
+			FGUIRoot.get_inst().node.child_entered_tree.connect(func(node: Node) -> void:
+				if node is AudioStreamPlayer:
+					sound_players["count"] += 1
+			)
+			await _native_click(stars)
+			if sound_players["count"] != 1:
+				_fail("A single nested Grid click played the button sound %d times." % sound_players["count"])
+				return false
+		"Slider":
+			var slider: FGUISlider
+			for child: FGUIObject in panel.children:
+				if child is FGUISlider:
+					slider = child as FGUISlider
+					break
+			if slider == null:
+				_fail("Basics Slider panel has no slider.")
+				return false
+			var grip := slider.get_child("grip")
+			await _wait_until_stable(slider)
+			var initial_y := grip.y
+			var initial_value := slider.value
+			await _native_drag_control(grip.node, Vector2(50.0, -70.0))
+			if grip.draggable or not is_equal_approx(grip.y, initial_y) or is_equal_approx(slider.value, initial_value):
+				_fail("Slider grip escaped its track or failed to update from captured pointer movement.")
 				return false
 		"ProgressBar":
 			var progress: FGUIProgressBar

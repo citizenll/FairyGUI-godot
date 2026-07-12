@@ -306,15 +306,15 @@ func _handle_click(event: Variant) -> void:
 		root.play_one_shot_sound(sound, sound_volume_scale)
 
 
-func _on_mouse_entered() -> void:
-	super._on_mouse_entered()
+func _handle_roll_over() -> void:
+	super._handle_roll_over()
 	_over = true
 	if not _down:
 		_refresh_button_state()
 
 
-func _on_mouse_exited() -> void:
-	super._on_mouse_exited()
+func _handle_roll_out() -> void:
+	super._handle_roll_out()
 	_over = false
 	if not _down:
 		_refresh_button_state()

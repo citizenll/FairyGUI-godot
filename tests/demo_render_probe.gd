@@ -30,6 +30,10 @@ func _run() -> void:
 			_fail("Render probe could not open %s." % demo_name)
 			return
 		await _wait_frames(5)
+		if demo_name == "Basics" and not await _validate_grid_hover():
+			return
+		if demo_name == "Guide" and not await _validate_guide_overlay():
+			return
 		if not _validate_frame(demo_name, false):
 			return
 		_demo.return_to_menu()
@@ -66,6 +70,73 @@ func _validate_frame(label: String, save_image: bool) -> bool:
 		var file_name := "demo-menu.png" if label == "MainMenu" else "demo-%s.png" % label.to_snake_case()
 		image.save_png(ProjectSettings.globalize_path("res://.commercial-freeze/%s" % file_name))
 	return true
+
+
+func _validate_grid_hover() -> bool:
+	_demo.call("_run_basic_demo", null, "Grid")
+	await _wait_frames(45)
+	var view: FGUIComponent = _demo.get_current_view()
+	var container := view.get_child("container") as FGUIComponent
+	var panel := container.get_child_at(0) as FGUIComponent
+	var list := panel.get_child("list1") as FGUIList
+	var row := list.get_child_at(0) as FGUIButton
+	var row_rect := row.node.get_global_rect()
+	root.push_input(_mouse_motion(row_rect.position + Vector2(row_rect.size.x + 20.0, row_rect.size.y * 0.5), Vector2.ZERO))
+	await _wait_frames(2)
+	var hover_events := {"over": 0, "out": 0}
+	row.on(FGUIEvents.ROLL_OVER, func() -> void: hover_events["over"] += 1)
+	row.on(FGUIEvents.ROLL_OUT, func() -> void: hover_events["out"] += 1)
+	var previous_pointer := row_rect.position + Vector2(2.0, row_rect.size.y * 0.5)
+	root.push_input(_mouse_motion(previous_pointer, Vector2.ZERO))
+	for step in 12:
+		var pointer := row_rect.position + Vector2(2.0 + (row_rect.size.x - 4.0) * float(step + 1) / 12.0, row_rect.size.y * 0.5)
+		root.push_input(_mouse_motion(pointer, pointer - previous_pointer))
+		previous_pointer = pointer
+		await process_frame
+	await _wait_frames(2)
+	if hover_events["over"] != 1 or hover_events["out"] != 0 or not row._over:
+		_fail("Grid item hover oscillated while crossing descendant controls: %s." % [hover_events])
+		return false
+	return true
+
+
+func _validate_guide_overlay() -> bool:
+	var view: FGUIComponent = _demo.get_current_view()
+	await _native_click(view.get_child("n2"))
+	await _wait_frames(40)
+	var image := root.get_texture().get_image()
+	var outside := image.get_pixel(20, 20)
+	if outside.r > 0.85 and outside.g > 0.85 and outside.b > 0.85:
+		_fail("Guide reversed mask replaced its child colors with white: %s." % outside)
+		return false
+	return true
+
+
+func _native_click(object: FGUIObject) -> void:
+	var position := object.node.get_global_rect().get_center()
+	root.push_input(_mouse_motion(position, Vector2.ZERO))
+	await process_frame
+	root.push_input(_mouse_button(position, true))
+	await process_frame
+	root.push_input(_mouse_button(position, false))
+	await process_frame
+
+
+func _mouse_button(position: Vector2, pressed: bool) -> InputEventMouseButton:
+	var event := InputEventMouseButton.new()
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.pressed = pressed
+	event.position = position
+	event.global_position = position
+	return event
+
+
+func _mouse_motion(position: Vector2, relative: Vector2) -> InputEventMouseMotion:
+	var event := InputEventMouseMotion.new()
+	event.position = position
+	event.global_position = position
+	event.relative = relative
+	return event
 
 
 func _wait_frames(count: int) -> void:

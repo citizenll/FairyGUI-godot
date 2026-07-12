@@ -89,9 +89,10 @@ func _initialize() -> void:
 	release_event.button_index = MOUSE_BUTTON_LEFT
 	release_event.pressed = false
 	leaf._on_gui_input(release_event)
-	parent._on_gui_input(release_event)
+	var propagated_release := release_event.duplicate() as InputEventMouseButton
+	parent._on_gui_input(propagated_release)
 	if native_clicks != {"leaf": 1, "parent": 1}:
-		_fail(parent, "Native click bubbling was duplicated during Godot Control propagation: %s" % [native_clicks])
+		_fail(parent, "Equivalent native click objects were duplicated during Godot Control propagation: %s" % [native_clicks])
 		return
 
 	var captured_counts := {"move": 0, "end": 0}

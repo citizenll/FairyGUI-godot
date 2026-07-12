@@ -60,6 +60,13 @@ func construct_from_resource() -> void:
 	content_item = content_item.get_high_resolution()
 	content_item.load()
 	_set_texture(content_item.texture)
+	image_node.patch_margin_left = 0
+	image_node.patch_margin_top = 0
+	image_node.patch_margin_right = 0
+	image_node.patch_margin_bottom = 0
+	var tiled := content_item.scale_by_tile or (content_item.has_scale9_grid and content_item.tile_grid_indice != 0)
+	image_node.axis_stretch_horizontal = NinePatchRect.AXIS_STRETCH_MODE_TILE if tiled else NinePatchRect.AXIS_STRETCH_MODE_STRETCH
+	image_node.axis_stretch_vertical = NinePatchRect.AXIS_STRETCH_MODE_TILE if tiled else NinePatchRect.AXIS_STRETCH_MODE_STRETCH
 	if content_item.has_scale9_grid:
 		var grid := content_item.scale9_grid
 		image_node.patch_margin_left = grid.position.x

@@ -11,6 +11,8 @@ static var _last_pointer_position: Vector2 = Vector2.ZERO
 static var _has_last_pointer_position: bool = false
 static var _last_native_event_id: int = -1
 static var _last_native_event_names: Dictionary = {}
+static var _native_dispatch_frame: int = -1
+static var _native_dispatch_recipients: Dictionary = {}
 
 var data: Variant
 var package_item: FGUIPackageItem
@@ -346,6 +348,8 @@ var _drag_start_position: Vector2 = Vector2.ZERO
 var _drag_start_size: Vector2 = Vector2.ZERO
 var _drag_bounds: Variant = null
 var _drag_input_relay: Node
+var _native_hovered: bool = false
+var _hover_exit_token: int = 0
 var _suppress_stage_events: bool = false
 var draggable: bool = false
 var _size_percent_in_group: float = 0.0
@@ -860,6 +864,8 @@ func add_after_me(target: FGUIObject) -> void:
 func dispose() -> void:
 	if is_disposed:
 		return
+	_hover_exit_token += 1
+	_native_hovered = false
 	stop_drag()
 	EventTouchMonitor.release(self)
 	remove_from_parent()
@@ -1122,6 +1128,40 @@ func _remove_drag_input_relay() -> void:
 
 
 func _on_mouse_entered() -> void:
+	_hover_exit_token += 1
+	if _native_hovered:
+		return
+	_native_hovered = true
+	_handle_roll_over()
+
+
+func _on_mouse_exited() -> void:
+	_hover_exit_token += 1
+	_confirm_mouse_exited.call_deferred(_hover_exit_token)
+
+
+func _confirm_mouse_exited(token: int) -> void:
+	if token != _hover_exit_token or not _native_hovered:
+		return
+	if _is_pointer_inside_hover_area():
+		return
+	_native_hovered = false
+	_handle_roll_out()
+
+
+func _is_pointer_inside_hover_area() -> bool:
+	if node == null or not node.is_inside_tree() or not node.is_visible_in_tree() or not _touchable:
+		return false
+	var pointer_position := _last_pointer_position if _has_last_pointer_position else node.get_viewport().get_mouse_position()
+	var local_position := node.get_global_transform().affine_inverse() * pointer_position
+	if not Rect2(Vector2.ZERO, Vector2(width, height)).has_point(local_position):
+		return false
+	if pixel_hit_test != null and not pixel_hit_test.contains(local_position.x, local_position.y):
+		return false
+	return _allows_native_input_through_ancestors(pointer_position)
+
+
+func _handle_roll_over() -> void:
 	emit_event(FGUIEvents.ROLL_OVER)
 	if _tooltips == "" or FGUIConfig.tooltips_win == "":
 		return
@@ -1130,7 +1170,7 @@ func _on_mouse_entered() -> void:
 		root_object.show_tooltips(_tooltips)
 
 
-func _on_mouse_exited() -> void:
+func _handle_roll_out() -> void:
 	emit_event(FGUIEvents.ROLL_OUT)
 	if FGUIConfig.tooltips_win == "":
 		return
@@ -1158,15 +1198,44 @@ func _on_focus_exited() -> void:
 
 
 func _dispatch_native_bubble(event_name: String, event: InputEvent) -> bool:
+	var canonical_name := _normalize_event_name(event_name)
+	var frame := Engine.get_process_frames()
+	if frame != _native_dispatch_frame:
+		_native_dispatch_frame = frame
+		_native_dispatch_recipients.clear()
+	var fingerprint := _get_native_event_fingerprint(canonical_name, event)
+	var equivalent_recipients: Dictionary = _native_dispatch_recipients.get(fingerprint, {})
+	if equivalent_recipients.has(get_instance_id()) or FGUIEventDispatcher.was_native_event_dispatched(event, canonical_name, self):
+		return false
 	var event_id := event.get_instance_id()
 	if event_id != _last_native_event_id:
 		_last_native_event_id = event_id
 		_last_native_event_names.clear()
-	var canonical_name := _normalize_event_name(event_name)
 	if _last_native_event_names.has(canonical_name):
 		return false
 	_last_native_event_names[canonical_name] = true
-	return bubble_event(canonical_name, event)
+	var prevented := bubble_event(canonical_name, event)
+	var recipients_by_name: Dictionary = event.get_meta(FGUIEventDispatcher.NATIVE_RECIPIENTS_META, {})
+	var dispatched_recipients: Dictionary = recipients_by_name.get(canonical_name, {})
+	for recipient_id in dispatched_recipients.keys():
+		equivalent_recipients[recipient_id] = true
+	_native_dispatch_recipients[fingerprint] = equivalent_recipients
+	return prevented
+
+
+static func _get_native_event_fingerprint(event_name: String, event: InputEvent) -> String:
+	var values: Array = [event_name, event.get_class(), event.device]
+	if FGUIToolSet.is_pointer_event(event):
+		var position := FGUIToolSet.get_pointer_position(event)
+		values.append_array([FGUIToolSet.get_pointer_id(event), roundi(position.x * 1000.0), roundi(position.y * 1000.0)])
+	if event is InputEventMouseButton:
+		var mouse_button := event as InputEventMouseButton
+		values.append_array([mouse_button.button_index, mouse_button.pressed, mouse_button.double_click])
+	elif event is InputEventMouseMotion:
+		values.append((event as InputEventMouseMotion).button_mask)
+	elif event is InputEventScreenTouch:
+		values.append((event as InputEventScreenTouch).pressed)
+	return var_to_str(values)
 
 
 func _string_or_empty(value: Variant) -> String:

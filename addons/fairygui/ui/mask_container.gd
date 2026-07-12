@@ -5,6 +5,7 @@ extends Control
 const REVERSED_MASK_SHADER := """shader_type canvas_item;
 
 uniform sampler2D mask_texture : source_color;
+uniform sampler2D screen_texture : hint_screen_texture, repeat_disable, filter_nearest;
 uniform bool mask_uses_texture = false;
 uniform vec2 container_size = vec2(1.0);
 uniform vec2 mask_origin = vec2(0.0);
@@ -14,6 +15,7 @@ uniform vec2 mask_size = vec2(1.0);
 uniform float mask_alpha = 1.0;
 
 void fragment() {
+	vec4 source = textureLod(screen_texture, SCREEN_UV, 0.0);
 	vec2 point = UV * container_size;
 	vec2 relative = point - mask_origin;
 	float determinant = mask_x_axis.x * mask_y_axis.y - mask_x_axis.y * mask_y_axis.x;
@@ -31,7 +33,8 @@ void fragment() {
 			}
 		}
 	}
-	COLOR = vec4(1.0, 1.0, 1.0, 1.0 - coverage);
+	COLOR.rgb = source.rgb;
+	COLOR.a *= 1.0 - coverage;
 }
 """
 

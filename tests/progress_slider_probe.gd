@@ -80,7 +80,7 @@ func _initialize() -> void:
 	grip.set_size(10.0, 20.0)
 	slider.add_child(grip)
 	slider._grip_object = grip
-	grip.draggable = true
+	grip.draggable = false
 
 	var slider_changes := [0]
 	var grip_touch_ends := [0]
@@ -116,23 +116,31 @@ func _initialize() -> void:
 	slider.whole_numbers = false
 	slider.max = 100.0
 	slider.value = 50.0
-	slider._on_grip_drag_start(_mouse_press(Vector2(60.0, 50.0)))
-	slider._on_grip_drag_move(_mouse_motion(Vector2(80.0, 50.0)))
-	slider._on_grip_drag_end()
+	var begin_context := _touch_context(_mouse_press(Vector2(60.0, 50.0)))
+	var move_context := _touch_context(_mouse_motion(Vector2(80.0, 50.0)))
+	slider._on_grip_touch_begin(begin_context)
+	slider._on_grip_touch_move(move_context)
+	slider._on_grip_touch_end()
+	FGUIEventContext.release(begin_context)
+	FGUIEventContext.release(move_context)
 	if absf(slider.value - 70.0) > 0.1:
 		_fail(progress, slider, "Slider grip dragging did not preserve its initial click percentage.")
 		return
 	slider.value = 50.0
 	slider.reverse = true
-	slider._on_grip_drag_start(_mouse_press(Vector2(60.0, 50.0)))
-	slider._on_grip_drag_move(_mouse_motion(Vector2(80.0, 50.0)))
-	slider._on_grip_drag_end()
+	begin_context = _touch_context(_mouse_press(Vector2(60.0, 50.0)))
+	move_context = _touch_context(_mouse_motion(Vector2(80.0, 50.0)))
+	slider._on_grip_touch_begin(begin_context)
+	slider._on_grip_touch_move(move_context)
+	slider._on_grip_touch_end()
+	FGUIEventContext.release(begin_context)
+	FGUIEventContext.release(move_context)
 	if absf(slider.value - 30.0) > 0.1:
 		_fail(progress, slider, "Reverse Slider grip dragging moved in the wrong direction.")
 		return
 	slider.can_drag = false
 	if grip.draggable:
-		_fail(progress, slider, "Slider can_drag did not update the grip's drag state.")
+		_fail(progress, slider, "Slider enabled free GObject dragging for its grip.")
 		return
 	slider.reverse = false
 	slider.value = 50.0
@@ -171,6 +179,13 @@ func _mouse_motion(position: Vector2) -> InputEventMouseMotion:
 	event.global_position = position
 	event.button_mask = MOUSE_BUTTON_MASK_LEFT
 	return event
+
+
+func _touch_context(event: InputEvent) -> FGUIEventContext:
+	var context := FGUIEventContext.obtain()
+	context.data = event
+	context.input_event = FGUIInputEvent.new(event)
+	return context
 
 
 func _fail(progress: FGUIProgressBar, slider: FGUISlider, message: String) -> void:

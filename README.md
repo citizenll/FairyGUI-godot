@@ -99,7 +99,7 @@ pwsh -NoLogo -NoProfile -NonInteractive -File .\tools\run_commercial_freeze.ps1
 
 ## Commercial Readiness
 
-The automated commercial-freeze baseline passes 77 checks on Godot 4.7, including all package construction, Inspector `.fui` preview, three rendering backends, million-item lists, Windows exported-runtime smoke, and Windows/Linux/Web/Android/macOS/iOS project exports. See [docs/COMMERCIAL_FREEZE.md](docs/COMMERCIAL_FREEZE.md) for the exact platform scope and deliberate exceptions. Real products must still validate their own packages, target devices, fonts, performance budgets, and store requirements.
+The automated commercial-freeze baseline passes 82 checks on Godot 4.7, including all package construction, Inspector `.fui` preview, three rendering backends, million-item lists, Windows exported-runtime smoke, and Windows/Linux/Web/Android/macOS/iOS project exports. See [docs/COMMERCIAL_FREEZE.md](docs/COMMERCIAL_FREEZE.md) for the exact platform scope and deliberate exceptions. Real products must still validate their own packages, target devices, fonts, performance budgets, and store requirements.
 
 ## License
 

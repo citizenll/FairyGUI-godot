@@ -399,7 +399,7 @@ func play_one_shot_sound(sound: Variant, volume_scale: float = 1.0) -> AudioStre
 			var item := FGUIPackage.get_item_by_url(path)
 			if item != null:
 				stream = item.owner.get_item_asset(item)
-		else:
+		elif ResourceLoader.exists(path, "AudioStream"):
 			var resource := load(path)
 			if resource is AudioStream:
 				stream = resource
