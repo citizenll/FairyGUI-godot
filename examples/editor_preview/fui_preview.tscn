@@ -1,12 +1,16 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://boahylpikuern"]
 
-[ext_resource type="Script" path="res://addons/fairygui/ui/fui_view.gd" id="1_view"]
-[ext_resource type="Resource" path="res://examples/assets/ui/Basics.fui" id="2_package"]
+[ext_resource type="Script" uid="uid://pjplh28lpvi8" path="res://addons/fairygui/ui/fui_view.gd" id="1_view"]
+[ext_resource type="Resource" uid="uid://vbym8wjtwsmg" path="res://examples/assets/ui/Basics.fui" id="2_package"]
 
-[node name="FUIPreview" type="Control"]
+[node name="FUIPreview" type="Control" unique_id=66088362]
+custom_minimum_size = Vector2(1136, 640)
 layout_mode = 3
 anchors_preset = 0
-offset_right = 0.0
-offset_bottom = 0.0
+offset_right = 1136.0
+offset_bottom = 640.0
+mouse_filter = 2
 script = ExtResource("1_view")
 package = ExtResource("2_package")
+component_name = "Main"
+match_control_size = true
