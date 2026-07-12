@@ -1,5 +1,4 @@
 .godot/
-.commercial-freeze/
 *.translation
 export_presets.cfg
 *.tmp

@@ -66,9 +66,10 @@ func _validate_frame(label: String, save_image: bool) -> bool:
 		_fail("Demo frame was blank or visually uniform for %s." % label)
 		return false
 	if save_image or _save_all_frames:
-		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.commercial-freeze"))
+		var artifact_dir := "user://fairygui-test-artifacts"
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(artifact_dir))
 		var file_name := "demo-menu.png" if label == "MainMenu" else "demo-%s.png" % label.to_snake_case()
-		image.save_png(ProjectSettings.globalize_path("res://.commercial-freeze/%s" % file_name))
+		image.save_png(ProjectSettings.globalize_path("%s/%s" % [artifact_dir, file_name]))
 	return true
 
 

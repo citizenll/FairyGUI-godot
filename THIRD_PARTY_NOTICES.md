@@ -1,3 +1,10 @@
+# 第三方声明
+
+## FairyGUI
+
+本项目基于 FairyGUI 的公开运行时设计与包格式实现，并保留其 MIT License 声明：
+
+```text
 The MIT License (MIT)
 
 Copyright (c) 2015 fairygui.com
@@ -19,3 +26,8 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+## 演示资源
+
+`examples` 中包含用于 FairyGUI 兼容性验证和功能展示的演示包、图片、字体与音频。除非资源本身另有明确授权，这些演示资源不应被视为本项目 MIT License 自动覆盖的产品素材。商业项目发布前应确认授权范围，或替换为自有资源。
