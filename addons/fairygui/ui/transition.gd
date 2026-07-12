@@ -32,7 +32,7 @@ var time_scale: float:
 	get:
 		return _time_scale
 	set(value):
-		_time_scale = maxf(0.0001, value)
+		_time_scale = maxf(0.0, value)
 		for tween in _active_tweens:
 			if is_instance_valid(tween):
 				tween.set_speed_scale(_time_scale)
@@ -68,6 +68,7 @@ var _play_id: int = 0
 var _timeline_started: bool = false
 var _active_tweens: Array[Tween] = []
 var _active_child_transitions: Array[FGUITransition] = []
+var _paused_animation_states: Dictionary = {}
 
 
 func _init(p_owner: FGUIComponent = null) -> void:
@@ -117,6 +118,7 @@ func stop(set_to_complete: bool = true, process_callback: bool = false) -> void:
 	_play_id += 1
 	var stop_token := _play_id
 	playing = false
+	_restore_paused_animations()
 	paused = false
 	_total_times = 0
 	for tween in _active_tweens:
@@ -155,22 +157,26 @@ func set_paused(value: bool) -> void:
 	for transition: FGUITransition in _active_child_transitions:
 		if is_instance_valid(transition):
 			transition.set_paused(value)
-	for item in _items:
-		if int(item.get("type", -1)) != ACTION_ANIMATION:
-			continue
-		var target: FGUIObject = item.get("target")
-		if target == null:
-			continue
-		var animation_value: Dictionary = item.get("value", {})
-		if paused:
-			animation_value["flag"] = bool(target.get_prop(FGUIEnums.OBJECT_PROP_PLAYING))
+	if paused:
+		_paused_animation_states.clear()
+		for item in _items:
+			if int(item.get("type", -1)) != ACTION_ANIMATION:
+				continue
+			var target: FGUIObject = item.get("target")
+			if target == null or _paused_animation_states.has(target.get_instance_id()):
+				continue
+			_paused_animation_states[target.get_instance_id()] = {
+				"target": target,
+				"playing": bool(target.get_prop(FGUIEnums.OBJECT_PROP_PLAYING)),
+			}
 			target.set_prop(FGUIEnums.OBJECT_PROP_PLAYING, false)
-		else:
-			target.set_prop(FGUIEnums.OBJECT_PROP_PLAYING, bool(animation_value.get("flag", true)))
+	else:
+		_restore_paused_animations()
 
 
 func dispose() -> void:
 	stop(false, false)
+	_restore_paused_animations()
 	_on_complete = Callable()
 	_active_child_transitions.clear()
 	for item in _items:
@@ -286,6 +292,10 @@ func on_owner_removed_from_stage() -> void:
 
 
 func setup(buffer: FGUIByteBuffer) -> void:
+	if playing:
+		stop(false, false)
+	_items.clear()
+	_total_duration = 0.0
 	name = _string_or_empty(buffer.read_s())
 	_options = buffer.read_i32()
 	_auto_play = buffer.read_bool()
@@ -524,7 +534,14 @@ func _schedule_shake(item: Dictionary, token: int, action_time: float) -> bool:
 func _make_tween() -> Tween:
 	if not _has_tree():
 		return null
-	var tween := owner.node.create_tween()
+	var tween: Tween
+	if owner != null and owner.node != null and owner.node.is_inside_tree():
+		tween = owner.node.create_tween()
+	else:
+		var tree := Engine.get_main_loop() as SceneTree
+		tween = tree.create_tween() if tree != null else null
+	if tween == null:
+		return null
 	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	tween.set_trans(Tween.TRANS_LINEAR)
 	tween.set_speed_scale(_time_scale)
@@ -955,19 +972,19 @@ func _prepare_missing_tween_values(item: Dictionary, start_value: Dictionary, en
 		ACTION_XY:
 			if not bool(start_value.get("b1", true)):
 				start_value["f1"] = target.x - (_owner_base.x if target == owner else 0.0)
-			elif bool(start_value.get("b3", false)) and owner != null:
+			elif target != owner and bool(start_value.get("b3", false)) and owner != null:
 				start_value["f1"] = float(start_value["f1"]) * owner.width
 			if not bool(start_value.get("b2", true)):
 				start_value["f2"] = target.y - (_owner_base.y if target == owner else 0.0)
-			elif bool(start_value.get("b3", false)) and owner != null:
+			elif target != owner and bool(start_value.get("b3", false)) and owner != null:
 				start_value["f2"] = float(start_value["f2"]) * owner.height
 			if not bool(end_value.get("b1", true)):
 				end_value["f1"] = start_value.get("f1", target.x)
-			elif bool(end_value.get("b3", false)) and owner != null:
+			elif target != owner and bool(end_value.get("b3", false)) and owner != null:
 				end_value["f1"] = float(end_value["f1"]) * owner.width
 			if not bool(end_value.get("b2", true)):
 				end_value["f2"] = start_value.get("f2", target.y)
-			elif bool(end_value.get("b3", false)) and owner != null:
+			elif target != owner and bool(end_value.get("b3", false)) and owner != null:
 				end_value["f2"] = float(end_value["f2"]) * owner.height
 		ACTION_SIZE:
 			if not bool(start_value.get("b1", true)):
@@ -1184,7 +1201,15 @@ func _recalculate_total_duration() -> void:
 
 
 func _has_tree() -> bool:
-	return owner != null and owner.node != null and owner.node.is_inside_tree()
+	return (owner != null and owner.node != null and owner.node.is_inside_tree()) or Engine.get_main_loop() is SceneTree
+
+
+func _restore_paused_animations() -> void:
+	for state: Dictionary in _paused_animation_states.values():
+		var target: FGUIObject = state.get("target")
+		if target != null and not target.is_disposed:
+			target.set_prop(FGUIEnums.OBJECT_PROP_PLAYING, bool(state.get("playing", true)))
+	_paused_animation_states.clear()
 
 
 func _string_or_empty(value: Variant) -> String:

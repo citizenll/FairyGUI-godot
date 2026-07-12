@@ -29,7 +29,7 @@ var time_scale: float:
 	get:
 		return _time_scale
 	set(value):
-		_time_scale = maxf(0.0001, value)
+		_time_scale = maxf(0.0, value)
 		_update_timer()
 var swing: bool = false
 var frames: Array:
@@ -51,6 +51,7 @@ var frames: Array:
 		_reversed = false
 		_repeated_count = 0
 		_apply_frame()
+		_ensure_timer()
 		_update_timer()
 
 var _playing: bool = true
@@ -194,14 +195,14 @@ func _ensure_timer() -> void:
 func _update_timer() -> void:
 	if _timer == null:
 		return
-	if playing and _play_status != 3 and _frames.size() > 1 and node != null and node.is_inside_tree():
+	if playing and _time_scale > 0.0 and _play_status != 3 and _frames.size() > 1 and node != null and node.is_inside_tree():
 		_timer.start(_current_frame_delay())
 	else:
 		_timer.stop()
 
 
 func _current_frame_delay() -> float:
-	if _frames.is_empty():
+	if _frames.is_empty() or _time_scale <= 0.0:
 		return 0.1
 	return maxf(0.001, _get_frame_duration() / time_scale)
 

@@ -61,7 +61,7 @@ var time_scale: float:
 	get:
 		return _time_scale
 	set(value):
-		_time_scale = maxf(0.0001, value)
+		_time_scale = maxf(0.0, value)
 		if content_movie_clip != null:
 			content_movie_clip.time_scale = _time_scale
 var color: Color = Color.WHITE:

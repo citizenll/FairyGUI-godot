@@ -104,6 +104,7 @@ func _initialize() -> void:
 	var mask := FGUIGraph.new()
 	mask.set_xy(10.0, 5.0)
 	mask.set_size(20.0, 20.0)
+	mask.draw_rect(0.0, Color.TRANSPARENT, Color.WHITE)
 	component.add_child(mask)
 	component.set_mask(mask)
 	var component_clicks := {"value": 0}
@@ -113,7 +114,7 @@ func _initialize() -> void:
 	component._on_gui_input(_screen_touch(Vector2(135.0, 10.0), true, 4))
 	component._on_gui_input(_screen_touch(Vector2(135.0, 10.0), false, 4))
 	if component_clicks["value"] != 1:
-		_fail("Mask input filtering did not handle screen touches.")
+		_fail("Mask input filtering did not handle screen touches: %s" % component_clicks["value"])
 		return
 
 	component.dispose()

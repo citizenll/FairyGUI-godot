@@ -108,7 +108,7 @@ var time_scale: float:
 	get:
 		return _time_scale
 	set(value):
-		_time_scale = maxf(0.0001, value)
+		_time_scale = maxf(0.0, value)
 		_apply_animation_state()
 		update_gear(5)
 var color: Color:

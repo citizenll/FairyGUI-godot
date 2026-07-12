@@ -180,11 +180,22 @@ static func set_color_filter(control: CanvasItem, color: Variant = null) -> void
 		control.self_modulate = color_from_html(color)
 		return
 	elif color is Vector4:
-		control.set_meta(_FILTER_VALUES_META, color)
+		if color.is_zero_approx():
+			control.remove_meta(_FILTER_VALUES_META)
+		else:
+			control.set_meta(_FILTER_VALUES_META, color)
 	elif color is Array and color.size() >= 4:
-		control.set_meta(_FILTER_VALUES_META, Vector4(float(color[0]), float(color[1]), float(color[2]), float(color[3])))
+		var values := Vector4(float(color[0]), float(color[1]), float(color[2]), float(color[3]))
+		if values.is_zero_approx():
+			control.remove_meta(_FILTER_VALUES_META)
+		else:
+			control.set_meta(_FILTER_VALUES_META, values)
 	elif typeof(color) == TYPE_PACKED_FLOAT32_ARRAY and color.size() >= 4:
-		control.set_meta(_FILTER_VALUES_META, Vector4(float(color[0]), float(color[1]), float(color[2]), float(color[3])))
+		var values := Vector4(float(color[0]), float(color[1]), float(color[2]), float(color[3]))
+		if values.is_zero_approx():
+			control.remove_meta(_FILTER_VALUES_META)
+		else:
+			control.set_meta(_FILTER_VALUES_META, values)
 	else:
 		control.remove_meta(_FILTER_VALUES_META)
 		control.self_modulate = Color.WHITE

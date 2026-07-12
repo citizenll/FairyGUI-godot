@@ -56,7 +56,7 @@ func _initialize() -> void:
 
 	await process_frame
 	await process_frame
-	await RenderingServer.frame_post_draw
+	await process_frame
 	var image := viewport.get_texture().get_image()
 	var expected := [
 		Color(0.5, 0.3, 0.35, 1.0),
