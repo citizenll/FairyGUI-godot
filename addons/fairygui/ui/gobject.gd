@@ -13,6 +13,7 @@ static var _last_native_event_id: int = -1
 static var _last_native_event_names: Dictionary = {}
 static var _native_dispatch_frame: int = -1
 static var _native_dispatch_recipients: Dictionary = {}
+static var _hovered_objects: Dictionary = {}
 
 var data: Variant
 var package_item: FGUIPackageItem
@@ -866,6 +867,7 @@ func dispose() -> void:
 		return
 	_hover_exit_token += 1
 	_native_hovered = false
+	_hovered_objects.erase(get_instance_id())
 	stop_drag()
 	EventTouchMonitor.release(self)
 	remove_from_parent()
@@ -959,6 +961,7 @@ func _on_gui_input(event: InputEvent) -> void:
 	if FGUIToolSet.is_pointer_event(event):
 		_last_pointer_position = pointer_position
 		_has_last_pointer_position = true
+		_refresh_native_hover_states(pointer_position)
 	if FGUIToolSet.is_pointer_event(event) and pixel_hit_test != null:
 		var hit_position := _global_to_node_local(pointer_position)
 		if not pixel_hit_test.contains(hit_position.x, hit_position.y):
@@ -1036,6 +1039,7 @@ func _on_global_drag_input(event: InputEvent) -> void:
 	if FGUIToolSet.is_pointer_event(event):
 		_last_pointer_position = FGUIToolSet.get_pointer_position(event)
 		_has_last_pointer_position = true
+		_refresh_native_hover_states(_last_pointer_position)
 	if FGUIToolSet.is_primary_pointer_release(event):
 		_end_drag(event, true)
 	elif FGUIToolSet.is_pointer_motion(event):
@@ -1132,6 +1136,7 @@ func _on_mouse_entered() -> void:
 	if _native_hovered:
 		return
 	_native_hovered = true
+	_hovered_objects[get_instance_id()] = weakref(self)
 	_handle_roll_over()
 
 
@@ -1145,20 +1150,45 @@ func _confirm_mouse_exited(token: int) -> void:
 		return
 	if _is_pointer_inside_hover_area():
 		return
-	_native_hovered = false
-	_handle_roll_out()
+	_clear_native_hover()
 
 
 func _is_pointer_inside_hover_area() -> bool:
 	if node == null or not node.is_inside_tree() or not node.is_visible_in_tree() or not _touchable:
 		return false
-	var pointer_position := _last_pointer_position if _has_last_pointer_position else node.get_viewport().get_mouse_position()
+	var viewport := node.get_viewport()
+	var pointer_position := viewport.get_mouse_position() if viewport != null else get_last_pointer_position()
+	return _is_pointer_inside_hover_area_at(pointer_position)
+
+
+func _is_pointer_inside_hover_area_at(pointer_position: Vector2) -> bool:
+	if node == null or not node.is_inside_tree() or not node.is_visible_in_tree() or not _touchable:
+		return false
 	var local_position := node.get_global_transform().affine_inverse() * pointer_position
 	if not Rect2(Vector2.ZERO, Vector2(width, height)).has_point(local_position):
 		return false
 	if pixel_hit_test != null and not pixel_hit_test.contains(local_position.x, local_position.y):
 		return false
 	return _allows_native_input_through_ancestors(pointer_position)
+
+
+func _clear_native_hover() -> void:
+	if not _native_hovered:
+		return
+	_hover_exit_token += 1
+	_native_hovered = false
+	_hovered_objects.erase(get_instance_id())
+	_handle_roll_out()
+
+
+static func _refresh_native_hover_states(pointer_position: Vector2) -> void:
+	for object_id in _hovered_objects.keys():
+		var reference: WeakRef = _hovered_objects.get(object_id)
+		var object: FGUIObject = reference.get_ref() if reference != null else null
+		if object == null or object.is_disposed:
+			_hovered_objects.erase(object_id)
+		elif object._native_hovered and not object._is_pointer_inside_hover_area_at(pointer_position):
+			object._clear_native_hover()
 
 
 func _handle_roll_over() -> void:

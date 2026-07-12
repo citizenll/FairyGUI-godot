@@ -81,21 +81,33 @@ func _validate_grid_hover() -> bool:
 	var list := panel.get_child("list1") as FGUIList
 	var row := list.get_child_at(0) as FGUIButton
 	var row_rect := row.node.get_global_rect()
-	root.push_input(_mouse_motion(row_rect.position + Vector2(row_rect.size.x + 20.0, row_rect.size.y * 0.5), Vector2.ZERO))
+	var initial_pointer := row_rect.position + Vector2(row_rect.size.x + 20.0, row_rect.size.y * 0.5)
+	root.warp_mouse(initial_pointer)
+	root.push_input(_mouse_motion(initial_pointer, Vector2.ZERO))
 	await _wait_frames(2)
 	var hover_events := {"over": 0, "out": 0}
 	row.on(FGUIEvents.ROLL_OVER, func() -> void: hover_events["over"] += 1)
 	row.on(FGUIEvents.ROLL_OUT, func() -> void: hover_events["out"] += 1)
 	var previous_pointer := row_rect.position + Vector2(2.0, row_rect.size.y * 0.5)
+	root.warp_mouse(previous_pointer)
 	root.push_input(_mouse_motion(previous_pointer, Vector2.ZERO))
 	for step in 12:
 		var pointer := row_rect.position + Vector2(2.0 + (row_rect.size.x - 4.0) * float(step + 1) / 12.0, row_rect.size.y * 0.5)
+		root.warp_mouse(pointer)
 		root.push_input(_mouse_motion(pointer, pointer - previous_pointer))
 		previous_pointer = pointer
 		await process_frame
 	await _wait_frames(2)
 	if hover_events["over"] != 1 or hover_events["out"] != 0 or not row._over:
 		_fail("Grid item hover oscillated while crossing descendant controls: %s." % [hover_events])
+		return false
+	var list_rect := list.node.get_global_rect()
+	var outside_pointer := Vector2(list_rect.position.x + 20.0, list_rect.end.y + 30.0)
+	root.warp_mouse(outside_pointer)
+	root.push_input(_mouse_motion(outside_pointer, outside_pointer - previous_pointer))
+	await _wait_frames(3)
+	if hover_events["over"] != 1 or hover_events["out"] != 1 or row._over:
+		_fail("Grid item hover did not clear after the pointer left the list: events=%s viewport=%s last=%s row=%s native=%s." % [hover_events, root.get_mouse_position(), FGUIObject.get_last_pointer_position(), row_rect, row._native_hovered])
 		return false
 	return true
 
