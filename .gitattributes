@@ -1,2 +1,8 @@
 # Godot emits an empty line after the [params] section of import metadata.
+* text=auto eol=lf
 *.fui.import whitespace=-blank-at-eof
+
+# Keep Asset Library archives focused on the installable addon.
+/**        export-ignore
+/addons    !export-ignore
+/addons/** !export-ignore
