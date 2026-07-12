@@ -101,7 +101,7 @@ func _run() -> void:
 			return
 
 	_demo.queue_free()
-	await _wait_frames(4)
+	await _wait_frames(8)
 	quit(0)
 
 

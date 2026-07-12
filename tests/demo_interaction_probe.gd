@@ -131,9 +131,9 @@ func _exercise_basic_panel(demo_type: String, panel: FGUIComponent) -> bool:
 			if source == null or target == null or not source.draggable or not target.has_event_listener(FGUIEvents.DROP):
 				_fail("Basics drag/drop handlers were not connected.")
 				return false
-			target.emit_event(FGUIEvents.DROP, source.icon)
+			await _native_drag_between(source.node, target.node)
 			if target.icon != source.icon:
-				_fail("Basics drop target did not accept the dragged icon.")
+				_fail("Basics drop target did not accept a native mouse drag.")
 				return false
 		"Depth":
 			var depth_container := panel.get_child("n22") as FGUIComponent
@@ -196,6 +196,11 @@ func _test_lists_and_hit_testing() -> bool:
 	if not is_zero_approx(virtual_list.scroll_pane.pos_y):
 		_fail("Virtual list top button did not return to the first row.")
 		return false
+	virtual_list.clear_selection()
+	await _native_drag_control(virtual_list.scroll_pane.container, Vector2(0.0, -140.0))
+	if virtual_list.scroll_pane.pos_y <= 0.0 or virtual_list.selected_index != -1:
+		_fail("Virtual list mouse drag did not scroll cleanly without clicking an item.")
+		return false
 	await _native_click(view.get_child("n8"))
 	if virtual_list.scroll_pane.pos_y <= 0.0:
 		_fail("Virtual list bottom button did not move to the final rows.")
@@ -207,9 +212,10 @@ func _test_lists_and_hit_testing() -> bool:
 	if view == null:
 		return false
 	var loop_list := view.get_child("list") as FGUIList
-	loop_list.scroll_pane.set_pos_x(loop_list.scroll_pane.pos_x + 180.0)
+	var loop_start := loop_list.scroll_pane.pos_x
+	await _native_drag_control(loop_list.scroll_pane.container, Vector2(-180.0, 0.0))
 	await _wait_frames(3)
-	if view.get_child("n3").get_text().is_empty() or loop_list.num_children == 0:
+	if loop_list.scroll_pane.pos_x <= loop_start or view.get_child("n3").get_text().is_empty() or loop_list.num_children == 0:
 		_fail("Loop list scroll effect did not update its visible items and index.")
 		return false
 	_demo.return_to_menu()
@@ -231,15 +237,15 @@ func _test_refresh_waiting_and_joystick() -> bool:
 		return false
 	var list_1 := view.get_child("list1") as FGUIList
 	var header := list_1.scroll_pane.header
-	header.get_controller("c1").selected_index = 1
-	list_1.emit_event(FGUIEvents.PULL_DOWN_RELEASE)
+	await _native_drag_control(list_1.scroll_pane.container, Vector2(0.0, 220.0), 10)
 	if header.get_controller("c1").selected_index != 2 or list_1.scroll_pane.header_locked_size <= 0.0:
-		_fail("Pull-down refresh handler did not lock and update the header.")
+		_fail("Native pull-down refresh did not lock and update the header.")
 		return false
 	var list_2 := view.get_child("list2") as FGUIList
-	list_2.emit_event(FGUIEvents.PULL_UP_RELEASE)
+	list_2.scroll_pane.scroll_bottom()
+	await _native_drag_control(list_2.scroll_pane.container, Vector2(0.0, -220.0), 10)
 	if list_2.scroll_pane.footer_locked_size <= 0.0:
-		_fail("Pull-up refresh handler did not lock the footer.")
+		_fail("Native pull-up refresh did not lock the footer.")
 		return false
 	_demo.return_to_menu()
 	await _wait_frames(2)
@@ -356,8 +362,11 @@ func _test_scroll_tree_guide_and_cooldown() -> bool:
 		_fail("Scroll pane demo did not render virtual rows.")
 		return false
 	var row := list.get_child_at(0) as FGUIButton
-	row.scroll_pane.scroll_rightmost()
+	await _native_drag_control(row.scroll_pane.container, Vector2(-180.0, 0.0))
 	await _wait_frames(2)
+	if row.scroll_pane.pos_x <= 0.0:
+		_fail("Scroll pane row did not reveal its actions from a horizontal mouse drag.")
+		return false
 	await _native_click(row.get_child("b0"))
 	if not view.get_child("txt").get_text().begins_with("Stick Item"):
 		_fail("Scroll pane row action was not connected.")
@@ -436,6 +445,37 @@ func _native_click(object: FGUIObject) -> void:
 	await process_frame
 
 
+func _native_drag_control(control: Control, delta: Vector2, steps: int = 8) -> void:
+	if control == null:
+		return
+	await _wait_control_stable(control)
+	var start := control.get_global_rect().get_center()
+	await _native_drag_positions(start, start + delta, steps)
+
+
+func _native_drag_between(source: Control, target: Control, steps: int = 8) -> void:
+	if source == null or target == null:
+		return
+	await _wait_control_stable(source)
+	await _wait_control_stable(target)
+	await _native_drag_positions(source.get_global_rect().get_center(), target.get_global_rect().get_center(), steps)
+
+
+func _native_drag_positions(start: Vector2, finish: Vector2, steps: int) -> void:
+	root.push_input(_mouse_motion(start, Vector2.ZERO))
+	await process_frame
+	root.push_input(_mouse_button(start, true))
+	await process_frame
+	var previous := start
+	for step in maxi(1, steps):
+		var position := start.lerp(finish, float(step + 1) / float(maxi(1, steps)))
+		root.push_input(_mouse_motion(position, position - previous, MOUSE_BUTTON_MASK_LEFT))
+		previous = position
+		await process_frame
+	root.push_input(_mouse_button(finish, false))
+	await _wait_frames(3)
+
+
 func _wait_until_stable(object: FGUIObject, max_frames: int = 45) -> void:
 	if object == null or object.node == null:
 		return
@@ -446,6 +486,25 @@ func _wait_until_stable(object: FGUIObject, max_frames: int = 45) -> void:
 		if object.node == null:
 			return
 		var current := object.node.get_global_rect()
+		if current.position.is_equal_approx(previous.position) and current.size.is_equal_approx(previous.size):
+			stable_frames += 1
+			if stable_frames >= 2:
+				return
+		else:
+			stable_frames = 0
+		previous = current
+
+
+func _wait_control_stable(control: Control, max_frames: int = 45) -> void:
+	if control == null:
+		return
+	var previous := control.get_global_rect()
+	var stable_frames := 0
+	for _frame in max_frames:
+		await process_frame
+		if not is_instance_valid(control):
+			return
+		var current := control.get_global_rect()
 		if current.position.is_equal_approx(previous.position) and current.size.is_equal_approx(previous.size):
 			stable_frames += 1
 			if stable_frames >= 2:

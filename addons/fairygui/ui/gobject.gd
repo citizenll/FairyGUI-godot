@@ -3,6 +3,7 @@ extends "res://addons/fairygui/core/event_dispatcher.gd"
 
 const DragInputRelay := preload("res://addons/fairygui/ui/drag_input_relay.gd")
 const EventTouchMonitor := preload("res://addons/fairygui/ui/event_touch_monitor.gd")
+const SCROLL_DRAG_META := &"_fgui_scroll_dragged"
 
 static var _instance_counter: int = 0
 static var dragging_object: FGUIObject
@@ -962,6 +963,10 @@ func _on_gui_input(event: InputEvent) -> void:
 		_dispatch_native_bubble(FGUIEvents.MOUSE_WHEEL, event)
 	if FGUIToolSet.is_pointer_motion(event):
 		_dispatch_native_bubble(FGUIEvents.TOUCH_MOVE, event)
+		if bool(event.get_meta(SCROLL_DRAG_META, false)):
+			_drag_testing = false
+			_drag_click_suppressed = true
+			return
 	if FGUIToolSet.is_primary_pointer_press(event):
 		_dispatch_native_bubble(FGUIEvents.TOUCH_BEGIN, event)
 		_drag_touch_index = FGUIToolSet.get_pointer_id(event)
@@ -974,8 +979,8 @@ func _on_gui_input(event: InputEvent) -> void:
 		_drag_pointer_active = true
 		return
 	if FGUIToolSet.is_primary_pointer_release(event) and not _drag_pointer_active:
-		_dispatch_native_bubble(FGUIEvents.TOUCH_END, event)
-		if not _drag_click_suppressed:
+		var touch_prevented := _dispatch_native_bubble(FGUIEvents.TOUCH_END, event)
+		if not _drag_click_suppressed and not touch_prevented and not bool(event.get_meta(SCROLL_DRAG_META, false)):
 			_dispatch_native_bubble(FGUIEvents.CLICK, event)
 		return
 	if event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
@@ -984,14 +989,14 @@ func _on_gui_input(event: InputEvent) -> void:
 	if not _drag_pointer_active or not _matches_drag_pointer(event):
 		return
 	if FGUIToolSet.is_primary_pointer_release(event):
-		_dispatch_native_bubble(FGUIEvents.TOUCH_END, event)
+		var touch_prevented := _dispatch_native_bubble(FGUIEvents.TOUCH_END, event)
 		if dragging_object == self:
 			_end_drag(event, true)
 		else:
 			_drag_testing = false
 			_drag_pointer_active = false
 			_drag_touch_index = -1
-			if not _drag_click_suppressed:
+			if not _drag_click_suppressed and not touch_prevented and not bool(event.get_meta(SCROLL_DRAG_META, false)):
 				_dispatch_native_bubble(FGUIEvents.CLICK, event)
 		return
 	if not FGUIToolSet.is_pointer_motion(event):

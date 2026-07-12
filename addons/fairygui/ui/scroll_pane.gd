@@ -7,6 +7,10 @@ const INERTIA_MIN_DURATION := 0.12
 const INERTIA_MAX_DURATION := 0.8
 const ELASTIC_RESISTANCE := 0.45
 const ELASTIC_RETURN_DURATION := 0.22
+const SCROLL_DRAG_META := &"_fgui_scroll_dragged"
+const GESTURE_RECIPIENTS_META := &"_fgui_scroll_gesture_recipients"
+
+static var dragging_pane: FGUIScrollPane
 
 var owner: FGUIComponent
 var container: ScrollContainer
@@ -45,6 +49,7 @@ var _updating_page_controller: bool = false
 var _pointer_dragging: bool = false
 var _pointer_dragged: bool = false
 var _drag_touch_index: int = -1
+var _drag_start_position := Vector2.ZERO
 var _last_drag_position := Vector2.ZERO
 var _last_drag_scroll_position := Vector2.ZERO
 var _drag_velocity := Vector2.ZERO
@@ -67,6 +72,7 @@ func _init(p_owner: FGUIComponent = null) -> void:
 	touch_effect = FGUIConfig.default_scroll_touch_effect
 	if owner != null:
 		_create_nodes()
+		_bind_owner_input()
 
 
 var pos_x: float:
@@ -431,6 +437,8 @@ func is_child_in_view(obj: FGUIObject) -> bool:
 
 func cancel_dragging() -> void:
 	_clear_elastic_offset()
+	if dragging_pane == self:
+		dragging_pane = null
 	_pointer_dragging = false
 	_pointer_dragged = false
 	_drag_touch_index = -1
@@ -478,6 +486,9 @@ func on_owner_size_changed() -> void:
 func dispose() -> void:
 	_cancel_scroll_tween()
 	_cancel_elastic_tween()
+	_unbind_owner_input()
+	if dragging_pane == self:
+		dragging_pane = null
 	page_controller = null
 	header_locked_size = 0.0
 	footer_locked_size = 0.0
@@ -533,7 +544,9 @@ func _configure_native_scroll_modes() -> void:
 	container.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER if scroll_type != FGUIEnums.SCROLL_VERTICAL else ScrollContainer.SCROLL_MODE_DISABLED
 	container.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER if scroll_type != FGUIEnums.SCROLL_HORIZONTAL else ScrollContainer.SCROLL_MODE_DISABLED
 	container.clip_contents = not mask_disabled
-	container.scroll_deadzone = int(FGUIConfig.touch_scroll_sensitivity)
+	# FairyGUI handles mouse and touch dragging itself so pull-to-refresh,
+	# elastic edges and inertia share one code path on desktop and mobile.
+	container.scroll_deadzone = 1_000_000
 
 
 func _create_scroll_bar(resource_url: String, is_vertical: bool) -> void:
@@ -679,24 +692,91 @@ func _on_native_scroll() -> void:
 func _on_container_gui_input(event: InputEvent) -> void:
 	if _handle_mouse_wheel(event):
 		return
-	if (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed) or (event is InputEventScreenTouch and event.pressed):
-		_cancel_scroll_tween()
+	_handle_pointer_input(event)
+
+
+func _bind_owner_input() -> void:
+	if owner == null:
+		return
+	owner.add_capture(FGUIEvents.TOUCH_BEGIN, Callable(self, "_on_owner_touch_begin"))
+	owner.add_event_listener(FGUIEvents.TOUCH_MOVE, Callable(self, "_on_owner_touch_move"))
+	owner.add_event_listener(FGUIEvents.TOUCH_END, Callable(self, "_on_owner_touch_end"))
+
+
+func _unbind_owner_input() -> void:
+	if owner == null:
+		return
+	owner.remove_capture(FGUIEvents.TOUCH_BEGIN, Callable(self, "_on_owner_touch_begin"))
+	owner.remove_event_listener(FGUIEvents.TOUCH_MOVE, Callable(self, "_on_owner_touch_move"))
+	owner.remove_event_listener(FGUIEvents.TOUCH_END, Callable(self, "_on_owner_touch_end"))
+
+
+func _on_owner_touch_begin(context: FGUIEventContext) -> void:
+	var event := _get_context_native_event(context)
+	if event == null:
+		return
+	_handle_pointer_input(event)
+	if _pointer_dragging:
+		context.capture_touch()
+
+
+func _on_owner_touch_move(context: FGUIEventContext) -> void:
+	var event := _get_context_native_event(context)
+	if event == null:
+		return
+	_handle_pointer_input(event)
+	if event.has_meta(SCROLL_DRAG_META):
+		context.prevent_default()
+
+
+func _on_owner_touch_end(context: FGUIEventContext) -> void:
+	var event := _get_context_native_event(context)
+	if event == null:
+		return
+	var was_dragged := _pointer_dragged or bool(event.get_meta(SCROLL_DRAG_META, false))
+	_handle_pointer_input(event)
+	if was_dragged or bool(event.get_meta(SCROLL_DRAG_META, false)):
+		context.prevent_default()
+
+
+func _get_context_native_event(context: FGUIEventContext) -> InputEvent:
+	if context == null:
+		return null
+	if context.data is InputEvent:
+		return context.data as InputEvent
+	if context.input_event != null and context.input_event.native_event is InputEvent:
+		return context.input_event.native_event as InputEvent
+	return null
+
+
+func _handle_pointer_input(event: InputEvent) -> void:
+	if event == null:
+		return
+	var recipients: Dictionary = event.get_meta(GESTURE_RECIPIENTS_META, {})
+	var recipient_id := get_instance_id()
+	if recipients.has(recipient_id):
+		return
+	recipients[recipient_id] = true
+	event.set_meta(GESTURE_RECIPIENTS_META, recipients)
 	if not touch_effect:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
-			_begin_pull_gesture(event.position, -1)
-		else:
-			_end_pull_gesture()
+			_cancel_scroll_tween()
+			_begin_pull_gesture(FGUIToolSet.get_pointer_position(event), -1)
+		elif _drag_touch_index == -1:
+			_end_pull_gesture(event)
 	elif event is InputEventMouseMotion:
-		_track_pull_gesture(event.position)
+		if _drag_touch_index == -1 and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+			_track_pull_gesture(FGUIToolSet.get_pointer_position(event), event)
 	elif event is InputEventScreenTouch:
 		if event.pressed:
+			_cancel_scroll_tween()
 			_begin_pull_gesture(event.position, event.index)
 		elif _drag_touch_index == event.index:
-			_end_pull_gesture()
+			_end_pull_gesture(event)
 	elif event is InputEventScreenDrag and _drag_touch_index == event.index:
-		_track_pull_gesture(event.position)
+		_track_pull_gesture(event.position, event)
 
 
 func _handle_mouse_wheel(event: InputEvent) -> bool:
@@ -731,29 +811,72 @@ func _begin_pull_gesture(pointer_position: Vector2, touch_index: int) -> void:
 	_pointer_dragging = true
 	_pointer_dragged = false
 	_drag_touch_index = touch_index
+	_drag_start_position = pointer_position
 	_last_drag_position = pointer_position
 	_last_drag_scroll_position = Vector2(pos_x, pos_y)
 	_drag_velocity = Vector2.ZERO
 	_last_drag_scroll_time_ms = Time.get_ticks_msec()
 	_pull_down_distance = 0.0
 	_pull_up_distance = 0.0
+	if owner != null:
+		FGUIEventTouchMonitor.capture(owner, touch_index)
 
 
-func _track_pull_gesture(pointer_position: Vector2) -> void:
+func _track_pull_gesture(pointer_position: Vector2, event: InputEvent = null) -> void:
 	if not _pointer_dragging:
 		return
+	if dragging_pane != null and dragging_pane != self:
+		return
+	if FGUIObject.dragging_object != null:
+		return
+	if not _pointer_dragged:
+		if not _should_start_drag(pointer_position - _drag_start_position):
+			return
+		_pointer_dragged = true
+		dragging_pane = self
 	var delta := pointer_position - _last_drag_position
 	_last_drag_position = pointer_position
-	if not is_zero_approx(delta.length_squared()):
-		_pointer_dragged = true
+	if is_zero_approx(delta.length_squared()):
+		return
+	if event != null:
+		event.set_meta(SCROLL_DRAG_META, true)
+	var target := Vector2(pos_x, pos_y)
 	if scroll_type != FGUIEnums.SCROLL_HORIZONTAL:
-		_track_pull_axis(delta.y, pos_y, maxf(0.0, content_height - view_height))
-		if bounceback_effect:
-			_track_elastic_axis(delta.y, pos_y, maxf(0.0, content_height - view_height), false)
+		target.y = _track_drag_axis(delta.y, target.y, maxf(0.0, content_height - view_height), false)
 	if scroll_type != FGUIEnums.SCROLL_VERTICAL:
-		_track_pull_axis(delta.x, pos_x, maxf(0.0, content_width - view_width))
+		target.x = _track_drag_axis(delta.x, target.x, maxf(0.0, content_width - view_width), true)
+	if not target.is_equal_approx(Vector2(pos_x, pos_y)):
+		_set_pos_immediate(target)
+
+
+func _should_start_drag(total_delta: Vector2) -> bool:
+	var sensitivity := maxf(0.0, FGUIConfig.touch_scroll_sensitivity)
+	var horizontal_distance := absf(total_delta.x)
+	var vertical_distance := absf(total_delta.y)
+	match scroll_type:
+		FGUIEnums.SCROLL_VERTICAL:
+			return vertical_distance >= sensitivity and vertical_distance >= horizontal_distance
+		FGUIEnums.SCROLL_HORIZONTAL:
+			return horizontal_distance >= sensitivity and horizontal_distance >= vertical_distance
+		_:
+			return maxf(horizontal_distance, vertical_distance) >= sensitivity
+
+
+func _track_drag_axis(delta: float, position: float, max_position: float, horizontal: bool) -> float:
+	if is_zero_approx(delta):
+		return position
+	_track_pull_axis(delta, position, max_position)
+	var elastic := _elastic_offset.x if horizontal else _elastic_offset.y
+	if not is_zero_approx(elastic):
 		if bounceback_effect:
-			_track_elastic_axis(delta.x, pos_x, maxf(0.0, content_width - view_width), true)
+			_track_elastic_axis(delta, position, max_position, horizontal)
+		return position
+	var next_position := position - delta
+	if next_position < 0.0 or next_position > max_position:
+		if bounceback_effect:
+			_track_elastic_axis(delta, position, max_position, horizontal)
+		return clampf(next_position, 0.0, max_position)
+	return next_position
 
 
 func _track_pull_axis(delta: float, position: float, max_position: float) -> void:
@@ -802,6 +925,33 @@ func _set_elastic_offset(value: Vector2) -> void:
 	_elastic_offset = value
 	if content != null:
 		content.position = value
+	_update_refresh_components_for_drag()
+
+
+func _update_refresh_components_for_drag() -> void:
+	if container == null:
+		return
+	var vertical_refresh := scroll_type != FGUIEnums.SCROLL_HORIZONTAL
+	var header_extent := maxf(0.0, _elastic_offset.y if vertical_refresh else _elastic_offset.x)
+	var footer_extent := maxf(0.0, -_elastic_offset.y if vertical_refresh else -_elastic_offset.x)
+	if header != null and is_zero_approx(header_locked_size):
+		header.visible = header_extent > 0.0
+		if header.visible:
+			if vertical_refresh:
+				header.set_size(container.size.x, header_extent)
+				header.set_xy(container.position.x, container.position.y)
+			else:
+				header.set_size(header_extent, container.size.y)
+				header.set_xy(container.position.x, container.position.y)
+	if footer != null and is_zero_approx(footer_locked_size):
+		footer.visible = footer_extent > 0.0
+		if footer.visible:
+			if vertical_refresh:
+				footer.set_size(container.size.x, footer_extent)
+				footer.set_xy(container.position.x, container.position.y + container.size.y - footer_extent)
+			else:
+				footer.set_size(footer_extent, container.size.y)
+				footer.set_xy(container.position.x + container.size.x - footer_extent, container.position.y)
 
 
 func _start_elastic_return() -> void:
@@ -838,12 +988,19 @@ func _clear_elastic_offset() -> void:
 	_set_elastic_offset(Vector2.ZERO)
 
 
-func _end_pull_gesture() -> void:
+func _end_pull_gesture(event: InputEvent = null) -> void:
 	if not _pointer_dragging:
 		return
+	var was_dragged := _pointer_dragged
 	_pointer_dragging = false
 	_drag_touch_index = -1
-	if not _pointer_dragged:
+	if dragging_pane == self:
+		dragging_pane = null
+	if was_dragged and event != null:
+		event.set_meta(SCROLL_DRAG_META, true)
+	if not was_dragged:
+		_pull_down_distance = 0.0
+		_pull_up_distance = 0.0
 		return
 	var threshold := maxf(0.0, FGUIConfig.touch_drag_sensitivity)
 	var target := _get_settled_scroll_target(_get_inertia_target())

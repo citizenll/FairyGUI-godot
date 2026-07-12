@@ -246,8 +246,22 @@ func _initialize() -> void:
 	pull_pane._on_container_gui_input(_mouse_button_event(Vector2(50, 50), true))
 	pull_pane._on_container_gui_input(_mouse_motion_event(Vector2(50, 57)))
 	pull_pane._on_container_gui_input(_mouse_button_event(Vector2(50, 57), false))
-	if release_counts["down"] != 1 or release_counts["up"] != 1 or release_counts["end"] != 3:
+	if release_counts["down"] != 1 or release_counts["up"] != 1 or release_counts["end"] != 2:
 		_fail("ScrollPane dispatched a pull release below the drag threshold.")
+		return
+	var touch_owner := FGUIComponent.new()
+	touch_owner.set_size(100.0, 100.0)
+	host.add_child(touch_owner.node)
+	var touch_pane := FGUIScrollPane.new(touch_owner)
+	touch_owner.scroll_pane = touch_pane
+	touch_pane.scroll_type = FGUIEnums.SCROLL_VERTICAL
+	touch_pane._configure_native_scroll_modes()
+	touch_pane.set_content_size(100.0, 500.0)
+	touch_pane._on_container_gui_input(_screen_touch_event(Vector2(50.0, 80.0), true, 3))
+	touch_pane._on_container_gui_input(_screen_drag_event(Vector2(50.0, 20.0), 3))
+	touch_pane._on_container_gui_input(_screen_touch_event(Vector2(50.0, 20.0), false, 3))
+	if touch_pane.pos_y < 50.0:
+		_fail("ScrollPane touch dragging no longer updates the vertical scroll position.")
 		return
 	var wheel_owner := FGUIComponent.new()
 	wheel_owner.set_size(100, 100)
@@ -344,7 +358,7 @@ func _initialize() -> void:
 		_fail("Component set_bounds did not publish the rounded content extent to its ScrollPane.")
 		return
 	api_pane._begin_pull_gesture(Vector2.ZERO, -1)
-	api_pane._track_pull_gesture(Vector2(10.0, 0.0))
+	api_pane._track_pull_gesture(Vector2(30.0, 0.0))
 	if not api_pane.is_dragged:
 		_fail("ScrollPane did not expose pointer drag state.")
 		return
@@ -371,7 +385,7 @@ func _initialize() -> void:
 		snap_owner.add_child(snap_item)
 	snap_pane.set_pos(160.0, 0.0)
 	snap_pane._begin_pull_gesture(Vector2.ZERO, -1)
-	snap_pane._track_pull_gesture(Vector2(1.0, 0.0))
+	snap_pane._track_pull_gesture(Vector2(-25.0, 0.0))
 	snap_pane._end_pull_gesture()
 	await create_timer(0.4).timeout
 	if absf(snap_pane.pos_x - 200.0) > 1.5 or snap_end_count["value"] != 1:
@@ -417,6 +431,7 @@ func _initialize() -> void:
 	snap_owner.dispose()
 	api_owner.dispose()
 	wheel_owner.dispose()
+	touch_owner.dispose()
 	pull_owner.dispose()
 	controls_parent.dispose()
 	parent.dispose()
@@ -451,6 +466,7 @@ func _append_i32(bytes: PackedByteArray, value: int) -> void:
 func _mouse_button_event(position: Vector2, pressed: bool) -> InputEventMouseButton:
 	var event := InputEventMouseButton.new()
 	event.position = position
+	event.global_position = position
 	event.button_index = MOUSE_BUTTON_LEFT
 	event.pressed = pressed
 	return event
@@ -467,7 +483,23 @@ func _mouse_wheel_event(button_index: int, factor: float = 1.0) -> InputEventMou
 func _mouse_motion_event(position: Vector2) -> InputEventMouseMotion:
 	var event := InputEventMouseMotion.new()
 	event.position = position
+	event.global_position = position
 	event.button_mask = MOUSE_BUTTON_MASK_LEFT
+	return event
+
+
+func _screen_touch_event(position: Vector2, pressed: bool, index: int) -> InputEventScreenTouch:
+	var event := InputEventScreenTouch.new()
+	event.position = position
+	event.pressed = pressed
+	event.index = index
+	return event
+
+
+func _screen_drag_event(position: Vector2, index: int) -> InputEventScreenDrag:
+	var event := InputEventScreenDrag.new()
+	event.position = position
+	event.index = index
 	return event
 
 

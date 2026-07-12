@@ -191,6 +191,8 @@ func dispose() -> void:
 	_popup_stack.clear()
 	_focus_object = null
 	_disconnect_viewport()
+	if FGUIDragDropManager.inst != null:
+		FGUIDragDropManager.inst.dispose()
 	if _tooltip_win != null and _tooltip_win.parent == self:
 		remove_child(_tooltip_win)
 	_tooltip_win = null
