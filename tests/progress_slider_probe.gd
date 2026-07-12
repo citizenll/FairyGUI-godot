@@ -83,7 +83,9 @@ func _initialize() -> void:
 	grip.draggable = true
 
 	var slider_changes := [0]
+	var grip_touch_ends := [0]
 	slider.on(FGUIEvents.STATE_CHANGED, func(_event: Variant) -> void: slider_changes[0] += 1)
+	slider.add_event_listener(FGUIEvents.GRIP_TOUCH_END, func(_context: FGUIEventContext) -> void: grip_touch_ends[0] += 1)
 	slider.min = 0.0
 	slider.max = 100.0
 	slider.value = 50.0
@@ -135,8 +137,16 @@ func _initialize() -> void:
 	slider.reverse = false
 	slider.value = 50.0
 	slider.set_size(220.0, 20.0)
-	if absf(slider_bar.width - 100.0) > 0.1 or slider_changes[0] < 4:
+	if absf(slider_bar.width - 100.0) > 0.1 or slider_changes[0] < 4 or grip_touch_ends[0] != 2:
 		_fail(progress, slider, "Slider resize or state-change dispatch parity failed.")
+		return
+	var prevented_width := slider_bar.width
+	var prevent_change := func(context: FGUIEventContext) -> void: context.prevent_default()
+	slider.add_event_listener(FGUIEvents.STATE_CHANGED, prevent_change)
+	slider._set_value_by_percent(0.75)
+	slider.remove_event_listener(FGUIEvents.STATE_CHANGED, prevent_change)
+	if not is_equal_approx(slider.value, 75.0) or not is_equal_approx(slider_bar.width, prevented_width):
+		_fail(progress, slider, "Slider PreventDefault did not preserve the rendered state.")
 		return
 
 	progress.dispose()

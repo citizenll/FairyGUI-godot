@@ -1,12 +1,15 @@
 class_name FGUIObject
-extends RefCounted
+extends "res://addons/fairygui/core/event_dispatcher.gd"
 
 const DragInputRelay := preload("res://addons/fairygui/ui/drag_input_relay.gd")
+const EventTouchMonitor := preload("res://addons/fairygui/ui/event_touch_monitor.gd")
 
 static var _instance_counter: int = 0
 static var dragging_object: FGUIObject
 static var _last_pointer_position: Vector2 = Vector2.ZERO
 static var _has_last_pointer_position: bool = false
+static var _last_native_event_id: int = -1
+static var _last_native_event_names: Dictionary = {}
 
 var data: Variant
 var package_item: FGUIPackageItem
@@ -327,7 +330,6 @@ var _internal_visible: bool = true
 var _sorting_order: int = 0
 var _group: FGUIObject
 var _tooltips: String = ""
-var _event_listeners: Dictionary = {}
 var _gears: Dictionary = {}
 var _gear_locked: bool = false
 var _handling_controller: bool = false
@@ -342,6 +344,7 @@ var _drag_start_position: Vector2 = Vector2.ZERO
 var _drag_start_size: Vector2 = Vector2.ZERO
 var _drag_bounds: Variant = null
 var _drag_input_relay: Node
+var _suppress_stage_events: bool = false
 var draggable: bool = false
 var _size_percent_in_group: float = 0.0
 
@@ -357,6 +360,10 @@ func _init() -> void:
 		node.gui_input.connect(_on_gui_input)
 		node.mouse_entered.connect(_on_mouse_entered)
 		node.mouse_exited.connect(_on_mouse_exited)
+		node.tree_entered.connect(_on_object_entered_tree)
+		node.tree_exiting.connect(_on_object_exiting_tree)
+		node.focus_entered.connect(_on_focus_entered)
+		node.focus_exited.connect(_on_focus_exited)
 
 
 func set_xy(new_x: float, new_y: float) -> void:
@@ -760,29 +767,6 @@ func _global_to_node_local(point: Vector2) -> Vector2:
 	return node.get_global_transform().affine_inverse() * point if node != null else point
 
 
-func on(event_name: String, callable: Callable) -> void:
-	if not _event_listeners.has(event_name):
-		_event_listeners[event_name] = []
-	_event_listeners[event_name].append(callable)
-
-
-func off(event_name: String, callable: Callable) -> void:
-	if not _event_listeners.has(event_name):
-		return
-	_event_listeners[event_name].erase(callable)
-
-
-func emit_event(event_name: String, payload: Variant = null) -> void:
-	if not _event_listeners.has(event_name):
-		return
-	for callable: Callable in _event_listeners[event_name].duplicate():
-		if callable.is_valid():
-			if payload == null:
-				callable.call()
-			else:
-				callable.call(payload)
-
-
 func on_click(callable: Callable) -> void:
 	on("click", callable)
 
@@ -792,11 +776,7 @@ func off_click(callable: Callable) -> void:
 
 
 func has_click_listener() -> bool:
-	return _event_listeners.has("click") and not _event_listeners["click"].is_empty()
-
-
-func has_event_listener(event_name: String) -> bool:
-	return _event_listeners.has(event_name) and not _event_listeners[event_name].is_empty()
+	return has_event_listener("click")
 
 
 static func get_last_pointer_position() -> Vector2:
@@ -861,6 +841,7 @@ func dispose() -> void:
 	if is_disposed:
 		return
 	stop_drag()
+	EventTouchMonitor.release(self)
 	remove_from_parent()
 	if relations != null:
 		relations.dispose()
@@ -868,7 +849,7 @@ func dispose() -> void:
 	for gear: FGUIGearBase in _gears.values():
 		gear.dispose()
 	_gears.clear()
-	_event_listeners.clear()
+	remove_event_listeners()
 	_group = null
 	pixel_hit_test = null
 	package_item = null
@@ -885,6 +866,15 @@ func dispose() -> void:
 func _create_display_object() -> void:
 	node = Control.new()
 	node.mouse_filter = Control.MOUSE_FILTER_PASS
+
+
+func _get_event_parent() -> Variant:
+	return parent
+
+
+func _handle_touch_capture(context: Variant) -> void:
+	if context != null and context.type == FGUIEvents.TOUCH_BEGIN and context.input_event != null:
+		EventTouchMonitor.capture(self, int(context.input_event.touch_id))
 
 
 func _handle_xy_changed() -> void:
@@ -943,7 +933,14 @@ func _on_gui_input(event: InputEvent) -> void:
 		var hit_position := _global_to_node_local(pointer_position)
 		if not pixel_hit_test.contains(hit_position.x, hit_position.y):
 			return
+	if event is InputEventKey and event.pressed:
+		_dispatch_native_bubble(FGUIEvents.KEY_DOWN, event)
+	if event is InputEventMouseButton and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
+		_dispatch_native_bubble(FGUIEvents.MOUSE_WHEEL, event)
+	if FGUIToolSet.is_pointer_motion(event):
+		_dispatch_native_bubble(FGUIEvents.TOUCH_MOVE, event)
 	if FGUIToolSet.is_primary_pointer_press(event):
+		_dispatch_native_bubble(FGUIEvents.TOUCH_BEGIN, event)
 		_drag_touch_index = FGUIToolSet.get_pointer_id(event)
 		_drag_start_mouse = pointer_position
 		_drag_start_position = node.get_global_rect().position if node != null else Vector2.ZERO
@@ -954,12 +951,17 @@ func _on_gui_input(event: InputEvent) -> void:
 		_drag_pointer_active = true
 		return
 	if FGUIToolSet.is_primary_pointer_release(event) and not _drag_pointer_active:
+		_dispatch_native_bubble(FGUIEvents.TOUCH_END, event)
 		if not _drag_click_suppressed:
-			emit_event("click", event)
+			_dispatch_native_bubble(FGUIEvents.CLICK, event)
+		return
+	if event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		_dispatch_native_bubble(FGUIEvents.RIGHT_CLICK, event)
 		return
 	if not _drag_pointer_active or not _matches_drag_pointer(event):
 		return
 	if FGUIToolSet.is_primary_pointer_release(event):
+		_dispatch_native_bubble(FGUIEvents.TOUCH_END, event)
 		if dragging_object == self:
 			_end_drag(event, true)
 		else:
@@ -967,7 +969,7 @@ func _on_gui_input(event: InputEvent) -> void:
 			_drag_pointer_active = false
 			_drag_touch_index = -1
 			if not _drag_click_suppressed:
-				emit_event("click", event)
+				_dispatch_native_bubble(FGUIEvents.CLICK, event)
 		return
 	if not FGUIToolSet.is_pointer_motion(event):
 		return
@@ -984,8 +986,8 @@ func _on_gui_input(event: InputEvent) -> void:
 	_drag_testing = false
 	_drag_click_suppressed = true
 	var previous_dragging := dragging_object
-	emit_event(FGUIEvents.DRAG_START, event)
-	if _drag_start_cancelled or not draggable:
+	var drag_prevented := emit_event(FGUIEvents.DRAG_START, event)
+	if drag_prevented or _drag_start_cancelled or not draggable:
 		return
 	if dragging_object != null and dragging_object != previous_dragging:
 		return
@@ -1092,6 +1094,7 @@ func _remove_drag_input_relay() -> void:
 
 
 func _on_mouse_entered() -> void:
+	emit_event(FGUIEvents.ROLL_OVER)
 	if _tooltips == "" or FGUIConfig.tooltips_win == "":
 		return
 	var root_object := root
@@ -1100,11 +1103,42 @@ func _on_mouse_entered() -> void:
 
 
 func _on_mouse_exited() -> void:
+	emit_event(FGUIEvents.ROLL_OUT)
 	if FGUIConfig.tooltips_win == "":
 		return
 	var root_object := root
 	if root_object != null:
 		root_object.hide_tooltips()
+
+
+func _on_object_entered_tree() -> void:
+	if not _suppress_stage_events:
+		emit_event(FGUIEvents.ADDED_TO_STAGE)
+
+
+func _on_object_exiting_tree() -> void:
+	if not _suppress_stage_events:
+		emit_event(FGUIEvents.REMOVED_FROM_STAGE)
+
+
+func _on_focus_entered() -> void:
+	emit_event(FGUIEvents.FOCUS_IN)
+
+
+func _on_focus_exited() -> void:
+	emit_event(FGUIEvents.FOCUS_OUT)
+
+
+func _dispatch_native_bubble(event_name: String, event: InputEvent) -> bool:
+	var event_id := event.get_instance_id()
+	if event_id != _last_native_event_id:
+		_last_native_event_id = event_id
+		_last_native_event_names.clear()
+	var canonical_name := _normalize_event_name(event_name)
+	if _last_native_event_names.has(canonical_name):
+		return false
+	_last_native_event_names[canonical_name] = true
+	return bubble_event(canonical_name, event)
 
 
 func _string_or_empty(value: Variant) -> String:

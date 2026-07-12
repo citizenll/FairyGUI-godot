@@ -736,6 +736,8 @@ func _initialize() -> void:
 		push_error("MovieClip repeat delay did not release the next frame.")
 		quit(1)
 		return
+	var movie_play_ends := [0]
+	clip.add_event_listener(FGUIEvents.PLAY_END, func(_context: FGUIEventContext) -> void: movie_play_ends[0] += 1)
 	clip.set_play_settings(0, 1, 1, 0)
 	clip._advance_playback_frame()
 	if clip.frame != 1 or clip._play_status != 2:
@@ -743,7 +745,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	clip._advance_playback_frame()
-	if clip.frame != 0 or clip._play_status != 3:
+	if clip.frame != 0 or clip._play_status != 3 or movie_play_ends[0] != 1:
 		push_error("MovieClip play settings did not stop at the requested end frame.")
 		quit(1)
 		return

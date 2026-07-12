@@ -66,8 +66,11 @@ func _initialize() -> void:
 	drop_target.set_xy(100.0, 0.0)
 	drop_target.set_size(50.0, 40.0)
 	fgui_root.add_child(drop_target)
-	var drop_capture := {"payload": {}}
-	drop_target.on(FGUIEvents.DROP, func(payload: Variant) -> void: drop_capture["payload"] = payload as Dictionary)
+	var drop_capture := {"data": null, "source": null}
+	drop_target.add_event_listener(FGUIEvents.DROP, func(context: FGUIEventContext) -> void:
+		drop_capture["data"] = context.data
+		drop_capture["source"] = context.initiator
+	)
 	await process_frame
 	drag_source._on_gui_input(_screen_touch(Vector2(10.0, 10.0), true, 7))
 	var drag_drop := FGUIDragDropManager.get_inst()
@@ -77,9 +80,8 @@ func _initialize() -> void:
 		return
 	drag_drop.drag_agent._on_global_drag_input(_screen_drag(Vector2(110.0, 10.0), 7))
 	drag_drop.drag_agent._on_global_drag_input(_screen_touch(Vector2(110.0, 10.0), false, 7))
-	var drop_payload: Dictionary = drop_capture["payload"]
-	if drag_drop.dragging or drop_payload.get("data", {}).get("id", "") != "probe" or drop_payload.get("source") != drag_source:
-		_fail("DragDropManager did not dispatch the drop payload to the target: %s" % drop_payload)
+	if drag_drop.dragging or drop_capture["data"].get("id", "") != "probe" or drop_capture["source"] != drag_source:
+		_fail("DragDropManager did not dispatch FairyGUI drop data/initiator semantics: %s" % drop_capture)
 		return
 
 	var slider := FGUISlider.new()

@@ -8,6 +8,7 @@ func _create_display_object() -> void:
 	label.mouse_filter = Control.MOUSE_FILTER_STOP
 	label.bbcode_enabled = true
 	label.fit_content = true
+	label.meta_clicked.connect(_on_meta_clicked)
 	node = label
 
 

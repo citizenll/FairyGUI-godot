@@ -67,8 +67,9 @@ func _on_grip_drag_move(event: Variant = null) -> void:
 	_set_value_by_percent(percent, event)
 
 
-func _on_grip_drag_end(_event: Variant = null) -> void:
+func _on_grip_drag_end(event: Variant = null) -> void:
 	_dragging_grip = false
+	emit_event(FGUIEvents.GRIP_TOUCH_END, event)
 
 
 func _on_gui_input(event: InputEvent) -> void:
@@ -99,8 +100,9 @@ func _set_value_by_percent(percent: float, event: Variant = null) -> void:
 		next_value = round(next_value)
 	if not is_equal_approx(next_value, _value):
 		_value = next_value
+		if emit_event(FGUIEvents.STATE_CHANGED, event):
+			return
 		update(_value)
-		emit_event(FGUIEvents.STATE_CHANGED, event)
 
 
 func _get_bar_length() -> float:

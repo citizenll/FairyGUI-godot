@@ -105,6 +105,9 @@ func _initialize() -> void:
 	ubb_field.font_size = 17
 	ubb_field.color = Color(0.3, 0.6, 0.2)
 	ubb_field.text = "[b]Bold[/b] [color=#ff0000]Red[/color]"
+	var renderer_stage_events := {"added": 0, "removed": 0}
+	ubb_field.add_event_listener(FGUIEvents.ADDED_TO_STAGE, func(_context: FGUIEventContext) -> void: renderer_stage_events["added"] += 1)
+	ubb_field.add_event_listener(FGUIEvents.REMOVED_FROM_STAGE, func(_context: FGUIEventContext) -> void: renderer_stage_events["removed"] += 1)
 	var plain_node := ubb_field.node
 	ubb_field.ubb_enabled = true
 	await process_frame
@@ -129,6 +132,9 @@ func _initialize() -> void:
 	ubb_field.underline = false
 	if not (ubb_field.label is Label) or ubb_field.label.text != "[b]Bold[/b] [color=#ff0000]Red[/color]":
 		_fail("Disabling UBB did not restore a plain text renderer and raw text content.")
+		return
+	if renderer_stage_events != {"added": 0, "removed": 0}:
+		_fail("Internal text renderer replacement emitted logical stage events: %s" % [renderer_stage_events])
 		return
 	var filtered_ubb_field := FGUITextField.new()
 	host.add_child(filtered_ubb_field.node)
@@ -232,6 +238,12 @@ func _initialize() -> void:
 	if rich_field.data != 1:
 		_fail("Rich text fields did not dispatch click events.")
 		return
+	var clicked_link := [""]
+	rich_field.add_event_listener(FGUIEvents.CLICK_LINK, func(context: FGUIEventContext) -> void: clicked_link[0] = str(context.data))
+	rich_field.label.meta_clicked.emit("https://example.test")
+	if clicked_link[0] != "https://example.test":
+		_fail("Rich text fields did not dispatch clicked link metadata.")
+		return
 
 	var input := FGUITextInput.new()
 	host.add_child(input.node)
@@ -281,6 +293,9 @@ func _initialize() -> void:
 	if not (input.text_edit.get_theme_font("font") is FontVariation):
 		_fail("Text inputs did not preserve bold and italic font styling when switching native input modes.")
 		return
+	var input_events := {"changed": 0, "submit": 0}
+	input.add_event_listener(FGUIEvents.STATE_CHANGED, func(_context: FGUIEventContext) -> void: input_events["changed"] += 1)
+	input.add_event_listener(FGUIEvents.SUBMIT, func(_context: FGUIEventContext) -> void: input_events["submit"] += 1)
 	input.max_length = 4
 	input.restrict = ""
 	input._on_text_changed("12345")
@@ -301,6 +316,10 @@ func _initialize() -> void:
 	input._on_text_changed("a-b")
 	if input.text != "-":
 		_fail("Text input escaped restrict characters were not applied.")
+		return
+	input._on_text_submitted(input.text)
+	if input_events != {"changed": 4, "submit": 1}:
+		_fail("Text input changed/submit events were not dispatched: %s" % [input_events])
 		return
 
 	input.dispose()

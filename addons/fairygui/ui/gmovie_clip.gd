@@ -264,6 +264,7 @@ func _advance_playback_frame() -> void:
 		_frame = _play_end_at
 		_frame_elapsed = 0.0
 		_play_status = 3
+		emit_event(FGUIEvents.PLAY_END)
 	elif _frame == _play_end:
 		if _play_times > 0:
 			_play_times -= 1

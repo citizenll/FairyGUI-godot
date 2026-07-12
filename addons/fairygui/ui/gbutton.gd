@@ -106,6 +106,7 @@ func _init() -> void:
 	super._init()
 	sound = FGUIConfig.button_sound
 	sound_volume_scale = FGUIConfig.button_sound_volume_scale
+	on(FGUIEvents.CLICK, Callable(self, "_handle_click"))
 
 
 func construct_extension(buffer: FGUIByteBuffer) -> void:
@@ -175,7 +176,6 @@ func fire_click(down_effect: bool = true) -> void:
 		set_state(OVER)
 		_play_fire_click_effect.call_deferred(_fire_click_token)
 	emit_event("click")
-	_handle_click(null)
 
 
 func _play_fire_click_effect(token: int) -> void:
@@ -287,7 +287,6 @@ func _on_gui_input(event: InputEvent) -> void:
 	super._on_gui_input(event)
 	if FGUIToolSet.is_primary_pointer_release(event) and _button_touch_index == FGUIToolSet.get_pointer_id(event):
 		_button_touch_index = -2
-		_handle_click(event)
 
 
 func _handle_click(event: Variant) -> void:

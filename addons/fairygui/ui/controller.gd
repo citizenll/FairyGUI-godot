@@ -1,5 +1,5 @@
 class_name FGUIController
-extends RefCounted
+extends "res://addons/fairygui/core/event_dispatcher.gd"
 
 static var _next_page_id: int = 0
 
@@ -15,7 +15,6 @@ var selected_index: int:
 var changing: bool = false
 var auto_radio_group_depth: bool = false
 var actions: Array = []
-var _event_listeners: Dictionary = {}
 var selected_page_id: String:
 	set(value):
 		var index := page_ids.find(value)
@@ -172,27 +171,10 @@ func run_actions() -> void:
 		action.run(self, previous_page_id, selected_page_id)
 
 
-func on(event_name: String, callable: Callable) -> void:
-	if not callable.is_valid():
-		return
-	if not _event_listeners.has(event_name):
-		_event_listeners[event_name] = []
-	_event_listeners[event_name].append(callable)
-
-
-func off(event_name: String, callable: Callable) -> void:
-	if _event_listeners.has(event_name):
-		_event_listeners[event_name].erase(callable)
-
-
-func has_event_listener(event_name: String) -> bool:
-	return _event_listeners.has(event_name) and not _event_listeners[event_name].is_empty()
-
-
 func dispose() -> void:
 	parent = null
 	actions.clear()
-	_event_listeners.clear()
+	remove_event_listeners()
 
 
 func _set_selected_index(value: int, emit_change: bool) -> void:
@@ -209,16 +191,8 @@ func _set_selected_index(value: int, emit_change: bool) -> void:
 	if parent != null:
 		parent.apply_controller(self)
 	if emit_change:
-		_emit_event(FGUIEvents.STATE_CHANGED)
+		emit_event(FGUIEvents.STATE_CHANGED, self)
 	changing = false
-
-
-func _emit_event(event_name: String) -> void:
-	if not _event_listeners.has(event_name):
-		return
-	for callable: Callable in _event_listeners[event_name].duplicate():
-		if callable.is_valid():
-			callable.call(self)
 
 
 func _string_or_empty(value: Variant) -> String:

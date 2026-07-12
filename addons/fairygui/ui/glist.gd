@@ -147,6 +147,7 @@ func add_child_at(child: FGUIObject, index: int) -> FGUIObject:
 		added.selected = false
 		added.change_state_on_click = false
 	added.on("click", Callable(self, "_click_item").bind(added))
+	added.on(FGUIEvents.RIGHT_CLICK, Callable(self, "_right_click_item").bind(added))
 	return added
 
 
@@ -741,13 +742,21 @@ func _setup_item(buffer: FGUIByteBuffer, obj: FGUIObject) -> void:
 
 
 func _click_item(_event: Variant, item: FGUIObject) -> void:
+	_dispatch_item_event(_event, item, FGUIEvents.CLICK_ITEM)
+
+
+func _right_click_item(_event: Variant, item: FGUIObject) -> void:
+	_dispatch_item_event(_event, item, FGUIEvents.RIGHT_CLICK_ITEM)
+
+
+func _dispatch_item_event(event: Variant, item: FGUIObject, event_name: String) -> void:
 	var index := int(item.data) if _virtual and item.data != null else get_child_index(item)
 	if index == -1:
 		return
-	_set_selection_on_event(index, item, _event)
+	_set_selection_on_event(index, item, event)
 	if scroll_item_to_view_on_click:
 		scroll_to_view(index)
-	emit_event(FGUIEvents.CLICK_ITEM, item)
+	emit_event(event_name, item)
 
 
 func _set_selection_on_event(index: int, item: FGUIObject, event: Variant) -> void:

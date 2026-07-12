@@ -1,5 +1,5 @@
 class_name FGUIPopupMenu
-extends RefCounted
+extends "res://addons/fairygui/core/event_dispatcher.gd"
 
 var content_pane: FGUIComponent
 var list: FGUIList
@@ -24,6 +24,8 @@ func _configure_content(next_content_pane: FGUIComponent) -> void:
 		list.off(FGUIEvents.CLICK_ITEM, Callable(self, "_on_click_item"))
 	if content_pane != null and content_pane.node != null and content_pane.node.tree_entered.is_connected(_on_added_to_stage):
 		content_pane.node.tree_entered.disconnect(_on_added_to_stage)
+	if content_pane != null and content_pane.node != null and content_pane.node.tree_exiting.is_connected(_on_removed_from_stage):
+		content_pane.node.tree_exiting.disconnect(_on_removed_from_stage)
 	content_pane = next_content_pane
 	list = content_pane.get_child("list") as FGUIList if content_pane != null else null
 	if content_pane == null or list == null:
@@ -36,6 +38,8 @@ func _configure_content(next_content_pane: FGUIComponent) -> void:
 	list.on(FGUIEvents.CLICK_ITEM, Callable(self, "_on_click_item"))
 	if content_pane.node != null and not content_pane.node.tree_entered.is_connected(_on_added_to_stage):
 		content_pane.node.tree_entered.connect(_on_added_to_stage)
+	if content_pane.node != null and not content_pane.node.tree_exiting.is_connected(_on_removed_from_stage):
+		content_pane.node.tree_exiting.connect(_on_removed_from_stage)
 
 
 func dispose() -> void:
@@ -43,12 +47,15 @@ func dispose() -> void:
 		list.off(FGUIEvents.CLICK_ITEM, Callable(self, "_on_click_item"))
 	if content_pane != null and content_pane.node != null and content_pane.node.tree_entered.is_connected(_on_added_to_stage):
 		content_pane.node.tree_entered.disconnect(_on_added_to_stage)
+	if content_pane != null and content_pane.node != null and content_pane.node.tree_exiting.is_connected(_on_removed_from_stage):
+		content_pane.node.tree_exiting.disconnect(_on_removed_from_stage)
 	if content_pane != null:
 		if content_pane.parent is FGUIRoot:
 			(content_pane.parent as FGUIRoot).hide_popup(content_pane)
 		content_pane.dispose()
 	content_pane = null
 	list = null
+	remove_event_listeners()
 
 
 func add_item(caption: String, callback: Callable = Callable()) -> FGUIButton:
@@ -183,6 +190,11 @@ func _on_added_to_stage() -> void:
 		return
 	list.selected_index = -1
 	list.resize_to_fit(100000, 10)
+	emit_event(FGUIEvents.POPUP)
+
+
+func _on_removed_from_stage() -> void:
+	emit_event(FGUIEvents.CLOSE)
 
 
 func _on_click_item(item: Variant) -> void:

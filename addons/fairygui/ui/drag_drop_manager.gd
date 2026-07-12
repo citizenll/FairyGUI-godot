@@ -75,11 +75,8 @@ func _on_drag_end(event: Variant = null) -> void:
 	var target_root := agent.root
 	if target_root != null:
 		target_root.remove_child(agent)
-	var payload := {
-		"data": source_data,
-		"source": source,
-		"event": event,
-	}
+	var drop_data := source_data
+	var drop_source := source
 	source_data = null
 	source = null
 	var drop_target := _find_drop_target(target_root, FGUIObject.get_last_pointer_position())
@@ -87,7 +84,7 @@ func _on_drag_end(event: Variant = null) -> void:
 		if drop_target.has_event_listener(FGUIEvents.DROP):
 			if target_root != null:
 				target_root.focus = drop_target
-			drop_target.emit_event(FGUIEvents.DROP, payload)
+			drop_target.dispatch_event(FGUIEvents.DROP, drop_data, drop_source)
 			return
 		drop_target = drop_target.parent
 

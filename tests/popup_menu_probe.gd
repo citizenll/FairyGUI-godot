@@ -46,6 +46,9 @@ func _initialize() -> void:
 	content.add_child(list)
 	var menu := FGUIPopupMenu.new()
 	menu._configure_content(content)
+	var menu_events := {"popup": 0, "close": 0}
+	menu.add_event_listener(FGUIEvents.POPUP, func(_context: FGUIEventContext) -> void: menu_events["popup"] += 1)
+	menu.add_event_listener(FGUIEvents.CLOSE, func(_context: FGUIEventContext) -> void: menu_events["close"] += 1)
 
 	var callbacks := {"a": 0, "b": 0}
 	var item_a := menu.add_item("Item A", func() -> void: callbacks["a"] += 1)
@@ -92,7 +95,7 @@ func _initialize() -> void:
 	await process_frame
 	list._click_item(null, item_a)
 	await process_frame
-	if callbacks["a"] != 1 or menu.is_item_checked("a") or content.parent != null:
+	if callbacks["a"] != 1 or menu.is_item_checked("a") or content.parent != null or menu_events != {"popup": 2, "close": 2}:
 		_fail(menu, root_object, previous_separator, "PopupMenu checkable item activation did not toggle and invoke its callback.")
 		return
 	menu.set_item_checkable("a", false)

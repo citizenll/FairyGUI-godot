@@ -302,6 +302,10 @@ func _append_package_image(url: String) -> void:
 	label.add_image(item.texture, item.width, item.height)
 
 
+func _on_meta_clicked(meta: Variant) -> void:
+	emit_event(FGUIEvents.CLICK_LINK, meta)
+
+
 func _parse_template(template: String) -> String:
 	var result := ""
 	var start := 0
@@ -787,6 +791,7 @@ func _replace_text_renderer(use_rich_text: bool) -> void:
 	var blend_mode := FGUIToolSet.get_blend_mode(previous_node)
 	var self_modulate := previous_node.self_modulate if previous_node != null else Color.WHITE
 	var mouse_filter := previous_node.mouse_filter if previous_node != null else Control.MOUSE_FILTER_IGNORE
+	_suppress_stage_events = true
 	if previous_node != null:
 		previous_node.remove_meta("fgui_owner")
 		if native_parent != null:
@@ -797,6 +802,7 @@ func _replace_text_renderer(use_rich_text: bool) -> void:
 		label.bbcode_enabled = true
 		label.fit_content = true
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		label.meta_clicked.connect(_on_meta_clicked)
 	else:
 		label = Label.new()
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -808,10 +814,15 @@ func _replace_text_renderer(use_rich_text: bool) -> void:
 	node.gui_input.connect(_on_gui_input)
 	node.mouse_entered.connect(_on_mouse_entered)
 	node.mouse_exited.connect(_on_mouse_exited)
+	node.tree_entered.connect(_on_object_entered_tree)
+	node.tree_exiting.connect(_on_object_exiting_tree)
+	node.focus_entered.connect(_on_focus_entered)
+	node.focus_exited.connect(_on_focus_exited)
 	if native_parent != null:
 		native_parent.add_child(node)
 		if sibling_index >= 0:
 			native_parent.move_child(node, sibling_index)
+	_suppress_stage_events = false
 	node.self_modulate = self_modulate
 	node.mouse_filter = mouse_filter
 	node.tooltip_text = _tooltips if FGUIConfig.tooltips_win == "" else ""

@@ -102,6 +102,10 @@ func _create_display_object() -> void:
 	node.tree_exiting.connect(_on_component_exiting_tree)
 
 
+func _get_event_children() -> Array:
+	return children
+
+
 func dispose() -> void:
 	_bounds_update_queued = false
 	set_mask(null)

@@ -145,6 +145,11 @@ func _on_text_changed(new_text: String) -> void:
 		elif text_edit != null:
 			_restore_text_edit_caret(text_caret_line, text_caret_column)
 	_text = filtered
+	emit_event(FGUIEvents.STATE_CHANGED)
+
+
+func _on_text_submitted(_new_text: String) -> void:
+	emit_event(FGUIEvents.SUBMIT)
 
 
 func _on_text_edit_changed(source: TextEdit) -> void:
@@ -193,6 +198,7 @@ func _ensure_input_control() -> void:
 	else:
 		line_edit = LineEdit.new()
 		line_edit.text_changed.connect(_on_text_changed)
+		line_edit.text_submitted.connect(_on_text_submitted)
 		_input_control = line_edit
 	label = _input_control
 	node.add_child(_input_control)

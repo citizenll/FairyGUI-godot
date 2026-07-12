@@ -3,6 +3,10 @@ extends RefCounted
 
 const ByteBuffer := preload("res://addons/fairygui/core/byte_buffer.gd")
 const Enums := preload("res://addons/fairygui/core/enums.gd")
+const EventDispatcher := preload("res://addons/fairygui/core/event_dispatcher.gd")
+const EventContext := preload("res://addons/fairygui/core/event_context.gd")
+const InputEventData := preload("res://addons/fairygui/core/input_event.gd")
+const EventTouchMonitor := preload("res://addons/fairygui/ui/event_touch_monitor.gd")
 const Package := preload("res://addons/fairygui/core/ui_package.gd")
 const PackageResource := preload("res://addons/fairygui/core/package_resource.gd")
 const PackageItem := preload("res://addons/fairygui/core/package_item.gd")

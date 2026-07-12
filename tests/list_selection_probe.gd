@@ -36,8 +36,14 @@ func _initialize() -> void:
 	if list.get_selection() != [1, 3]:
 		_fail("Ctrl-click did not toggle a selected list item.")
 		return
+	var right_clicked_item := [null]
+	list.add_event_listener(FGUIEvents.RIGHT_CLICK_ITEM, func(context: FGUIEventContext) -> void: right_clicked_item[0] = context.data)
+	list._right_click_item(_click_event(), list.get_child_at(4))
+	if right_clicked_item[0] != list.get_child_at(4) or list.get_selection() != [4]:
+		_fail("Right-click item events did not preserve FairyGUI list selection semantics.")
+		return
 	list.select_reverse()
-	if list.get_selection() != [0, 2, 4]:
+	if list.get_selection() != [0, 1, 2, 3]:
 		_fail("List select_reverse did not invert the selected item set.")
 		return
 	var width_list := FGUIList.new()

@@ -442,3 +442,4 @@ func _disconnect_viewport() -> void:
 
 func _on_viewport_size_changed() -> void:
 	_update_size_from_viewport()
+	emit_event(FGUIEvents.STAGE_RESIZED)
