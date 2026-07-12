@@ -1,6 +1,10 @@
 class_name FGUIList
 extends FGUIComponent
 
+const VIRTUAL_SIZE_CHUNK_SIZE := 256
+const VIRTUAL_PHYSICAL_INDEX_META := &"_fgui_virtual_physical_index"
+const VIRTUAL_ITEM_URL_META := &"_fgui_virtual_item_url"
+
 var item_renderer: Callable
 var item_provider: Callable
 var scroll_item_to_view_on_click: bool = true
@@ -63,8 +67,11 @@ var _num_items: int = 0
 var _selected_indices: Array[int] = []
 var _last_selected_index: int = -1
 var _virtual_item_size: Vector2 = Vector2.ZERO
-var _virtual_item_sizes: Array[Vector2] = []
-var _virtual_primary_prefix: Array[float] = []
+var _virtual_item_size_overrides: Dictionary = {}
+var _virtual_chunk_primary_deltas: Dictionary = {}
+var _virtual_chunk_item_indices: Dictionary = {}
+var _virtual_changed_chunks: Array[int] = []
+var _virtual_changed_chunk_prefix: Array[float] = []
 var _virtual_primary_total: float = 0.0
 var _virtual_cross_size: float = 0.0
 var _virtual_size_layout_dirty: bool = true
@@ -87,7 +94,7 @@ var virtual_item_size: Vector2:
 		if _virtual_item_size.is_equal_approx(next_size):
 			return
 		_virtual_item_size = next_size
-		_virtual_item_sizes.clear()
+		_clear_virtual_item_size_cache()
 		_virtual_size_layout_dirty = true
 		_virtual_loop_position_initialized = false
 		refresh_virtual_list()
@@ -100,6 +107,7 @@ var num_items: int:
 			var next_count := max(0, value)
 			if next_count != _num_items:
 				_num_items = next_count
+				_trim_virtual_item_size_cache()
 				_virtual_real_num_items = _num_items * 6 if _loop else _num_items
 				_virtual_loop_position_initialized = false
 				_virtual_size_layout_dirty = true
@@ -373,12 +381,11 @@ func resize_to_fit(item_count: int = 0, min_size: int = 0) -> void:
 	var next_size := float(min_size)
 	if count > 0 and _virtual:
 		_ensure_virtual_item_size()
-		_ensure_virtual_item_sizes()
 		_ensure_virtual_size_layout()
 		if _supports_variable_virtual_primary():
 			var last_index := count - 1
 			var item_size := _get_cached_virtual_item_size(last_index)
-			next_size = _virtual_primary_prefix[last_index] + (item_size.y if resize_height else item_size.x)
+			next_size = _get_virtual_logical_primary_start(last_index) + (item_size.y if resize_height else item_size.x)
 		else:
 			var layout_info := _get_virtual_layout_info(maxi(1, _num_items))
 			var items_per_line := 1
@@ -432,8 +439,7 @@ func _set_virtual(loop: bool) -> void:
 	_virtual_first_index = 0
 	_virtual_loop_position_initialized = false
 	_virtual_item_size = Vector2.ZERO
-	_virtual_item_sizes.clear()
-	_virtual_primary_prefix.clear()
+	_clear_virtual_item_size_cache()
 	_virtual_primary_total = 0.0
 	_virtual_cross_size = 0.0
 	_virtual_size_layout_dirty = true
@@ -444,7 +450,7 @@ func _set_virtual(loop: bool) -> void:
 	refresh_virtual_list()
 
 
-func refresh_virtual_list() -> void:
+func refresh_virtual_list(force_update: bool = true) -> void:
 	if not _virtual:
 		return
 	if _refreshing_virtual:
@@ -454,8 +460,8 @@ func refresh_virtual_list() -> void:
 	var pending_primary_shift := _virtual_pending_primary_shift
 	_virtual_size_content_refresh_pending = false
 	_virtual_pending_primary_shift = 0.0
-	remove_children_to_pool()
 	if _num_items <= 0:
+		remove_children_to_pool()
 		_virtual_real_num_items = 0
 		_virtual_first_index = 0
 		_virtual_loop_position_initialized = false
@@ -465,7 +471,7 @@ func refresh_virtual_list() -> void:
 		_refreshing_virtual = false
 		return
 	_ensure_virtual_item_size()
-	_ensure_virtual_item_sizes()
+	var variable_layout_changed := _supports_variable_virtual_primary() and _virtual_size_layout_dirty
 	_ensure_virtual_size_layout()
 	_virtual_real_num_items = _num_items * 6 if _loop else _num_items
 	var layout_info := _get_virtual_layout_info(_virtual_real_num_items)
@@ -486,7 +492,7 @@ func refresh_virtual_list() -> void:
 				pending_primary_shift if horizontal else 0.0,
 				pending_primary_shift if not horizontal else 0.0
 			)
-		else:
+		elif absf(next_content_width - scroll_pane.content_width) > 0.01 or absf(next_content_height - scroll_pane.content_height) > 0.01:
 			scroll_pane.set_content_size(next_content_width, next_content_height)
 		if _loop:
 			_update_virtual_loop_position(horizontal, float(layout_info.get("loop_segment_span", float(_num_items) * span)))
@@ -502,20 +508,44 @@ func refresh_virtual_list() -> void:
 		var first_group := clampi(int(floorf(scroll_pos / span)), 0, maxi(0, group_count - 1))
 		_virtual_first_index = mini(_virtual_real_num_items - 1, first_group * items_per_group)
 		visible_count = mini(_virtual_real_num_items - _virtual_first_index, (int(ceilf(float(layout_info["view_primary"]) / span)) + 2) * items_per_group)
+	if not force_update and not adjust_content_while_scrolling and not variable_layout_changed and _virtual_children_match_range(_virtual_first_index, visible_count):
+		_refreshing_virtual = false
+		return
+	var desired_end := _virtual_first_index + visible_count
+	var existing_items: Dictionary = {}
+	for child_index in range(children.size() - 1, -1, -1):
+		var child: FGUIObject = children[child_index]
+		var physical_index := _get_virtual_child_physical_index(child)
+		if physical_index < _virtual_first_index or physical_index >= desired_end or existing_items.has(physical_index):
+			remove_child_to_pool_at(child_index)
+		else:
+			existing_items[physical_index] = child
 	var item_sizes_changed := false
 	for offset in visible_count:
 		var physical_index := _virtual_first_index + offset
 		var item_index := _physical_to_item_index(physical_index)
-		var url := item_provider.call(item_index) if item_provider.is_valid() else default_item
-		var obj := add_item_from_pool(url)
-		if obj != null and variable_primary:
+		var obj: FGUIObject = existing_items.get(physical_index)
+		var needs_render := force_update or obj == null
+		var url := _get_virtual_child_url(obj) if obj != null and not force_update else _resolve_virtual_item_url(item_index)
+		if obj != null and _get_virtual_child_url(obj) != url:
+			remove_child_to_pool(obj)
+			obj = null
+			needs_render = true
+		if obj == null:
+			obj = add_item_from_pool(url)
+			if obj == null:
+				continue
+			_set_virtual_child_metadata(obj, physical_index, url)
+		else:
+			_set_virtual_child_metadata(obj, physical_index, url)
+		if needs_render and variable_primary:
 			_apply_cached_virtual_item_size(obj, item_index)
-		if obj != null:
+		if needs_render:
 			_apply_virtual_auto_size(obj, layout_info)
-		if obj != null and item_renderer.is_valid():
+		if needs_render and item_renderer.is_valid():
 			item_renderer.call(item_index, obj)
 		if obj != null:
-			if variable_primary:
+			if variable_primary and needs_render:
 				var previous_size := _get_cached_virtual_item_size(item_index)
 				if _record_virtual_item_size(item_index, obj):
 					item_sizes_changed = true
@@ -526,9 +556,43 @@ func refresh_virtual_list() -> void:
 				obj.selected = _selected_indices.has(item_index)
 			var item_position := _get_virtual_item_position(physical_index, layout_info)
 			obj.set_xy(item_position.x, item_position.y)
+			set_child_index(obj, mini(offset, children.size() - 1))
 	_refreshing_virtual = false
 	if item_sizes_changed:
 		_queue_virtual_size_refresh()
+
+
+func _resolve_virtual_item_url(item_index: int) -> String:
+	var value: Variant = item_provider.call(item_index) if item_provider.is_valid() else default_item
+	return _resolve_item_url(value)
+
+
+func _get_virtual_child_physical_index(obj: FGUIObject) -> int:
+	if obj == null or obj.node == null or not obj.node.has_meta(VIRTUAL_PHYSICAL_INDEX_META):
+		return -1
+	return int(obj.node.get_meta(VIRTUAL_PHYSICAL_INDEX_META))
+
+
+func _get_virtual_child_url(obj: FGUIObject) -> String:
+	if obj == null or obj.node == null or not obj.node.has_meta(VIRTUAL_ITEM_URL_META):
+		return ""
+	return str(obj.node.get_meta(VIRTUAL_ITEM_URL_META))
+
+
+func _set_virtual_child_metadata(obj: FGUIObject, physical_index: int, url: String) -> void:
+	if obj == null or obj.node == null:
+		return
+	obj.node.set_meta(VIRTUAL_PHYSICAL_INDEX_META, physical_index)
+	obj.node.set_meta(VIRTUAL_ITEM_URL_META, url)
+
+
+func _virtual_children_match_range(first_index: int, count: int) -> bool:
+	if children.size() != count:
+		return false
+	for child_index in count:
+		if _get_virtual_child_physical_index(children[child_index]) != first_index + child_index:
+			return false
+	return true
 
 
 func scroll_to_view(index: int, animated: bool = false, set_first: bool = false) -> void:
@@ -536,7 +600,6 @@ func scroll_to_view(index: int, animated: bool = false, set_first: bool = false)
 		if index < 0 or index >= _num_items:
 			return
 		_ensure_virtual_item_size()
-		_ensure_virtual_item_sizes()
 		_ensure_virtual_size_layout()
 		if scroll_pane != null:
 			_virtual_real_num_items = _num_items * 6 if _loop else _num_items
@@ -827,7 +890,6 @@ func get_snapping_position_with_dir(x_value: float, y_value: float, x_dir: int, 
 	if _num_items <= 0:
 		return Vector2.ZERO
 	_ensure_virtual_item_size()
-	_ensure_virtual_item_sizes()
 	_ensure_virtual_size_layout()
 	_virtual_real_num_items = _num_items * 6 if _loop else _num_items
 	var layout_info := _get_virtual_layout_info(_virtual_real_num_items)
@@ -887,40 +949,84 @@ func _supports_variable_virtual_primary() -> bool:
 	return _virtual and (layout == FGUIEnums.LIST_LAYOUT_SINGLE_COLUMN or layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW)
 
 
-func _ensure_virtual_item_sizes() -> void:
-	if not _supports_variable_virtual_primary():
+func invalidate_virtual_item_size(index: int) -> void:
+	invalidate_virtual_item_sizes(index, index)
+
+
+func invalidate_virtual_item_sizes(begin_index: int = 0, end_index: int = -1) -> void:
+	if not _virtual or _num_items <= 0:
 		return
-	while _virtual_item_sizes.size() < _num_items:
-		_virtual_item_sizes.append(_virtual_item_size)
-	if _virtual_item_sizes.size() > _num_items:
-		_virtual_item_sizes.resize(_num_items)
-	_virtual_size_layout_dirty = true if _virtual_primary_prefix.size() != _num_items else _virtual_size_layout_dirty
+	begin_index = clampi(begin_index, 0, _num_items - 1)
+	end_index = _num_items - 1 if end_index < 0 else clampi(end_index, begin_index, _num_items - 1)
+	if begin_index == 0 and end_index == _num_items - 1:
+		_clear_virtual_item_size_cache()
+	else:
+		for item_index_value in _virtual_item_size_overrides.keys():
+			var item_index := int(item_index_value)
+			if item_index >= begin_index and item_index <= end_index:
+				_virtual_item_size_overrides.erase(item_index_value)
+		_virtual_size_layout_dirty = true
+	_virtual_loop_position_initialized = false
+	refresh_virtual_list()
+
+
+func _clear_virtual_item_size_cache() -> void:
+	_virtual_item_size_overrides.clear()
+	_virtual_chunk_primary_deltas.clear()
+	_virtual_chunk_item_indices.clear()
+	_virtual_changed_chunks.clear()
+	_virtual_changed_chunk_prefix.clear()
+	_virtual_size_layout_dirty = true
+
+
+func _trim_virtual_item_size_cache() -> void:
+	for item_index_value in _virtual_item_size_overrides.keys():
+		if int(item_index_value) >= _num_items:
+			_virtual_item_size_overrides.erase(item_index_value)
+	_virtual_size_layout_dirty = true
 
 
 func _ensure_virtual_size_layout() -> void:
 	if not _supports_variable_virtual_primary() or not _virtual_size_layout_dirty:
 		return
-	_virtual_primary_prefix.clear()
-	_virtual_primary_prefix.resize(_num_items)
-	_virtual_primary_total = 0.0
-	_virtual_cross_size = 0.0
+	_virtual_chunk_primary_deltas.clear()
+	_virtual_chunk_item_indices.clear()
+	_virtual_changed_chunks.clear()
+	_virtual_changed_chunk_prefix.clear()
 	var gap := float(column_gap if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else line_gap)
-	for index in _num_items:
-		_virtual_primary_prefix[index] = _virtual_primary_total
-		var item_size := _virtual_item_sizes[index]
-		var primary_size := maxf(1.0, item_size.x if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else item_size.y)
-		var cross_size := maxf(1.0, item_size.y if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else item_size.x)
-		_virtual_primary_total += primary_size
-		_virtual_cross_size = maxf(_virtual_cross_size, cross_size)
-		if index != _num_items - 1:
-			_virtual_primary_total += gap
+	var default_primary := _get_virtual_default_primary_size()
+	var default_cross := _get_virtual_default_cross_size()
+	_virtual_primary_total = float(_num_items) * default_primary + float(maxi(0, _num_items - 1)) * gap
+	_virtual_cross_size = default_cross
+	for item_index_value in _virtual_item_size_overrides.keys():
+		var item_index := int(item_index_value)
+		if item_index < 0 or item_index >= _num_items:
+			_virtual_item_size_overrides.erase(item_index_value)
+			continue
+		var item_size: Vector2 = _virtual_item_size_overrides[item_index_value]
+		var primary_delta := _get_virtual_primary_size_from_vector(item_size) - default_primary
+		var chunk_index := item_index / VIRTUAL_SIZE_CHUNK_SIZE
+		_virtual_chunk_primary_deltas[chunk_index] = float(_virtual_chunk_primary_deltas.get(chunk_index, 0.0)) + primary_delta
+		var chunk_items: Array = _virtual_chunk_item_indices.get(chunk_index, [])
+		chunk_items.append(item_index)
+		_virtual_chunk_item_indices[chunk_index] = chunk_items
+		_virtual_primary_total += primary_delta
+		_virtual_cross_size = maxf(_virtual_cross_size, _get_virtual_cross_size_from_vector(item_size))
+	for chunk_index_value in _virtual_chunk_item_indices.keys():
+		var chunk_index := int(chunk_index_value)
+		var chunk_items: Array = _virtual_chunk_item_indices[chunk_index_value]
+		chunk_items.sort()
+		_virtual_changed_chunks.append(chunk_index)
+	_virtual_changed_chunks.sort()
+	var running_delta := 0.0
+	for chunk_index in _virtual_changed_chunks:
+		running_delta += float(_virtual_chunk_primary_deltas.get(chunk_index, 0.0))
+		_virtual_changed_chunk_prefix.append(running_delta)
 	_virtual_size_layout_dirty = false
 
 
 func _get_cached_virtual_item_size(item_index: int) -> Vector2:
-	if item_index >= 0 and item_index < _virtual_item_sizes.size():
-		return _virtual_item_sizes[item_index]
-	return _virtual_item_size
+	return _virtual_item_size_overrides.get(item_index, _virtual_item_size)
 
 
 func _apply_cached_virtual_item_size(obj: FGUIObject, item_index: int) -> void:
@@ -929,12 +1035,15 @@ func _apply_cached_virtual_item_size(obj: FGUIObject, item_index: int) -> void:
 
 
 func _record_virtual_item_size(item_index: int, obj: FGUIObject) -> bool:
-	if item_index < 0 or item_index >= _virtual_item_sizes.size():
+	if item_index < 0 or item_index >= _num_items:
 		return false
 	var next_size := Vector2(maxf(1.0, obj.width), maxf(1.0, obj.height))
-	if _virtual_item_sizes[item_index].is_equal_approx(next_size):
+	if _get_cached_virtual_item_size(item_index).is_equal_approx(next_size):
 		return false
-	_virtual_item_sizes[item_index] = next_size
+	if _virtual_item_size.is_equal_approx(next_size):
+		_virtual_item_size_overrides.erase(item_index)
+	else:
+		_virtual_item_size_overrides[item_index] = next_size
 	_virtual_size_layout_dirty = true
 	if _loop:
 		_virtual_loop_position_initialized = false
@@ -957,7 +1066,7 @@ func _refresh_virtual_after_size_change() -> void:
 			or scroll_pane.pos_x > 0.5
 			or scroll_pane.pos_y > 0.5
 		)
-		refresh_virtual_list()
+		refresh_virtual_list(false)
 
 
 func _get_virtual_content_primary(_physical_count: int) -> float:
@@ -974,14 +1083,60 @@ func _get_virtual_loop_segment_span() -> float:
 	return _virtual_primary_total + gap
 
 
+func _get_virtual_default_primary_size() -> float:
+	return _get_virtual_primary_size_from_vector(_virtual_item_size)
+
+
+func _get_virtual_default_cross_size() -> float:
+	return _get_virtual_cross_size_from_vector(_virtual_item_size)
+
+
+func _get_virtual_primary_size_from_vector(item_size: Vector2) -> float:
+	return maxf(1.0, item_size.x if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else item_size.y)
+
+
+func _get_virtual_cross_size_from_vector(item_size: Vector2) -> float:
+	return maxf(1.0, item_size.y if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else item_size.x)
+
+
+func _get_virtual_primary_delta_before(item_index: int) -> float:
+	if item_index <= 0 or _virtual_changed_chunks.is_empty():
+		return 0.0
+	var chunk_index := item_index / VIRTUAL_SIZE_CHUNK_SIZE
+	var low := 0
+	var high := _virtual_changed_chunks.size()
+	while low < high:
+		var mid := (low + high) / 2
+		if _virtual_changed_chunks[mid] < chunk_index:
+			low = mid + 1
+		else:
+			high = mid
+	var delta := _virtual_changed_chunk_prefix[low - 1] if low > 0 else 0.0
+	var chunk_items: Array = _virtual_chunk_item_indices.get(chunk_index, [])
+	var default_primary := _get_virtual_default_primary_size()
+	for override_index_value in chunk_items:
+		var override_index := int(override_index_value)
+		if override_index >= item_index:
+			break
+		var item_size: Vector2 = _virtual_item_size_overrides.get(override_index, _virtual_item_size)
+		delta += _get_virtual_primary_size_from_vector(item_size) - default_primary
+	return delta
+
+
+func _get_virtual_logical_primary_start(item_index: int) -> float:
+	item_index = clampi(item_index, 0, _num_items)
+	var gap := float(column_gap if layout == FGUIEnums.LIST_LAYOUT_SINGLE_ROW else line_gap)
+	return float(item_index) * (_get_virtual_default_primary_size() + gap) + _get_virtual_primary_delta_before(item_index)
+
+
 func _get_virtual_primary_start(physical_index: int) -> float:
 	if _num_items <= 0:
 		return 0.0
 	var logical_index := _physical_to_item_index(physical_index)
-	if logical_index < 0 or logical_index >= _virtual_primary_prefix.size():
+	if logical_index < 0 or logical_index >= _num_items:
 		return 0.0
 	var copy_index := physical_index / _num_items if _loop else 0
-	return float(copy_index) * _get_virtual_loop_segment_span() + _virtual_primary_prefix[logical_index]
+	return float(copy_index) * _get_virtual_loop_segment_span() + _get_virtual_logical_primary_start(logical_index)
 
 
 func _get_virtual_primary_size(physical_index: int) -> float:
@@ -1002,7 +1157,7 @@ func _get_virtual_first_physical_index(position: float) -> int:
 	var high := _num_items
 	while low < high:
 		var mid := (low + high) / 2
-		if _virtual_primary_prefix[mid] <= local_position:
+		if _get_virtual_logical_primary_start(mid) <= local_position:
 			low = mid + 1
 		else:
 			high = mid

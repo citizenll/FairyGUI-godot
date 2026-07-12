@@ -67,6 +67,7 @@ The repository is checked against Godot 4.7 Steam:
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/elastic_scroll_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/event_dispatch_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/virtual_list_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/virtual_list_stress_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/text_field_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/loader_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/loader3d_probe.gd
@@ -91,7 +92,7 @@ The repository is checked against Godot 4.7 Steam:
 
 ## Commercial Readiness
 
-This is still a pure-GDScript port in progress, not a certified drop-in replacement for every FairyGUI runtime feature. The current milestone is suitable for loading real packages, using `.fui` resources from the Inspector, and validating Godot integration. Before shipping a commercial product on it, finish parity testing for complex transition timelines, very large virtual lists, target-platform exports, and large UI performance.
+This is still a pure-GDScript port in progress, not a certified drop-in replacement for every FairyGUI runtime feature. The current milestone is suitable for loading real packages, using `.fui` resources from the Inspector, and validating Godot integration. Million-item virtual-list construction, sparse variable sizes, distant seeks, mutation, and bounded recycling are covered by a headless stress probe. Before shipping a commercial product, complete target-platform exports, real-project visual baselines, and device-specific performance profiling.
 
 ## License
 

@@ -670,7 +670,7 @@ func _on_native_scroll() -> void:
 	_update_scroll_bars()
 	_update_page_controller()
 	if owner is FGUIList and owner._virtual and not owner._refreshing_virtual:
-		owner.refresh_virtual_list()
+		owner.refresh_virtual_list(false)
 	if owner != null:
 		owner.emit_event(FGUIEvents.SCROLL)
 	_handling_scroll = false
