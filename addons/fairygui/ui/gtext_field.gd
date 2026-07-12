@@ -676,13 +676,15 @@ func _apply_valign() -> void:
 
 
 func _render_bitmap_text(value: String) -> void:
+	if _under_construct:
+		return
 	_clear_bitmap_nodes()
 	if label == null or _bitmap_font == null:
 		return
 	var was_updating := _updating_text_size
 	_updating_text_size = true
 	label.text = ""
-	var scale := float(font_size) / float(maxi(_bitmap_font.font_size, 1))
+	var scale := float(font_size) / float(maxi(_bitmap_font.font_size, 1)) if _bitmap_font.auto_scale_size else 1.0
 	var line_height := float(_bitmap_font.line_height) * scale
 	var wrap_width := width if _auto_size != FGUIEnums.AUTOSIZE_BOTH and not _single_line and width > 0.0 else INF
 	var lines: Array = []

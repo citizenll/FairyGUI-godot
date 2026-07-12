@@ -15,9 +15,16 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="FairyGUI Godot"
-run/main_scene="res://examples/minimal/main.tscn"
+run/main_scene="res://demo.tscn"
 config/features=PackedStringArray("4.7")
 config/icon="res://icon.png"
+
+[display]
+
+window/size/viewport_width=1136
+window/size/viewport_height=640
+window/size/window_width_override=1136
+window/size/window_height_override=640
 
 [editor_plugins]
 

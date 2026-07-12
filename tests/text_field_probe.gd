@@ -173,6 +173,32 @@ func _initialize() -> void:
 	if not bitmap_field._bitmap_nodes[0].position.is_equal_approx(Vector2(22.0, 20.0)):
 		_fail("Bitmap text did not honor horizontal and vertical alignment.")
 		return
+	bitmap_field.font_size = 20
+	bitmap_field.text = "A"
+	if not bitmap_field._bitmap_nodes[0].size.is_equal_approx(Vector2(8.0, 8.0)):
+		_fail("Fixed-size bitmap fonts were incorrectly scaled by the text field font size.")
+		return
+	bitmap_field._bitmap_font.auto_scale_size = true
+	bitmap_field.text = "AA"
+	if not bitmap_field._bitmap_nodes[0].size.is_equal_approx(Vector2(16.0, 16.0)):
+		_fail("Auto-scaling bitmap fonts did not follow the text field font size.")
+		return
+	var fixed_bitmap_field := FGUITextField.new()
+	host.add_child(fixed_bitmap_field.node)
+	fixed_bitmap_field._under_construct = true
+	fixed_bitmap_field.set_size(81.0, 60.0)
+	fixed_bitmap_field._bitmap_font = _make_bitmap_font()
+	fixed_bitmap_field.font_size = 20
+	fixed_bitmap_field.auto_size = FGUIEnums.AUTOSIZE_NONE
+	fixed_bitmap_field.text = "A"
+	if Vector2(fixed_bitmap_field.width, fixed_bitmap_field.height) != Vector2(81.0, 60.0) or not fixed_bitmap_field._bitmap_nodes.is_empty():
+		_fail("Bitmap text rendered before serialized auto-size settings were applied.")
+		return
+	fixed_bitmap_field._under_construct = false
+	fixed_bitmap_field.ensure_size_correct()
+	if Vector2(fixed_bitmap_field.width, fixed_bitmap_field.height) != Vector2(81.0, 60.0) or fixed_bitmap_field._bitmap_nodes.size() != 1:
+		_fail("Fixed-size bitmap text did not render after construction without changing its bounds.")
+		return
 
 	var rich_field := FGUIRichTextField.new()
 	host.add_child(rich_field.node)
@@ -325,6 +351,7 @@ func _initialize() -> void:
 	input.dispose()
 	configured_font_field.dispose()
 	rich_field.dispose()
+	fixed_bitmap_field.dispose()
 	bitmap_field.dispose()
 	ubb_field.dispose()
 	filtered_ubb_field.dispose()

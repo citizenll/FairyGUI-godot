@@ -14,13 +14,18 @@ This repository starts from the TypeScript `FairyGUI-layabox/source` runtime bec
 - Supports loader alignment/fill options, `FGUIConfig.loader_error_sign`, horizontal/vertical/Radial90/Radial180/Radial360 image fills, component loader targets, bitmap-font package parsing/rendering, packaged audio playback, pixel hit-test masks, and flow/pagination list layout.
 - `FGUILoader3D` supports external `PackedScene`, CanvasItem, Control, and Node3D content; package Spine/DragonBones content is connected through `FGUILoader3D.set_content_factory` so projects can choose their licensed Godot runtime integration.
 - Supports normal atlas regions through `AtlasTexture` and rotated/offset regions through generated `ImageTexture` sprites.
-- Includes FairyGUI Laya demo package assets under `examples/assets/ui` and a smoke test that loads every demo package.
+- Includes the FairyGUI Layabox demo packages, external item icons, a root `demo.tscn`, and regression probes that open and render the complete demo menu.
 
 This is intentionally not a Godot engine module. The first target is a portable addon that can be dropped into a normal project.
 
 ## Quick Start
 
-Open this folder as a Godot project and run `examples/minimal/main.tscn`.
+Open this folder as a Godot project and run it. `demo.tscn` is the main scene and
+wires the full Layabox reference menu: Basics, transitions, virtual/loop lists,
+hit testing, pull-to-refresh, modal waiting, joystick, bag, chat, list effects,
+scroll panes, trees, guide masks, and cooldown fills.
+
+For the smallest integration example, open `examples/minimal/main.tscn`.
 
 Programmatic usage:
 

@@ -733,6 +733,8 @@ func _setup_children_after_add(buffer: FGUIByteBuffer) -> void:
 		var next_pos := buffer.read_i16() + buffer.pos
 		child.setup_after_add(buffer, buffer.pos)
 		child._under_construct = false
+		if child is FGUITextField:
+			child.ensure_size_correct()
 		buffer.pos = next_pos
 
 

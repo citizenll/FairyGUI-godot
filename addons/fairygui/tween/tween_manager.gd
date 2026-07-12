@@ -35,7 +35,7 @@ static func get_tween(target: Variant, prop_type: Variant = null) -> FGUIGTweene
 	if target == null:
 		return null
 	for tweener in tweeners:
-		if tweener != null and not tweener.killed and tweener.target == target and (prop_type == null or tweener.prop_type == prop_type):
+		if tweener != null and not tweener.killed and tweener.target == target and _property_matches(tweener.prop_type, prop_type):
 			return tweener
 	return null
 
@@ -45,10 +45,18 @@ static func kill_tweens(target: Variant, complete: bool = false, prop_type: Vari
 		return false
 	var found := false
 	for tweener in tweeners:
-		if tweener != null and not tweener.killed and tweener.target == target and (prop_type == null or tweener.prop_type == prop_type):
+		if tweener != null and not tweener.killed and tweener.target == target and _property_matches(tweener.prop_type, prop_type):
 			tweener.kill(complete)
 			found = true
 	return found
+
+
+static func _property_matches(actual: Variant, requested: Variant) -> bool:
+	if requested == null:
+		return true
+	if typeof(actual) != typeof(requested):
+		return false
+	return actual == requested
 
 
 static func _ensure_driver() -> void:

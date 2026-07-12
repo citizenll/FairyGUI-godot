@@ -180,7 +180,7 @@ $null = Invoke-GodotStep -Category 'editor' -Name 'Resource import' -Arguments @
     '--headless', '--editor', '--import', '--path', $projectRoot, '--quit-after', '3'
 ) -TimeoutMs 120000
 
-$headlessExcluded = @('editor_hint_preview_probe.gd', 'mask_probe.gd', 'render_parity_probe.gd')
+$headlessExcluded = @('demo_render_probe.gd', 'editor_hint_preview_probe.gd', 'mask_probe.gd', 'render_parity_probe.gd')
 $headlessTests = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tests') -Filter '*_probe.gd' |
     Where-Object { $headlessExcluded -notcontains $_.Name } |
     Sort-Object Name
@@ -205,7 +205,7 @@ $renderConfigurations = @(
     @{ name = 'ForwardPlus'; driver = 'd3d12'; method = 'forward_plus' }
 )
 foreach ($configuration in $renderConfigurations) {
-    foreach ($testName in @('render_parity_probe.gd', 'mask_probe.gd')) {
+    foreach ($testName in @('render_parity_probe.gd', 'mask_probe.gd', 'demo_render_probe.gd')) {
         $null = Invoke-GodotStep -Category 'render' -Name "$($configuration.name)-$testName" -Arguments @(
             '--display-driver', 'windows',
             '--rendering-driver', $configuration.driver,

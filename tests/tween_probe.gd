@@ -99,6 +99,16 @@ func _initialize() -> void:
 	if FGUIGTween.is_tweening(target, "value"):
 		_fail("GTween target kill did not remove the tween.")
 		return
+	var callback_target := func(value: float) -> void: target.value = value
+	var property_tween := FGUIGTween.to(0.0, 10.0, 1.0).set_target(target, "value")
+	var callback_tween := FGUIGTween.to(0.0, 10.0, 1.0).set_target(target, callback_target)
+	if FGUIGTween.get_tween(target, callback_target) != callback_tween:
+		_fail("GTween lookup did not distinguish Callable and property-name targets.")
+		return
+	if not FGUIGTween.kill(target, false, "value") or property_tween.killed == false or callback_tween.killed:
+		_fail("GTween kill did not isolate mixed property target types.")
+		return
+	FGUIGTween.kill(target, false, callback_target)
 
 	quit(0)
 
