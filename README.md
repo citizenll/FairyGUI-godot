@@ -51,6 +51,7 @@ preserve imported-resource UIDs across machines and exports.
 The repository is checked against Godot 4.7 Steam:
 
 ```powershell
+pwsh -NoLogo -NoProfile -NonInteractive -File .\tools\run_commercial_freeze.ps1
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --check-only --script res://addons/fairygui/fairygui.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --editor --import --path .
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/editor_preview_probe.gd
@@ -58,7 +59,8 @@ The repository is checked against Godot 4.7 Steam:
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/component_metadata_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/bounds_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/blend_probe.gd
-& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/render_parity_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --display-driver windows --rendering-driver opengl3 --rendering-method gl_compatibility --script res://tests/render_parity_probe.gd
+& 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --display-driver windows --rendering-driver opengl3 --rendering-method gl_compatibility --script res://tests/mask_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/mask_shape_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/pixel_hit_probe.gd
 & 'D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe' --headless --script res://tests/native_hit_probe.gd
@@ -92,7 +94,7 @@ The repository is checked against Godot 4.7 Steam:
 
 ## Commercial Readiness
 
-This is still a pure-GDScript port in progress, not a certified drop-in replacement for every FairyGUI runtime feature. The current milestone is suitable for loading real packages, using `.fui` resources from the Inspector, and validating Godot integration. Million-item virtual-list construction, sparse variable sizes, distant seeks, mutation, and bounded recycling are covered by a headless stress probe. Before shipping a commercial product, complete target-platform exports, real-project visual baselines, and device-specific performance profiling.
+The automated commercial-freeze baseline passes 77 checks on Godot 4.7, including all package construction, Inspector `.fui` preview, three rendering backends, million-item lists, Windows exported-runtime smoke, and Windows/Linux/Web/Android/macOS/iOS project exports. See [docs/COMMERCIAL_FREEZE.md](docs/COMMERCIAL_FREEZE.md) for the exact platform scope and deliberate exceptions. Real products must still validate their own packages, target devices, fonts, performance budgets, and store requirements.
 
 ## License
 

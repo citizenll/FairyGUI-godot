@@ -2,6 +2,10 @@ extends SceneTree
 
 
 func _initialize() -> void:
+	if DisplayServer.get_name() == "headless":
+		push_error("Mask probe requires a graphical display driver.")
+		quit(1)
+		return
 	var host := Control.new()
 	root.add_child(host)
 	var component := FGUIComponent.new()
@@ -45,7 +49,8 @@ func _initialize() -> void:
 		return
 
 	await process_frame
-	await RenderingServer.frame_post_draw
+	await process_frame
+	await process_frame
 	var image := root.get_texture().get_image()
 	var inside := image.get_pixel(35, 25)
 	var outside := image.get_pixel(15, 25)
@@ -57,6 +62,7 @@ func _initialize() -> void:
 	if component.mask != null or component.node.clip_children != CanvasItem.CLIP_CHILDREN_DISABLED:
 		_fail("Removing the mask child did not restore unclipped rendering.")
 		return
+	mask.dispose()
 	component.dispose()
 	await process_frame
 
@@ -87,7 +93,8 @@ func _initialize() -> void:
 		return
 
 	await process_frame
-	await RenderingServer.frame_post_draw
+	await process_frame
+	await process_frame
 	image = root.get_texture().get_image()
 	inside = image.get_pixel(35, 25)
 	outside = image.get_pixel(15, 25)
@@ -112,7 +119,8 @@ func _initialize() -> void:
 	texture_component.add_child(texture_content)
 	texture_component.set_mask(texture_mask, true)
 	await process_frame
-	await RenderingServer.frame_post_draw
+	await process_frame
+	await process_frame
 	image = root.get_texture().get_image()
 	var opaque_mask_pixel := image.get_pixel(135, 25)
 	var transparent_mask_pixel := image.get_pixel(155, 25)
@@ -121,6 +129,7 @@ func _initialize() -> void:
 		return
 	texture_component.dispose()
 	host.queue_free()
+	await process_frame
 	await process_frame
 	quit(0)
 

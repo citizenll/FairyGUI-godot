@@ -5,9 +5,13 @@ const SOURCE := Color(0.8, 0.2, 0.1, 0.5)
 
 
 func _initialize() -> void:
+	if DisplayServer.get_name() == "headless":
+		push_error("Render parity probe requires a graphical display driver.")
+		quit(1)
+		return
 	var viewport := SubViewport.new()
 	viewport.size = Vector2i(320, 64)
-	viewport.transparent_bg = false
+	viewport.transparent_bg = true
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	root.add_child(viewport)
 	var background := ColorRect.new()
@@ -58,6 +62,9 @@ func _initialize() -> void:
 	await process_frame
 	await process_frame
 	var image := viewport.get_texture().get_image()
+	if image == null:
+		_fail(objects, viewport, "Render parity probe requires a non-dummy rendering driver.")
+		return
 	var expected := [
 		Color(0.5, 0.3, 0.35, 1.0),
 		Color(1.0, 0.6, 0.7, 1.0),

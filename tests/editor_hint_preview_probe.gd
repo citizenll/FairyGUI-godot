@@ -5,6 +5,14 @@ func _initialize() -> void:
 	if not Engine.is_editor_hint():
 		_fail("This probe must run through the Godot editor.")
 		return
+	await process_frame
+	var resource_filesystem := EditorInterface.get_resource_filesystem()
+	while resource_filesystem != null and (resource_filesystem.is_scanning() or resource_filesystem.is_importing()):
+		await process_frame
+	var baseline_cache: Dictionary = {}
+	for cache_key in FGUIPackageResource._package_cache:
+		var entry: Dictionary = FGUIPackageResource._package_cache[cache_key]
+		baseline_cache[cache_key] = int(entry.get("references", 0))
 	var resource := ResourceLoader.load("res://examples/assets/ui/Basics.fui") as FGUIPackageResource
 	if resource == null:
 		_fail("Godot editor did not resolve Basics.fui as an imported package resource.")
@@ -35,9 +43,19 @@ func _initialize() -> void:
 	host.queue_free()
 	await process_frame
 	await process_frame
-	if not FGUIPackageResource._package_cache.is_empty():
+	if FGUIPackageResource._package_cache.size() != baseline_cache.size():
 		_fail("FGUIView editor preview retained imported package references after cleanup.")
 		return
+	for cache_key in baseline_cache:
+		if not FGUIPackageResource._package_cache.has(cache_key):
+			_fail("FGUIView editor preview removed an unrelated package cache entry.")
+			return
+		var entry: Dictionary = FGUIPackageResource._package_cache[cache_key]
+		if int(entry.get("references", 0)) != int(baseline_cache[cache_key]):
+			_fail("FGUIView editor preview changed an unrelated package reference count.")
+			return
+	for _frame in 3:
+		await process_frame
 	quit(0)
 
 
