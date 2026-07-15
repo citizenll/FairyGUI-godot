@@ -3,6 +3,7 @@ extends EditorInspectorPlugin
 
 var generate_callback: Callable
 var open_callback: Callable
+var preview_callback: Callable
 
 
 func _can_handle(object: Object) -> bool:
@@ -19,6 +20,13 @@ func _parse_begin(object: Object) -> void:
 	generate_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	generate_button.pressed.connect(_on_generate_pressed.bind(object))
 	row.add_child(generate_button)
+
+	var preview_button := Button.new()
+	preview_button.text = "Open Preview"
+	preview_button.tooltip_text = "Open this FairyGUI package or component in GUI Preview."
+	preview_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	preview_button.pressed.connect(_on_preview_pressed.bind(object))
+	row.add_child(preview_button)
 
 	if object is FGUIView:
 		var open_button := Button.new()
@@ -39,3 +47,8 @@ func _on_generate_pressed(object: Object) -> void:
 func _on_open_pressed(object: Object) -> void:
 	if open_callback.is_valid():
 		open_callback.call(object)
+
+
+func _on_preview_pressed(object: Object) -> void:
+	if preview_callback.is_valid():
+		preview_callback.call(object)

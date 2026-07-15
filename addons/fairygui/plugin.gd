@@ -5,6 +5,7 @@ const FUIImportPlugin := preload("res://addons/fairygui/editor/fui_import_plugin
 const BindingCodeGenerator := preload("res://addons/fairygui/editor/binding_codegen.gd")
 const BindingInspectorPlugin := preload("res://addons/fairygui/editor/binding_inspector_plugin.gd")
 const BindingExportPlugin := preload("res://addons/fairygui/editor/binding_export_plugin.gd")
+const FUIPreviewPanel := preload("res://addons/fairygui/editor/fui_preview_panel.gd")
 
 const SETTING_AUTO_GENERATE := "fairygui/codegen/auto_generate"
 const SETTING_OUTPUT_DIR := "fairygui/codegen/output_dir"
@@ -17,6 +18,8 @@ const TOOL_MENU_NAME := "Generate FairyGUI Bindings"
 var _fui_importer: EditorImportPlugin
 var _binding_inspector: EditorInspectorPlugin
 var _binding_exporter: EditorExportPlugin
+var _preview_panel: Control
+var _preview_bottom_button: Button
 var _generation_queued: bool = false
 var _generation_running: bool = false
 var _generation_requested_while_running: bool = false
@@ -30,11 +33,15 @@ func _enter_tree() -> void:
 	_binding_inspector = BindingInspectorPlugin.new()
 	_binding_inspector.generate_callback = Callable(self, "_on_inspector_generate")
 	_binding_inspector.open_callback = Callable(self, "_on_inspector_open")
+	_binding_inspector.preview_callback = Callable(self, "_on_inspector_preview")
 	add_inspector_plugin(_binding_inspector)
 	_binding_exporter = BindingExportPlugin.new()
 	_binding_exporter.generate_callback = Callable(self, "generate_all_bindings")
 	add_export_plugin(_binding_exporter)
 	add_tool_menu_item(TOOL_MENU_NAME, Callable(self, "generate_all_bindings"))
+	_preview_panel = FUIPreviewPanel.new()
+	_preview_bottom_button = add_control_to_bottom_panel(_preview_panel, "GUI预览")
+	call_deferred("_configure_preview_bottom_button")
 
 	var filesystem := get_editor_interface().get_resource_filesystem()
 	if not filesystem.resources_reimported.is_connected(_on_resources_reimported):
@@ -48,6 +55,12 @@ func _exit_tree() -> void:
 	if filesystem.resources_reimported.is_connected(_on_resources_reimported):
 		filesystem.resources_reimported.disconnect(_on_resources_reimported)
 	remove_tool_menu_item(TOOL_MENU_NAME)
+	if _preview_panel != null:
+		_preview_panel.call("clear_preview")
+		remove_control_from_bottom_panel(_preview_panel)
+		_preview_panel.queue_free()
+		_preview_panel = null
+		_preview_bottom_button = null
 	if _binding_exporter != null:
 		remove_export_plugin(_binding_exporter)
 		_binding_exporter = null
@@ -119,6 +132,8 @@ func _run_queued_generation() -> void:
 
 
 func _on_resources_reimported(paths: PackedStringArray) -> void:
+	if _preview_panel != null and paths.has(str(_preview_panel.call("get_current_resource_path"))):
+		_preview_panel.call_deferred("reload_current")
 	if not bool(ProjectSettings.get_setting(SETTING_AUTO_GENERATE, true)):
 		return
 	for path: String in paths:
@@ -129,6 +144,14 @@ func _on_resources_reimported(paths: PackedStringArray) -> void:
 
 func _on_inspector_generate(_object: Object) -> void:
 	generate_all_bindings()
+
+
+func _on_inspector_preview(object: Object) -> void:
+	if object is FGUIPackageResource:
+		_open_preview(object as FGUIPackageResource)
+	elif object is FGUIView:
+		var view := object as FGUIView
+		_open_preview(view.package, view.component_name)
 
 
 func _on_inspector_open(object: Object) -> void:
@@ -146,6 +169,35 @@ func _on_inspector_open(object: Object) -> void:
 	var script := ResourceLoader.load(path) as Script
 	if script != null:
 		get_editor_interface().edit_script(script)
+
+
+func _handles(object: Object) -> bool:
+	return object is FGUIPackageResource
+
+
+func _edit(object: Object) -> void:
+	if object is FGUIPackageResource:
+		_open_preview(object as FGUIPackageResource)
+
+
+func _make_visible(visible: bool) -> void:
+	if visible and _preview_panel != null:
+		make_bottom_panel_item_visible(_preview_panel)
+
+
+func _open_preview(resource: FGUIPackageResource, component_name: String = "") -> void:
+	if resource == null or _preview_panel == null:
+		return
+	_preview_panel.call("open_package", resource, component_name)
+	make_bottom_panel_item_visible(_preview_panel)
+
+
+func _configure_preview_bottom_button() -> void:
+	if _preview_bottom_button == null:
+		return
+	var editor_theme := EditorInterface.get_editor_theme()
+	if editor_theme.has_icon("Control", "EditorIcons"):
+		_preview_bottom_button.icon = editor_theme.get_icon("Control", "EditorIcons")
 
 
 func _binding_path_for_view(view: FGUIView) -> String:
