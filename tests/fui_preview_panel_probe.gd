@@ -24,6 +24,9 @@ func _run() -> void:
 	if panel == null or panel.get_script() != PreviewPanel:
 		_fail("FairyGUI editor plugin did not register the GUI preview bottom panel.")
 		return
+	if _find_node_by_name(root, "FairyGUICanvasDropOverlay") == null:
+		_fail("FairyGUI editor plugin did not install the 2D canvas drop target.")
+		return
 	EditorInterface.edit_resource(resource)
 	for _frame in 20:
 		if panel.get_preview_object() != null:
@@ -131,6 +134,55 @@ func _run() -> void:
 		_fail("Middle mouse release did not stop GUI preview panning.")
 		return
 
+	var state_target := _find_object_by_name(preview, "btn_Graph")
+	if state_target == null:
+		_fail("Basics/Main did not expose btn_Graph for preview state coverage.")
+		return
+	panel.select_object(state_target, true)
+	panel._filter_edit.text = "btn_graph"
+	panel._on_filter_changed(panel._filter_edit.text)
+	panel._set_zoom(2.0)
+	await process_frame
+	await process_frame
+	preview_scroll.scroll_horizontal = 150
+	preview_scroll.scroll_vertical = 110
+	var state_scroll := Vector2(preview_scroll.scroll_horizontal, preview_scroll.scroll_vertical)
+	var root_item := panel.get_hierarchy_tree().get_root() as TreeItem
+	var collapsed_item := _find_collapsible_sibling(root_item, panel.get_hierarchy_tree().get_selected())
+	var collapsed_path: Array[int] = []
+	if collapsed_item != null:
+		var collapsed_object := panel._object_by_id.get(int(collapsed_item.get_metadata(0))) as FGUIObject
+		collapsed_path = panel._object_index_path(collapsed_object)
+		collapsed_item.collapsed = true
+	var old_preview_id := preview.get_instance_id()
+	panel.reload_current()
+	for _frame in 80:
+		var current := panel.get_preview_object() as FGUIObject
+		if current != null and current.get_instance_id() != old_preview_id and panel.get_selected_object() != null:
+			break
+		await process_frame
+	await process_frame
+	await process_frame
+	if panel.get_preview_object() == null or panel.get_preview_object().get_instance_id() == old_preview_id:
+		_fail("GUI preview reload did not rebuild the component.")
+		return
+	if panel.get_selected_object().name != "btn_Graph" or panel._filter_edit.text != "btn_graph":
+		_fail("GUI preview reload did not restore selection and filter state.")
+		return
+	if not is_equal_approx(float(panel._zoom), 2.0):
+		_fail("GUI preview reload did not restore zoom state.")
+		return
+	var restored_scroll := Vector2(preview_scroll.scroll_horizontal, preview_scroll.scroll_vertical)
+	if restored_scroll.distance_to(state_scroll) > 3.0:
+		_fail("GUI preview reload did not restore scroll state: %s vs %s." % [restored_scroll, state_scroll])
+		return
+	if not collapsed_path.is_empty():
+		var restored_collapsed_object := panel._resolve_object_index_path(collapsed_path) as FGUIObject
+		var restored_collapsed_item := _find_item(panel.get_hierarchy_tree().get_root(), restored_collapsed_object.get_instance_id())
+		if restored_collapsed_item == null or not restored_collapsed_item.collapsed:
+			_fail("GUI preview reload did not restore tree collapse state.")
+			return
+
 	panel.clear_preview()
 	await process_frame
 	await process_frame
@@ -156,6 +208,31 @@ func _find_item(item: TreeItem, object_id: int) -> TreeItem:
 		var found := _find_item(child, object_id)
 		if found != null:
 			return found
+		child = child.get_next()
+	return null
+
+
+func _find_object_by_name(value: FGUIObject, target_name: String) -> FGUIObject:
+	if value.name == target_name:
+		return value
+	if value is FGUIComponent:
+		for child: FGUIObject in (value as FGUIComponent).children:
+			var found := _find_object_by_name(child, target_name)
+			if found != null:
+				return found
+	return null
+
+
+func _find_collapsible_sibling(root_item: TreeItem, selected_item: TreeItem) -> TreeItem:
+	if root_item == null:
+		return null
+	var selected_branch := selected_item
+	while selected_branch != null and selected_branch.get_parent() != root_item:
+		selected_branch = selected_branch.get_parent()
+	var child := root_item.get_first_child()
+	while child != null:
+		if child != selected_branch and child.get_first_child() != null:
+			return child
 		child = child.get_next()
 	return null
 

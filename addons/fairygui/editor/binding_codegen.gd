@@ -258,8 +258,12 @@ func generated_script_path_for(
 	) -> String:
 	if package == null:
 		return ""
-	var item := package.get_item_by_name(component_name)
-	if item == null or item.type != FGUIEnums.PACKAGE_ITEM_COMPONENT:
+	var item: FGUIPackageItem
+	for candidate: FGUIPackageItem in package.items:
+		if candidate.type == FGUIEnums.PACKAGE_ITEM_COMPONENT and candidate.name == component_name:
+			item = candidate
+			break
+	if item == null:
 		return ""
 	var normalized_output := _normalize_output_dir(output_dir)
 	var manifest_path := "%s/%s" % [normalized_output, MANIFEST_FILE]

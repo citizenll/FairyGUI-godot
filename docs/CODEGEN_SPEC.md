@@ -203,6 +203,9 @@ Inspector 操作必须提供：
 
 - 生成绑定：重新生成项目绑定。
 - 打开绑定：打开当前 `FGUIView` 对应的生成脚本；未生成时禁用或先生成。
+- 创建界面脚本：从当前 `FGUIPackageResource` 的真实包 ID、组件 ID 和 manifest 解析绑定路径，生成 `UI_TYPE := preload(<binding_path>)` 业务模板并挂载到节点。
+
+业务脚本生成器不得固定包名、组件名或 `UI_BasicsMain` 等示例类型，也不得仅根据文件名猜测类名。现有用户脚本不得被覆盖。
 
 生成完成后请求 EditorFileSystem 扫描，并使 `FGUIView` 刷新预览。错误必须显示在 Godot 输出面板，汇总中包含生成、跳过、删除和警告数量。
 

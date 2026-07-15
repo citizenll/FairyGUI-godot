@@ -31,6 +31,43 @@ func get_component_names() -> PackedStringArray:
 	return result
 
 
+func get_component_info(preferred_name: String = "") -> Dictionary:
+	var pkg := acquire_package()
+	if pkg == null:
+		return {}
+	var item: FGUIPackageItem
+	if preferred_name != "":
+		for candidate: FGUIPackageItem in pkg.items:
+			if candidate.type == FGUIEnums.PACKAGE_ITEM_COMPONENT and candidate.name == preferred_name:
+				item = candidate
+				break
+	else:
+		for candidate: FGUIPackageItem in pkg.items:
+			if candidate.type == FGUIEnums.PACKAGE_ITEM_COMPONENT and candidate.name == "Main":
+				item = candidate
+				break
+		if item == null:
+			for candidate: FGUIPackageItem in pkg.items:
+				if candidate.type == FGUIEnums.PACKAGE_ITEM_COMPONENT:
+					item = candidate
+					break
+	var result := {}
+	if item != null:
+		result = {
+			"source_path": get_source_path(),
+			"package_id": pkg.id,
+			"package_name": pkg.name,
+			"component_id": item.id,
+			"component_name": item.name,
+			"url": "ui://%s%s" % [pkg.id, item.id],
+			"name_url": "ui://%s/%s" % [pkg.name, item.name],
+			"width": item.width,
+			"height": item.height,
+		}
+	release_package(pkg)
+	return result
+
+
 func acquire_package() -> FGUIPackage:
 	if package_data.is_empty():
 		return null

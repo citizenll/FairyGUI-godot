@@ -6,6 +6,9 @@ const BindingCodeGenerator := preload("res://addons/fairygui/editor/binding_code
 const BindingInspectorPlugin := preload("res://addons/fairygui/editor/binding_inspector_plugin.gd")
 const BindingExportPlugin := preload("res://addons/fairygui/editor/binding_export_plugin.gd")
 const FUIPreviewPanel := preload("res://addons/fairygui/editor/fui_preview_panel.gd")
+const FUICanvasDropOverlay := preload("res://addons/fairygui/editor/fui_canvas_drop_overlay.gd")
+const BusinessScriptGenerator := preload("res://addons/fairygui/editor/business_script_generator.gd")
+const FairyGUIDebuggerPlugin := preload("res://addons/fairygui/editor/fairygui_debugger_plugin.gd")
 
 const SETTING_AUTO_GENERATE := "fairygui/codegen/auto_generate"
 const SETTING_OUTPUT_DIR := "fairygui/codegen/output_dir"
@@ -20,6 +23,9 @@ var _binding_inspector: EditorInspectorPlugin
 var _binding_exporter: EditorExportPlugin
 var _preview_panel: Control
 var _preview_bottom_button: Button
+var _canvas_drop_overlay: Control
+var _debugger_plugin: EditorDebuggerPlugin
+var _canvas_overlay_install_attempts: int = 0
 var _generation_queued: bool = false
 var _generation_running: bool = false
 var _generation_requested_while_running: bool = false
@@ -34,6 +40,8 @@ func _enter_tree() -> void:
 	_binding_inspector.generate_callback = Callable(self, "_on_inspector_generate")
 	_binding_inspector.open_callback = Callable(self, "_on_inspector_open")
 	_binding_inspector.preview_callback = Callable(self, "_on_inspector_preview")
+	_binding_inspector.business_script_callback = Callable(self, "_on_inspector_business_script")
+	_binding_inspector.diagnostic_path_callback = Callable(self, "_on_diagnostic_path")
 	add_inspector_plugin(_binding_inspector)
 	_binding_exporter = BindingExportPlugin.new()
 	_binding_exporter.generate_callback = Callable(self, "generate_all_bindings")
@@ -42,6 +50,9 @@ func _enter_tree() -> void:
 	_preview_panel = FUIPreviewPanel.new()
 	_preview_bottom_button = add_control_to_bottom_panel(_preview_panel, "GUI预览")
 	call_deferred("_configure_preview_bottom_button")
+	_debugger_plugin = FairyGUIDebuggerPlugin.new()
+	add_debugger_plugin(_debugger_plugin)
+	call_deferred("_install_canvas_drop_overlay")
 
 	var filesystem := get_editor_interface().get_resource_filesystem()
 	if not filesystem.resources_reimported.is_connected(_on_resources_reimported):
@@ -51,6 +62,12 @@ func _enter_tree() -> void:
 func _exit_tree() -> void:
 	_generation_queued = false
 	_generation_requested_while_running = false
+	if _canvas_drop_overlay != null:
+		_canvas_drop_overlay.queue_free()
+		_canvas_drop_overlay = null
+	if _debugger_plugin != null:
+		remove_debugger_plugin(_debugger_plugin)
+		_debugger_plugin = null
 	var filesystem := get_editor_interface().get_resource_filesystem()
 	if filesystem.resources_reimported.is_connected(_on_resources_reimported):
 		filesystem.resources_reimported.disconnect(_on_resources_reimported)
@@ -142,8 +159,9 @@ func _on_resources_reimported(paths: PackedStringArray) -> void:
 			return
 
 
-func _on_inspector_generate(_object: Object) -> void:
+func _on_inspector_generate(object: Object) -> void:
 	generate_all_bindings()
+	object.notify_property_list_changed()
 
 
 func _on_inspector_preview(object: Object) -> void:
@@ -169,6 +187,82 @@ func _on_inspector_open(object: Object) -> void:
 	var script := ResourceLoader.load(path) as Script
 	if script != null:
 		get_editor_interface().edit_script(script)
+
+
+func _on_inspector_business_script(object: Object) -> void:
+	if not object is FGUIView:
+		return
+	var view := object as FGUIView
+	var existing_script := BusinessScriptGenerator.get_user_script(view)
+	if existing_script != null:
+		get_editor_interface().edit_script(existing_script)
+		return
+	if view.package == null:
+		push_error("[FairyGUI editor] 请先为 FGUIView 配置 .fui 包。")
+		return
+	_prepare_business_script.call_deferred(weakref(view), 0)
+
+
+func _prepare_business_script(view_ref: WeakRef, attempt: int) -> void:
+	var view := view_ref.get_ref() as FGUIView
+	if view == null or not is_inside_tree():
+		return
+	var filesystem := get_editor_interface().get_resource_filesystem()
+	if (filesystem.is_scanning() or filesystem.is_importing()) and attempt < 240:
+		_prepare_business_script.call_deferred(view_ref, attempt + 1)
+		return
+	var generator := BusinessScriptGenerator.new()
+	var binding := generator.resolve_binding(view.package, view.component_name)
+	if not bool(binding.ok) or not bool(binding.current):
+		var generation := generate_all_bindings()
+		if bool(generation.get("busy", false)) and attempt < 240:
+			_prepare_business_script.call_deferred(view_ref, attempt + 1)
+			return
+		if not bool(generation.get("ok", false)):
+			push_error("[FairyGUI editor] 无法为当前 .fui 生成强类型绑定。")
+			return
+	var scene_root := get_editor_interface().get_edited_scene_root()
+	var scene_path := scene_root.scene_file_path if scene_root != null else ""
+	var result := generator.create_for_view(view, scene_path)
+	if not bool(result.ok):
+		push_error("[FairyGUI editor] 无法创建界面脚本：%s" % result.error)
+		return
+	get_editor_interface().get_resource_filesystem().scan_sources()
+	_attach_business_script_when_ready.call_deferred(weakref(view), str(result.script_path), view.get_script() as Script, 0)
+
+
+func _attach_business_script_when_ready(view_ref: WeakRef, script_path: String, previous_script: Script, attempt: int) -> void:
+	var view := view_ref.get_ref() as FGUIView
+	if view == null or not is_inside_tree():
+		return
+	var filesystem := get_editor_interface().get_resource_filesystem()
+	if filesystem.is_scanning() and attempt < 240:
+		_attach_business_script_when_ready.call_deferred(view_ref, script_path, previous_script, attempt + 1)
+		return
+	var script := ResourceLoader.load(script_path, "", ResourceLoader.CACHE_MODE_REPLACE) as Script
+	if script == null:
+		push_error("[FairyGUI editor] 界面脚本无法加载：%s" % script_path)
+		return
+	var undo_redo := get_undo_redo()
+	undo_redo.create_action("创建 FairyGUI 界面脚本")
+	undo_redo.add_do_method(view, "set_script", script)
+	undo_redo.add_undo_method(view, "set_script", previous_script)
+	undo_redo.commit_action()
+	view.notify_property_list_changed()
+	get_editor_interface().edit_script(script)
+
+
+func _on_diagnostic_path(path: String) -> void:
+	if path == "":
+		return
+	var target := path
+	while target.begins_with("res://") \
+			and not ResourceLoader.exists(target) \
+			and not FileAccess.file_exists(target) \
+			and not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(target)) \
+			and target != "res://":
+		target = target.get_base_dir()
+	get_editor_interface().get_file_system_dock().navigate_to_path(target)
 
 
 func _handles(object: Object) -> bool:
@@ -200,19 +294,88 @@ func _configure_preview_bottom_button() -> void:
 		_preview_bottom_button.icon = editor_theme.get_icon("Control", "EditorIcons")
 
 
+func _install_canvas_drop_overlay() -> void:
+	if not is_inside_tree() or _canvas_drop_overlay != null:
+		return
+	var canvas_viewport := _find_editor_control_by_class(get_editor_interface().get_base_control(), "CanvasItemEditorViewport")
+	if canvas_viewport == null:
+		_canvas_overlay_install_attempts += 1
+		if _canvas_overlay_install_attempts < 120:
+			call_deferred("_install_canvas_drop_overlay")
+		return
+	_canvas_drop_overlay = FUICanvasDropOverlay.new()
+	_canvas_drop_overlay.connect("component_dropped", Callable(self, "_on_canvas_component_dropped"))
+	canvas_viewport.add_child(_canvas_drop_overlay)
+
+
+func _find_editor_control_by_class(node: Node, target_class: String) -> Control:
+	if node is Control and node.get_class() == target_class:
+		return node as Control
+	for child: Node in node.get_children():
+		var found := _find_editor_control_by_class(child, target_class)
+		if found != null:
+			return found
+	return null
+
+
+func _on_canvas_component_dropped(package_path: String, component_name: String, canvas_position: Vector2) -> void:
+	var resource := ResourceLoader.load(package_path) as FGUIPackageResource
+	if resource == null:
+		push_error("[FairyGUI editor] 无法加载拖入的 .fui：%s" % package_path)
+		return
+	var component := resource.get_component_info(component_name)
+	if component.is_empty():
+		push_error("[FairyGUI editor] .fui 中没有可创建的组件：%s" % package_path)
+		return
+	var scene_root := get_editor_interface().get_edited_scene_root()
+	if scene_root == null:
+		push_error("[FairyGUI editor] 请先创建或打开一个 2D 场景。")
+		return
+	var parent := _drop_parent(scene_root)
+	var view := FGUIView.new()
+	view.name = str(component.component_name)
+	view.package = resource
+	view.component_name = str(component.component_name)
+	view.preview_in_editor = true
+	view.resize_to_content = true
+	if parent is CanvasItem:
+		view.position = (parent as CanvasItem).get_global_transform().affine_inverse() * canvas_position
+
+	var undo_redo := get_undo_redo()
+	var selection := get_editor_interface().get_selection()
+	undo_redo.create_action("创建 FairyGUI 视图", UndoRedo.MERGE_DISABLE, scene_root)
+	undo_redo.add_do_method(view, "request_ready")
+	undo_redo.add_do_method(parent, "add_child", view, true)
+	undo_redo.add_do_method(view, "set_owner", scene_root)
+	undo_redo.add_do_method(selection, "clear")
+	undo_redo.add_do_method(selection, "add_node", view)
+	undo_redo.add_undo_method(selection, "clear")
+	undo_redo.add_undo_method(parent, "remove_child", view)
+	undo_redo.add_do_reference(view)
+	undo_redo.commit_action()
+
+
+func _drop_parent(scene_root: Node) -> Node:
+	var selected := get_editor_interface().get_selection().get_selected_nodes()
+	if selected.is_empty():
+		return scene_root
+	var selected_node := selected[0] as Node
+	if Input.is_key_pressed(KEY_ALT):
+		return scene_root
+	if Input.is_key_pressed(KEY_SHIFT):
+		return selected_node
+	return selected_node.get_parent() if selected_node != scene_root and selected_node.get_parent() != null else scene_root
+
+
 func _binding_path_for_view(view: FGUIView) -> String:
 	if view == null or view.package == null:
-		return ""
-	var package := view.package.acquire_package()
-	if package == null:
 		return ""
 	var component_name := view.component_name
 	if component_name == "":
 		var names := view.package.get_component_names()
 		component_name = "Main" if names.has("Main") else (names[0] if not names.is_empty() else "")
-	var item := package.get_item_by_name(component_name)
-	var url := "ui://%s%s" % [package.id, item.id] if item != null else ""
-	FGUIPackageResource.release_package(package)
+	var component := view.package.get_component_info(component_name)
+	var url := str(component.get("url", ""))
 	if url == "":
 		return ""
 	var output_dir := str(ProjectSettings.get_setting(SETTING_OUTPUT_DIR, BindingCodeGenerator.DEFAULT_OUTPUT_DIR)).trim_suffix("/")

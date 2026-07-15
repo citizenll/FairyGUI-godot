@@ -2,6 +2,8 @@
 class_name FGUIView
 extends Control
 
+const RuntimeDebugBridge := preload("res://addons/fairygui/debug/fairygui_debug_bridge.gd")
+
 signal fairy_ready(value: FGUIObject)
 
 var _package_resource: FGUIPackageResource
@@ -65,6 +67,8 @@ func _ready() -> void:
 	if Engine.is_editor_hint():
 		_queue_preview_refresh()
 	else:
+		add_to_group(RuntimeDebugBridge.VIEW_GROUP)
+		RuntimeDebugBridge.ensure_in_tree(get_tree())
 		_refresh_preview()
 
 

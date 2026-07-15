@@ -25,6 +25,7 @@ var _syncing_selection: bool = false
 var _panning: bool = false
 var _pan_start_mouse := Vector2.ZERO
 var _pan_start_scroll := Vector2.ZERO
+var _view_states: Dictionary = {}
 
 var _path_label: Label
 var _component_picker: OptionButton
@@ -59,6 +60,7 @@ func open_package(resource: FGUIPackageResource, preferred_component: String = "
 	if resource == null:
 		clear_preview()
 		return
+	_save_current_view_state()
 	_package_resource = resource
 	_component_names = resource.get_component_names()
 	_path_label.text = resource.get_source_path()
@@ -84,6 +86,7 @@ func open_package(resource: FGUIPackageResource, preferred_component: String = "
 func reload_current() -> void:
 	if _package_resource == null:
 		return
+	_save_current_view_state()
 	var source_path := _package_resource.resource_path
 	if source_path == "":
 		source_path = _package_resource.get_source_path()
@@ -96,6 +99,7 @@ func reload_current() -> void:
 
 func clear_preview() -> void:
 	_ensure_ui()
+	_save_current_view_state()
 	_package_resource = null
 	_component_names.clear()
 	_current_component = ""
@@ -235,6 +239,7 @@ func _ensure_ui() -> void:
 	_tree.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_tree.item_selected.connect(_on_tree_item_selected)
+	_tree.set_drag_forwarding(Callable(self, "_get_tree_drag_data"), Callable(), Callable())
 	hierarchy_box.add_child(_tree)
 
 	var preview_panel := PanelContainer.new()
@@ -302,6 +307,8 @@ func _set_button_icon(button: Button, editor_theme: Theme, icon_name: String) ->
 func _show_component(component_name: String) -> void:
 	if _package_resource == null or not _component_names.has(component_name):
 		return
+	if _current_component != component_name and _root_object != null and _preview_view.package == _package_resource:
+		_save_current_view_state()
 	_current_component = component_name
 	_clear_hierarchy()
 	_status_label.text = "正在加载 %s..." % component_name
@@ -324,14 +331,18 @@ func _on_preview_ready(value: FGUIObject) -> void:
 	_preview_view.size = _content_size
 	_selection_overlay.set_root_object(value)
 	_build_hierarchy(value)
-	_select_object(value, true, false)
-	_status_label.text = "%s · %d 个节点 · %.0f × %.0f" % [
-		_current_component,
-		_node_count,
-		_content_size.x,
-		_content_size.y,
-	]
-	call_deferred("_fit_preview")
+	var state: Dictionary = _view_states.get(_current_state_key(), {})
+	if state.is_empty():
+		_select_object(value, true, false)
+		_status_label.text = "%s · %d 个节点 · %.0f × %.0f" % [
+			_current_component,
+			_node_count,
+			_content_size.x,
+			_content_size.y,
+		]
+		call_deferred("_fit_preview")
+	else:
+		_restore_view_state(state)
 
 
 func _clear_hierarchy() -> void:
@@ -470,6 +481,36 @@ func _on_tree_item_selected() -> void:
 	var value := _object_by_id.get(object_id) as FGUIObject
 	if value != null:
 		_select_object(value, false, true)
+
+
+func _get_tree_drag_data(at_position: Vector2) -> Variant:
+	var item := _tree.get_item_at_position(at_position)
+	if item != null:
+		item.select(0)
+		_on_tree_item_selected()
+	var value := _selected_object
+	if not value is FGUIComponent:
+		return null
+	var package_path := ""
+	var component_name := ""
+	if value == _root_object:
+		package_path = _package_resource.get_source_path() if _package_resource != null else ""
+		component_name = _current_component
+	elif value.package_item != null and value.package_item.owner != null:
+		package_path = "%s.fui" % str(value.package_item.owner.res_key)
+		component_name = value.package_item.name
+	if package_path == "" or component_name == "" or not ResourceLoader.exists(package_path):
+		return null
+	var preview := Label.new()
+	preview.text = component_name
+	preview.add_theme_constant_override("outline_size", 4)
+	preview.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.8))
+	_tree.set_drag_preview(preview)
+	return {
+		"type": "fairygui_component",
+		"package_path": package_path,
+		"component_name": component_name,
+	}
 
 
 func _on_preview_object_picked(value: FGUIObject) -> void:
@@ -639,3 +680,104 @@ func _center_selected_object() -> void:
 	var canvas_center := _preview_canvas.get_global_transform().affine_inverse() * global_center
 	_preview_scroll.scroll_horizontal = maxi(0, int(canvas_center.x - _preview_scroll.size.x * 0.5))
 	_preview_scroll.scroll_vertical = maxi(0, int(canvas_center.y - _preview_scroll.size.y * 0.5))
+
+
+func _save_current_view_state() -> void:
+	var key := _current_state_key()
+	if key == "" or _root_object == null or _preview_scroll == null:
+		return
+	var collapsed := PackedStringArray()
+	_collect_collapsed_paths(_tree.get_root(), collapsed)
+	_view_states[key] = {
+		"selected_path": _object_index_path(_selected_object),
+		"collapsed_paths": collapsed,
+		"filter": _filter_edit.text,
+		"zoom": _zoom,
+		"scroll": Vector2(_preview_scroll.scroll_horizontal, _preview_scroll.scroll_vertical),
+	}
+
+
+func _restore_view_state(state: Dictionary) -> void:
+	_filter_edit.text = str(state.get("filter", ""))
+	_on_filter_changed(_filter_edit.text)
+	_set_zoom(float(state.get("zoom", 1.0)))
+	var collapsed_lookup: Dictionary = {}
+	for path: String in state.get("collapsed_paths", PackedStringArray()):
+		collapsed_lookup[path] = true
+	_apply_collapsed_paths(_tree.get_root(), collapsed_lookup)
+	var selected := _resolve_object_index_path(state.get("selected_path", []))
+	_select_object(selected if selected != null else _root_object, true, false)
+	call_deferred("_finish_restore_view_state", state)
+
+
+func _finish_restore_view_state(state: Dictionary) -> void:
+	_layout_preview()
+	_apply_scroll_position(state.get("scroll", Vector2.ZERO))
+
+
+func _current_state_key() -> String:
+	if _package_resource == null or _current_component == "":
+		return ""
+	return "%s::%s" % [_package_resource.get_source_path(), _current_component]
+
+
+func _object_index_path(value: FGUIObject) -> Array[int]:
+	var result: Array[int] = []
+	var current := value
+	while current != null and current != _root_object:
+		var parent := current.parent as FGUIComponent
+		if parent == null:
+			return []
+		var index := parent.get_child_index(current)
+		if index < 0:
+			return []
+		result.push_front(index)
+		current = parent
+	return result
+
+
+func _resolve_object_index_path(path_value: Variant) -> FGUIObject:
+	var current := _root_object
+	if not path_value is Array:
+		return current
+	for index_value: Variant in path_value:
+		if not current is FGUIComponent:
+			return null
+		var index := int(index_value)
+		if index < 0 or index >= (current as FGUIComponent).num_children:
+			return null
+		current = (current as FGUIComponent).get_child_at(index)
+	return current
+
+
+func _collect_collapsed_paths(item: TreeItem, result: PackedStringArray) -> void:
+	if item == null:
+		return
+	var value := _object_by_id.get(int(item.get_metadata(0)), null) as FGUIObject
+	if value != null and item.collapsed:
+		result.append(_index_path_key(_object_index_path(value)))
+	var child := item.get_first_child()
+	while child != null:
+		_collect_collapsed_paths(child, result)
+		child = child.get_next()
+
+
+func _apply_collapsed_paths(item: TreeItem, collapsed_lookup: Dictionary) -> void:
+	if item == null:
+		return
+	var value := _object_by_id.get(int(item.get_metadata(0)), null) as FGUIObject
+	if value != null:
+		item.collapsed = collapsed_lookup.has(_index_path_key(_object_index_path(value)))
+	var child := item.get_first_child()
+	while child != null:
+		_apply_collapsed_paths(child, collapsed_lookup)
+		child = child.get_next()
+
+
+func _index_path_key(path: Array[int]) -> String:
+	if path.is_empty():
+		return "."
+	var parts := PackedStringArray()
+	for index: int in path:
+		parts.append(str(index))
+	return "/".join(parts)
