@@ -32,6 +32,7 @@ var _filter_edit: LineEdit
 var _tree: Tree
 var _preview_scroll: ScrollContainer
 var _preview_canvas: Control
+var _preview_background: ColorRect
 var _preview_view: FGUIView
 var _selection_overlay
 var _zoom_out_button: Button
@@ -255,6 +256,11 @@ func _ensure_ui() -> void:
 	_preview_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_preview_scroll.add_child(_preview_canvas)
 
+	_preview_background = ColorRect.new()
+	_preview_background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_preview_background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_preview_canvas.add_child(_preview_background)
+
 	_preview_view = FGUIView.new()
 	_preview_view.preview_in_editor = true
 	_preview_view.resize_to_content = true
@@ -281,6 +287,8 @@ func _apply_editor_theme() -> void:
 	_set_button_icon(_zoom_out_button, editor_theme, "ZoomLess")
 	_set_button_icon(_zoom_in_button, editor_theme, "ZoomMore")
 	_set_button_icon(_fit_button, editor_theme, "ZoomReset")
+	if _preview_background != null and editor_theme.has_color("base_color", "Editor"):
+		_preview_background.color = editor_theme.get_color("base_color", "Editor").lightened(0.05)
 	if _filter_edit != null and editor_theme.has_icon("Search", "EditorIcons"):
 		_filter_edit.right_icon = editor_theme.get_icon("Search", "EditorIcons")
 
