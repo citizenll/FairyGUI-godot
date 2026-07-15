@@ -12,7 +12,8 @@ var selected_object: FGUIObject
 
 
 func _ready() -> void:
-	mouse_filter = Control.MOUSE_FILTER_PASS
+	# This overlay owns preview-canvas input and forwards navigation to its panel.
+	mouse_filter = Control.MOUSE_FILTER_STOP
 	set_process(true)
 
 

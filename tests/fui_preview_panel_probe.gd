@@ -75,6 +75,10 @@ func _run() -> void:
 		return
 
 	var preview_scroll: ScrollContainer = panel._preview_scroll
+	var selection_overlay: Control = panel._selection_overlay
+	if selection_overlay.mouse_filter != Control.MOUSE_FILTER_STOP:
+		_fail("GUI preview selection overlay did not own canvas navigation input.")
+		return
 	panel._set_zoom(1.0)
 	await process_frame
 	await process_frame
@@ -90,8 +94,9 @@ func _run() -> void:
 	wheel_event.button_index = MOUSE_BUTTON_WHEEL_UP
 	wheel_event.pressed = true
 	wheel_event.factor = 1.0
-	wheel_event.position = zoom_focus
-	panel._on_preview_gui_input(wheel_event)
+	wheel_event.position = selection_overlay.get_global_transform().affine_inverse() \
+			* (preview_scroll.get_global_transform() * zoom_focus)
+	selection_overlay.emit_signal("gui_input", wheel_event)
 	await process_frame
 	await process_frame
 	if float(panel._zoom) <= 1.0:
@@ -115,12 +120,16 @@ func _run() -> void:
 	var middle_press := InputEventMouseButton.new()
 	middle_press.button_index = MOUSE_BUTTON_MIDDLE
 	middle_press.pressed = true
-	middle_press.position = Vector2(160.0, 120.0)
-	panel._on_preview_gui_input(middle_press)
+	var pan_press_in_scroll := Vector2(160.0, 120.0)
+	middle_press.position = selection_overlay.get_global_transform().affine_inverse() \
+			* (preview_scroll.get_global_transform() * pan_press_in_scroll)
+	selection_overlay.emit_signal("gui_input", middle_press)
 	var middle_motion := InputEventMouseMotion.new()
 	middle_motion.button_mask = MOUSE_BUTTON_MASK_MIDDLE
-	middle_motion.position = Vector2(120.0, 90.0)
-	panel._on_preview_gui_input(middle_motion)
+	var pan_motion_in_scroll := Vector2(120.0, 90.0)
+	middle_motion.position = selection_overlay.get_global_transform().affine_inverse() \
+			* (preview_scroll.get_global_transform() * pan_motion_in_scroll)
+	selection_overlay.emit_signal("gui_input", middle_motion)
 	var pan_end := Vector2(preview_scroll.scroll_horizontal, preview_scroll.scroll_vertical)
 	if pan_end.distance_to(pan_start + Vector2(40.0, 30.0)) > 2.0:
 		_fail("Middle mouse dragging did not pan the GUI preview.")
@@ -129,9 +138,46 @@ func _run() -> void:
 	middle_release.button_index = MOUSE_BUTTON_MIDDLE
 	middle_release.pressed = false
 	middle_release.position = middle_motion.position
-	panel._on_preview_gui_input(middle_release)
+	selection_overlay.emit_signal("gui_input", middle_release)
 	if bool(panel._panning):
 		_fail("Middle mouse release did not stop GUI preview panning.")
+		return
+
+	preview_scroll.scroll_horizontal = 180
+	preview_scroll.scroll_vertical = 140
+	var routed_pan_start := Vector2(preview_scroll.scroll_horizontal, preview_scroll.scroll_vertical)
+	var visible_overlay_rect := selection_overlay.get_global_rect().intersection(preview_scroll.get_global_rect())
+	if not visible_overlay_rect.has_area():
+		_fail("GUI preview selection overlay was not visible inside its canvas.")
+		return
+	var routed_press_position := visible_overlay_rect.get_center()
+	var routed_press := InputEventMouseButton.new()
+	routed_press.button_index = MOUSE_BUTTON_MIDDLE
+	routed_press.pressed = true
+	routed_press.position = routed_press_position
+	routed_press.global_position = routed_press_position
+	selection_overlay.get_viewport().push_input(routed_press, true)
+	await process_frame
+	var routed_motion := InputEventMouseMotion.new()
+	routed_motion.button_mask = MOUSE_BUTTON_MASK_MIDDLE
+	routed_motion.position = routed_press_position - Vector2(40.0, 30.0)
+	routed_motion.global_position = routed_motion.position
+	routed_motion.relative = Vector2(-40.0, -30.0)
+	selection_overlay.get_viewport().push_input(routed_motion, true)
+	await process_frame
+	var routed_pan_end := Vector2(preview_scroll.scroll_horizontal, preview_scroll.scroll_vertical)
+	if routed_pan_end.distance_to(routed_pan_start + Vector2(40.0, 30.0)) > 2.0:
+		_fail("Viewport-routed middle mouse input did not pan the GUI preview.")
+		return
+	var routed_release := InputEventMouseButton.new()
+	routed_release.button_index = MOUSE_BUTTON_MIDDLE
+	routed_release.pressed = false
+	routed_release.position = routed_motion.position
+	routed_release.global_position = routed_motion.position
+	selection_overlay.get_viewport().push_input(routed_release, true)
+	await process_frame
+	if bool(panel._panning):
+		_fail("Viewport-routed middle mouse release did not stop GUI preview panning.")
 		return
 
 	var state_target := _find_object_by_name(preview, "btn_Graph")

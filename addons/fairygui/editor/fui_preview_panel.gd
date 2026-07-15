@@ -272,7 +272,7 @@ func _ensure_ui() -> void:
 	_preview_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_preview_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_preview_scroll.resized.connect(_layout_preview)
-	_preview_scroll.gui_input.connect(_on_preview_gui_input)
+	_preview_scroll.gui_input.connect(_on_preview_gui_input.bind(_preview_scroll))
 	preview_panel.add_child(_preview_scroll)
 
 	_preview_canvas = Control.new()
@@ -295,6 +295,7 @@ func _ensure_ui() -> void:
 
 	_selection_overlay = SelectionOverlay.new()
 	_selection_overlay.object_picked.connect(_on_preview_object_picked)
+	_selection_overlay.gui_input.connect(_on_preview_gui_input.bind(_selection_overlay))
 	_preview_canvas.add_child(_selection_overlay)
 
 	_status_label = Label.new()
@@ -695,13 +696,14 @@ func _layout_preview() -> void:
 	_selection_overlay.queue_redraw()
 
 
-func _on_preview_gui_input(event: InputEvent) -> void:
+func _on_preview_gui_input(event: InputEvent, source: Control = null) -> void:
 	if event is InputEventMouseButton:
 		var mouse_event := event as InputEventMouseButton
+		var event_position := _preview_input_position(mouse_event.position, source)
 		if mouse_event.button_index == MOUSE_BUTTON_MIDDLE:
 			if mouse_event.pressed:
 				_panning = true
-				_pan_start_mouse = mouse_event.position
+				_pan_start_mouse = event_position
 				_pan_start_scroll = Vector2(
 					_preview_scroll.scroll_horizontal,
 					_preview_scroll.scroll_vertical
@@ -709,23 +711,37 @@ func _on_preview_gui_input(event: InputEvent) -> void:
 				_preview_scroll.mouse_default_cursor_shape = Control.CURSOR_DRAG
 			else:
 				_stop_panning()
-			_preview_scroll.accept_event()
+			_accept_preview_input(source)
 			return
 		if mouse_event.pressed and mouse_event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
 			var wheel_factor := mouse_event.factor if mouse_event.factor > 0.0 else 1.0
 			var scale_factor := pow(ZOOM_FACTOR, wheel_factor)
 			var next_zoom := _zoom * scale_factor if mouse_event.button_index == MOUSE_BUTTON_WHEEL_UP else _zoom / scale_factor
-			_zoom_around(next_zoom, mouse_event.position)
-			_preview_scroll.accept_event()
+			_zoom_around(next_zoom, event_position)
+			_accept_preview_input(source)
 			return
 	if event is InputEventMouseMotion and _panning:
 		var motion_event := event as InputEventMouseMotion
 		if (motion_event.button_mask & MOUSE_BUTTON_MASK_MIDDLE) == 0:
 			_stop_panning()
 			return
-		var target_scroll := _pan_start_scroll - (motion_event.position - _pan_start_mouse)
+		var event_position := _preview_input_position(motion_event.position, source)
+		var target_scroll := _pan_start_scroll - (event_position - _pan_start_mouse)
 		_apply_scroll_position(target_scroll)
-		_preview_scroll.accept_event()
+		_accept_preview_input(source)
+
+
+func _preview_input_position(position: Vector2, source: Control) -> Vector2:
+	if source == null or source == _preview_scroll:
+		return position
+	return _preview_scroll.get_global_transform().affine_inverse() \
+			* (source.get_global_transform() * position)
+
+
+func _accept_preview_input(source: Control) -> void:
+	var receiver := source if source != null else _preview_scroll
+	if receiver != null:
+		receiver.accept_event()
 
 
 func _apply_scroll_position(value: Vector2) -> void:
