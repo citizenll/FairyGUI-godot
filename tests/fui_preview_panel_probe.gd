@@ -68,6 +68,66 @@ func _run() -> void:
 		_fail("Preview picking did not reveal the selected TreeItem.")
 		return
 
+	var preview_scroll: ScrollContainer = panel._preview_scroll
+	panel._set_zoom(1.0)
+	await process_frame
+	await process_frame
+	preview_scroll.scroll_horizontal = 120
+	preview_scroll.scroll_vertical = 80
+	var zoom_focus := preview_scroll.size * 0.5
+	var point_before: Vector2 = (
+		Vector2(preview_scroll.scroll_horizontal, preview_scroll.scroll_vertical)
+		+ zoom_focus
+		- panel._preview_origin
+	) / float(panel._zoom)
+	var wheel_event := InputEventMouseButton.new()
+	wheel_event.button_index = MOUSE_BUTTON_WHEEL_UP
+	wheel_event.pressed = true
+	wheel_event.factor = 1.0
+	wheel_event.position = zoom_focus
+	panel._on_preview_gui_input(wheel_event)
+	await process_frame
+	await process_frame
+	if float(panel._zoom) <= 1.0:
+		_fail("Mouse wheel did not zoom the GUI preview.")
+		return
+	var point_after: Vector2 = (
+		Vector2(preview_scroll.scroll_horizontal, preview_scroll.scroll_vertical)
+		+ zoom_focus
+		- panel._preview_origin
+	) / float(panel._zoom)
+	if point_before.distance_to(point_after) > 2.0:
+		_fail("Mouse wheel zoom did not preserve the FairyGUI point under the cursor.")
+		return
+
+	panel._set_zoom(2.0)
+	await process_frame
+	await process_frame
+	preview_scroll.scroll_horizontal = 180
+	preview_scroll.scroll_vertical = 140
+	var pan_start := Vector2(preview_scroll.scroll_horizontal, preview_scroll.scroll_vertical)
+	var middle_press := InputEventMouseButton.new()
+	middle_press.button_index = MOUSE_BUTTON_MIDDLE
+	middle_press.pressed = true
+	middle_press.position = Vector2(160.0, 120.0)
+	panel._on_preview_gui_input(middle_press)
+	var middle_motion := InputEventMouseMotion.new()
+	middle_motion.button_mask = MOUSE_BUTTON_MASK_MIDDLE
+	middle_motion.position = Vector2(120.0, 90.0)
+	panel._on_preview_gui_input(middle_motion)
+	var pan_end := Vector2(preview_scroll.scroll_horizontal, preview_scroll.scroll_vertical)
+	if pan_end.distance_to(pan_start + Vector2(40.0, 30.0)) > 2.0:
+		_fail("Middle mouse dragging did not pan the GUI preview.")
+		return
+	var middle_release := InputEventMouseButton.new()
+	middle_release.button_index = MOUSE_BUTTON_MIDDLE
+	middle_release.pressed = false
+	middle_release.position = middle_motion.position
+	panel._on_preview_gui_input(middle_release)
+	if bool(panel._panning):
+		_fail("Middle mouse release did not stop GUI preview panning.")
+		return
+
 	panel.clear_preview()
 	await process_frame
 	await process_frame

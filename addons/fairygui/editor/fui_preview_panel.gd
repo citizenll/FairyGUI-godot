@@ -19,7 +19,11 @@ var _tree_item_by_id: Dictionary = {}
 var _node_count: int = 0
 var _zoom: float = 1.0
 var _content_size := Vector2.ZERO
+var _preview_origin := Vector2.ZERO
 var _syncing_selection: bool = false
+var _panning: bool = false
+var _pan_start_mouse := Vector2.ZERO
+var _pan_start_scroll := Vector2.ZERO
 
 var _path_label: Label
 var _component_picker: OptionButton
@@ -44,6 +48,8 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_THEME_CHANGED and _initialized:
 		_apply_editor_theme()
+	elif what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+		_stop_panning()
 
 
 func open_package(resource: FGUIPackageResource, preferred_component: String = "") -> void:
@@ -178,7 +184,7 @@ func _ensure_ui() -> void:
 
 	_zoom_out_button = Button.new()
 	_zoom_out_button.tooltip_text = "缩小"
-	_zoom_out_button.pressed.connect(func() -> void: _set_zoom(_zoom / ZOOM_FACTOR))
+	_zoom_out_button.pressed.connect(func() -> void: _zoom_at_view_center(_zoom / ZOOM_FACTOR))
 	toolbar.add_child(_zoom_out_button)
 
 	_zoom_label = Label.new()
@@ -188,7 +194,7 @@ func _ensure_ui() -> void:
 
 	_zoom_in_button = Button.new()
 	_zoom_in_button.tooltip_text = "放大"
-	_zoom_in_button.pressed.connect(func() -> void: _set_zoom(_zoom * ZOOM_FACTOR))
+	_zoom_in_button.pressed.connect(func() -> void: _zoom_at_view_center(_zoom * ZOOM_FACTOR))
 	toolbar.add_child(_zoom_in_button)
 
 	_fit_button = Button.new()
@@ -240,6 +246,7 @@ func _ensure_ui() -> void:
 	_preview_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_preview_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_preview_scroll.resized.connect(_layout_preview)
+	_preview_scroll.gui_input.connect(_on_preview_gui_input)
 	preview_panel.add_child(_preview_scroll)
 
 	_preview_canvas = Control.new()
@@ -520,6 +527,28 @@ func _set_zoom(value: float) -> void:
 	_layout_preview()
 
 
+func _zoom_at_view_center(value: float) -> void:
+	if _preview_scroll == null:
+		_set_zoom(value)
+		return
+	_zoom_around(value, _preview_scroll.size * 0.5)
+
+
+func _zoom_around(value: float, focus_position: Vector2) -> void:
+	var next_zoom := clampf(value, MIN_ZOOM, MAX_ZOOM)
+	if is_equal_approx(next_zoom, _zoom):
+		return
+	if _content_size.x <= 0.0 or _content_size.y <= 0.0:
+		_set_zoom(next_zoom)
+		return
+	var current_scroll := Vector2(_preview_scroll.scroll_horizontal, _preview_scroll.scroll_vertical)
+	var preview_point := (current_scroll + focus_position - _preview_origin) / _zoom
+	_set_zoom(next_zoom)
+	var target_scroll := _preview_origin + preview_point * _zoom - focus_position
+	_apply_scroll_position(target_scroll)
+	call_deferred("_apply_scroll_position", target_scroll)
+
+
 func _fit_preview() -> void:
 	if _content_size.x <= 0.0 or _content_size.y <= 0.0 or _preview_scroll == null:
 		return
@@ -540,11 +569,58 @@ func _layout_preview() -> void:
 	)
 	_preview_canvas.custom_minimum_size = canvas_size
 	var origin := (canvas_size - scaled_size) * 0.5
-	_preview_view.position = origin
+	_preview_origin = origin
+	_preview_view.position = _preview_origin
 	_preview_view.scale = Vector2.ONE * _zoom
-	_selection_overlay.position = origin
+	_selection_overlay.position = _preview_origin
 	_selection_overlay.size = scaled_size
 	_selection_overlay.queue_redraw()
+
+
+func _on_preview_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		if mouse_event.button_index == MOUSE_BUTTON_MIDDLE:
+			if mouse_event.pressed:
+				_panning = true
+				_pan_start_mouse = mouse_event.position
+				_pan_start_scroll = Vector2(
+					_preview_scroll.scroll_horizontal,
+					_preview_scroll.scroll_vertical
+				)
+				_preview_scroll.mouse_default_cursor_shape = Control.CURSOR_DRAG
+			else:
+				_stop_panning()
+			_preview_scroll.accept_event()
+			return
+		if mouse_event.pressed and mouse_event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+			var wheel_factor := mouse_event.factor if mouse_event.factor > 0.0 else 1.0
+			var scale_factor := pow(ZOOM_FACTOR, wheel_factor)
+			var next_zoom := _zoom * scale_factor if mouse_event.button_index == MOUSE_BUTTON_WHEEL_UP else _zoom / scale_factor
+			_zoom_around(next_zoom, mouse_event.position)
+			_preview_scroll.accept_event()
+			return
+	if event is InputEventMouseMotion and _panning:
+		var motion_event := event as InputEventMouseMotion
+		if (motion_event.button_mask & MOUSE_BUTTON_MASK_MIDDLE) == 0:
+			_stop_panning()
+			return
+		var target_scroll := _pan_start_scroll - (motion_event.position - _pan_start_mouse)
+		_apply_scroll_position(target_scroll)
+		_preview_scroll.accept_event()
+
+
+func _apply_scroll_position(value: Vector2) -> void:
+	if _preview_scroll == null:
+		return
+	_preview_scroll.scroll_horizontal = maxi(0, int(round(value.x)))
+	_preview_scroll.scroll_vertical = maxi(0, int(round(value.y)))
+
+
+func _stop_panning() -> void:
+	_panning = false
+	if _preview_scroll != null:
+		_preview_scroll.mouse_default_cursor_shape = Control.CURSOR_ARROW
 
 
 func _center_selected_object() -> void:
