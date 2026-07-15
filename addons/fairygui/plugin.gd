@@ -8,6 +8,9 @@ const BindingExportPlugin := preload("res://addons/fairygui/editor/binding_expor
 const FUIPreviewPanel := preload("res://addons/fairygui/editor/fui_preview_panel.gd")
 const FUICanvasDropOverlay := preload("res://addons/fairygui/editor/fui_canvas_drop_overlay.gd")
 const BusinessScriptGenerator := preload("res://addons/fairygui/editor/business_script_generator.gd")
+const EventBinding := preload("res://addons/fairygui/ui/event_binding.gd")
+const EventBindingService := preload("res://addons/fairygui/editor/event_binding_service.gd")
+const EventHandlerGenerator := preload("res://addons/fairygui/editor/event_handler_generator.gd")
 const FairyGUIDebuggerPlugin := preload("res://addons/fairygui/editor/fairygui_debugger_plugin.gd")
 
 const SETTING_AUTO_GENERATE := "fairygui/codegen/auto_generate"
@@ -42,6 +45,11 @@ func _enter_tree() -> void:
 	_binding_inspector.preview_callback = Callable(self, "_on_inspector_preview")
 	_binding_inspector.business_script_callback = Callable(self, "_on_inspector_business_script")
 	_binding_inspector.diagnostic_path_callback = Callable(self, "_on_diagnostic_path")
+	_binding_inspector.event_model_callback = Callable(self, "_get_event_binding_model")
+	_binding_inspector.event_add_callback = Callable(self, "_on_event_binding_add")
+	_binding_inspector.event_remove_callback = Callable(self, "_on_event_binding_remove")
+	_binding_inspector.event_open_callback = Callable(self, "_on_event_binding_open")
+	_binding_inspector.event_toggle_callback = Callable(self, "_on_event_binding_toggle")
 	add_inspector_plugin(_binding_inspector)
 	_binding_exporter = BindingExportPlugin.new()
 	_binding_exporter.generate_callback = Callable(self, "generate_all_bindings")
@@ -169,7 +177,7 @@ func _on_inspector_preview(object: Object) -> void:
 		_open_preview(object as FGUIPackageResource)
 	elif object is FGUIView:
 		var view := object as FGUIView
-		_open_preview(view.package, view.component_name)
+		_open_preview(view.package, view.component_name, view)
 
 
 func _on_inspector_open(object: Object) -> void:
@@ -282,6 +290,7 @@ func _capture_view_configuration(view: FGUIView) -> Dictionary:
 		"preview_in_editor": view.preview_in_editor,
 		"resize_to_content": view.resize_to_content,
 		"match_control_size": view.match_control_size,
+		"event_bindings": view.event_bindings.duplicate(),
 	}
 
 
@@ -289,6 +298,7 @@ func _apply_view_script(view: FGUIView, script: Script, state: Dictionary) -> vo
 	if view == null:
 		return
 	view.call("_clear_preview")
+	view.call("_disconnect_event_binding_resources")
 	view.set_script(script)
 	view.package = state.get("package") as FGUIPackageResource
 	view.component_name = str(state.get("component_name", ""))
@@ -296,7 +306,132 @@ func _apply_view_script(view: FGUIView, script: Script, state: Dictionary) -> vo
 	view.preview_in_editor = bool(state.get("preview_in_editor", true))
 	view.resize_to_content = bool(state.get("resize_to_content", true))
 	view.match_control_size = bool(state.get("match_control_size", false))
+	_set_view_event_bindings(view, state.get("event_bindings", []))
 	view.notify_property_list_changed()
+
+
+func _get_event_binding_model(object: Object) -> Dictionary:
+	if not object is FGUIView:
+		return {}
+	return EventBindingService.new().build_model(object as FGUIView)
+
+
+func _on_event_binding_add(
+		object: Object,
+		target_path: PackedStringArray,
+		event_name: String,
+		handler: StringName,
+		capture: bool
+	) -> void:
+	if not object is FGUIView:
+		return
+	var view := object as FGUIView
+	var binding := EventBinding.new()
+	binding.target_path = target_path
+	binding.event_name = event_name
+	binding.handler = handler
+	binding.capture = capture
+	for existing: EventBinding in view.event_bindings:
+		if existing != null and existing.get_key() == binding.get_key():
+			push_warning("[FairyGUI editor] 此事件绑定已经存在。")
+			return
+	var handler_result := EventHandlerGenerator.new().ensure_handler(view, handler)
+	if not bool(handler_result.get("ok", false)):
+		push_error("[FairyGUI editor] 无法生成事件处理函数：%s" % handler_result.get("error", ""))
+		return
+	var previous: Array[EventBinding] = []
+	previous.assign(view.event_bindings)
+	var next: Array[EventBinding] = []
+	next.assign(view.event_bindings)
+	next.append(binding)
+	var scene_root := get_editor_interface().get_edited_scene_root()
+	var undo_redo := get_undo_redo()
+	undo_redo.create_action("连接 FairyGUI 事件", UndoRedo.MERGE_DISABLE, scene_root if scene_root != null else view)
+	undo_redo.add_do_method(self, "_set_view_event_bindings", view, next)
+	undo_redo.add_undo_method(self, "_set_view_event_bindings", view, previous)
+	undo_redo.commit_action()
+	_open_event_handler(handler_result)
+
+
+func _on_event_binding_remove(object: Object, index: int) -> void:
+	if not object is FGUIView:
+		return
+	var view := object as FGUIView
+	if index < 0 or index >= view.event_bindings.size():
+		return
+	var previous: Array[EventBinding] = []
+	previous.assign(view.event_bindings)
+	var next: Array[EventBinding] = []
+	next.assign(view.event_bindings)
+	next.remove_at(index)
+	var scene_root := get_editor_interface().get_edited_scene_root()
+	var undo_redo := get_undo_redo()
+	undo_redo.create_action("移除 FairyGUI 事件绑定", UndoRedo.MERGE_DISABLE, scene_root if scene_root != null else view)
+	undo_redo.add_do_method(self, "_set_view_event_bindings", view, next)
+	undo_redo.add_undo_method(self, "_set_view_event_bindings", view, previous)
+	undo_redo.commit_action()
+
+
+func _on_event_binding_open(object: Object, index: int) -> void:
+	if not object is FGUIView:
+		return
+	var view := object as FGUIView
+	if index < 0 or index >= view.event_bindings.size():
+		return
+	var binding: EventBinding = view.event_bindings[index]
+	if binding == null or binding.handler == &"":
+		return
+	var result := EventHandlerGenerator.new().ensure_handler(view, binding.handler)
+	if not bool(result.get("ok", false)):
+		push_error("[FairyGUI editor] 无法打开事件处理函数：%s" % result.get("error", ""))
+		return
+	_open_event_handler(result)
+
+
+func _on_event_binding_toggle(object: Object, index: int) -> void:
+	if not object is FGUIView:
+		return
+	var view := object as FGUIView
+	if index < 0 or index >= view.event_bindings.size():
+		return
+	var original: EventBinding = view.event_bindings[index]
+	if original == null:
+		return
+	var replacement := original.duplicate(true) as EventBinding
+	if replacement == null:
+		return
+	replacement.enabled = not original.enabled
+	var previous: Array[EventBinding] = []
+	previous.assign(view.event_bindings)
+	var next: Array[EventBinding] = []
+	next.assign(view.event_bindings)
+	next[index] = replacement
+	var scene_root := get_editor_interface().get_edited_scene_root()
+	var undo_redo := get_undo_redo()
+	var action_name := "启用 FairyGUI 事件绑定" if replacement.enabled else "停用 FairyGUI 事件绑定"
+	undo_redo.create_action(action_name, UndoRedo.MERGE_DISABLE, scene_root if scene_root != null else view)
+	undo_redo.add_do_method(self, "_set_view_event_bindings", view, next)
+	undo_redo.add_undo_method(self, "_set_view_event_bindings", view, previous)
+	undo_redo.commit_action()
+
+
+func _set_view_event_bindings(view: FGUIView, values: Array) -> void:
+	if view == null:
+		return
+	var typed: Array[EventBinding] = []
+	for value: Variant in values:
+		if value is EventBinding:
+			typed.append(value as EventBinding)
+	view.event_bindings = typed
+	view.notify_property_list_changed()
+
+
+func _open_event_handler(result: Dictionary) -> void:
+	var script := result.get("script") as Script
+	if script == null:
+		return
+	get_editor_interface().get_resource_filesystem().scan_sources()
+	get_editor_interface().edit_script(script, int(result.get("line", -1)), 0, true)
 
 
 func _on_diagnostic_path(path: String) -> void:
@@ -326,10 +461,14 @@ func _make_visible(visible: bool) -> void:
 		make_bottom_panel_item_visible(_preview_panel)
 
 
-func _open_preview(resource: FGUIPackageResource, component_name: String = "") -> void:
+func _open_preview(
+		resource: FGUIPackageResource,
+		component_name: String = "",
+		context_view: FGUIView = null
+	) -> void:
 	if resource == null or _preview_panel == null:
 		return
-	_preview_panel.call("open_package", resource, component_name)
+	_preview_panel.call("open_package", resource, component_name, context_view)
 	make_bottom_panel_item_visible(_preview_panel)
 
 

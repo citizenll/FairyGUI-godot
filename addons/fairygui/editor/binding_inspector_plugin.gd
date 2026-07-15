@@ -2,6 +2,7 @@
 extends EditorInspectorPlugin
 
 const BusinessScriptGenerator := preload("res://addons/fairygui/editor/business_script_generator.gd")
+const EventBindingInspector := preload("res://addons/fairygui/editor/event_binding_inspector.gd")
 const PackageDiagnostics := preload("res://addons/fairygui/editor/package_diagnostics.gd")
 
 var generate_callback: Callable
@@ -9,6 +10,11 @@ var open_callback: Callable
 var preview_callback: Callable
 var business_script_callback: Callable
 var diagnostic_path_callback: Callable
+var event_model_callback: Callable
+var event_add_callback: Callable
+var event_remove_callback: Callable
+var event_open_callback: Callable
+var event_toggle_callback: Callable
 
 
 func _can_handle(object: Object) -> bool:
@@ -58,7 +64,30 @@ func _parse_begin(object: Object) -> void:
 		secondary_row.add_child(business_button)
 
 	add_custom_control(actions)
+	if object is FGUIView and event_model_callback.is_valid():
+		var event_inspector := EventBindingInspector.new()
+		event_inspector.configure(
+			object as FGUIView,
+			event_model_callback.call(object),
+			event_add_callback,
+			event_remove_callback,
+			event_open_callback,
+			event_toggle_callback
+		)
+		add_custom_control(event_inspector)
 	_add_diagnostics(object)
+
+
+func _parse_property(
+		object: Object,
+		_type: Variant.Type,
+		name: String,
+		_hint_type: PropertyHint,
+		_hint_string: String,
+		_usage_flags: int,
+		_wide: bool
+	) -> bool:
+	return object is FGUIView and name == "event_bindings"
 
 
 func _on_generate_pressed(object: Object) -> void:

@@ -2,6 +2,7 @@
 extends VBoxContainer
 
 const SelectionOverlay := preload("res://addons/fairygui/editor/fui_preview_selection.gd")
+const EventBindingService := preload("res://addons/fairygui/editor/event_binding_service.gd")
 
 const MIN_ZOOM := 0.10
 const MAX_ZOOM := 4.0
@@ -26,10 +27,12 @@ var _panning: bool = false
 var _pan_start_mouse := Vector2.ZERO
 var _pan_start_scroll := Vector2.ZERO
 var _view_states: Dictionary = {}
+var _context_view_ref: WeakRef
 
 var _path_label: Label
 var _component_picker: OptionButton
 var _reload_button: Button
+var _bind_event_button: Button
 var _filter_edit: LineEdit
 var _tree: Tree
 var _preview_scroll: ScrollContainer
@@ -55,12 +58,17 @@ func _notification(what: int) -> void:
 		_stop_panning()
 
 
-func open_package(resource: FGUIPackageResource, preferred_component: String = "") -> void:
+func open_package(
+		resource: FGUIPackageResource,
+		preferred_component: String = "",
+		context_view: FGUIView = null
+	) -> void:
 	_ensure_ui()
 	if resource == null:
 		clear_preview()
 		return
 	_save_current_view_state()
+	_context_view_ref = weakref(context_view) if context_view != null else null
 	_package_resource = resource
 	_component_names = resource.get_component_names()
 	_path_label.text = resource.get_source_path()
@@ -74,6 +82,7 @@ func open_package(resource: FGUIPackageResource, preferred_component: String = "
 		_clear_hierarchy()
 		_preview_view.package = null
 		_status_label.text = "未找到可预览的组件"
+		_update_bind_event_button()
 		return
 	var selected_name := preferred_component
 	if not _component_names.has(selected_name):
@@ -91,16 +100,18 @@ func reload_current() -> void:
 	if source_path == "":
 		source_path = _package_resource.get_source_path()
 	var preferred_component := _current_component
+	var context_view := _context_view_ref.get_ref() as FGUIView if _context_view_ref != null else null
 	_preview_view.package = null
 	var reloaded := ResourceLoader.load(source_path, "", ResourceLoader.CACHE_MODE_REPLACE)
 	if reloaded is FGUIPackageResource:
-		open_package(reloaded as FGUIPackageResource, preferred_component)
+		open_package(reloaded as FGUIPackageResource, preferred_component, context_view)
 
 
 func clear_preview() -> void:
 	_ensure_ui()
 	_save_current_view_state()
 	_package_resource = null
+	_context_view_ref = null
 	_component_names.clear()
 	_current_component = ""
 	_path_label.text = ""
@@ -111,6 +122,7 @@ func clear_preview() -> void:
 	_preview_view.component_name = ""
 	_clear_hierarchy()
 	_status_label.text = "双击 .fui 文件以打开 GUI 预览"
+	_update_bind_event_button()
 
 
 func get_current_resource_path() -> String:
@@ -183,6 +195,13 @@ func _ensure_ui() -> void:
 	_reload_button.tooltip_text = "重新加载"
 	_reload_button.pressed.connect(reload_current)
 	toolbar.add_child(_reload_button)
+
+	_bind_event_button = Button.new()
+	_bind_event_button.text = "绑定事件"
+	_bind_event_button.tooltip_text = "从当前 FGUIView 的界面脚本连接所选对象事件"
+	_bind_event_button.disabled = true
+	_bind_event_button.pressed.connect(_on_bind_event_pressed)
+	toolbar.add_child(_bind_event_button)
 
 	var toolbar_spacer := Control.new()
 	toolbar_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -290,6 +309,7 @@ func _ensure_ui() -> void:
 func _apply_editor_theme() -> void:
 	var editor_theme := EditorInterface.get_editor_theme()
 	_set_button_icon(_reload_button, editor_theme, "Reload")
+	_set_button_icon(_bind_event_button, editor_theme, "Signals")
 	_set_button_icon(_zoom_out_button, editor_theme, "ZoomLess")
 	_set_button_icon(_zoom_in_button, editor_theme, "ZoomMore")
 	_set_button_icon(_fit_button, editor_theme, "ZoomReset")
@@ -317,6 +337,7 @@ func _show_component(component_name: String) -> void:
 	_preview_view.component_name = component_name
 	if not changed:
 		_preview_view.refresh_preview()
+	_update_bind_event_button()
 
 
 func _on_component_selected(index: int) -> void:
@@ -343,6 +364,7 @@ func _on_preview_ready(value: FGUIObject) -> void:
 		call_deferred("_fit_preview")
 	else:
 		_restore_view_state(state)
+	_update_bind_event_button()
 
 
 func _clear_hierarchy() -> void:
@@ -357,6 +379,7 @@ func _clear_hierarchy() -> void:
 	if _selection_overlay != null:
 		_selection_overlay.set_root_object(null)
 	_layout_preview()
+	_update_bind_event_button()
 
 
 func _build_hierarchy(root: FGUIObject) -> void:
@@ -548,6 +571,51 @@ func _select_object(value: FGUIObject, reveal_in_tree: bool, center_preview: boo
 	]
 	if center_preview:
 		call_deferred("_center_selected_object")
+	_update_bind_event_button()
+
+
+func _on_bind_event_pressed() -> void:
+	var view := _context_view_ref.get_ref() as FGUIView if _context_view_ref != null else null
+	var target_path := _selected_target_path()
+	if view == null or target_path == null:
+		return
+	view.set_meta(EventBindingService.META_PREFERRED_TARGET, target_path)
+	view.notify_property_list_changed()
+	EditorInterface.edit_node(view)
+
+
+func _update_bind_event_button() -> void:
+	if _bind_event_button == null:
+		return
+	var view := _context_view_ref.get_ref() as FGUIView if _context_view_ref != null else null
+	var valid_context := view != null \
+		and view.package != null \
+		and _package_resource != null \
+		and view.package.get_source_path() == _package_resource.get_source_path() \
+		and view.component_name == _current_component
+	var target_path := _selected_target_path() if valid_context else null
+	_bind_event_button.disabled = not valid_context or target_path == null
+	if view == null:
+		_bind_event_button.tooltip_text = "从 FGUIView Inspector 打开预览后可绑定事件"
+	elif not valid_context:
+		_bind_event_button.tooltip_text = "预览组件与当前 FGUIView 配置不一致"
+	elif target_path == null:
+		_bind_event_button.tooltip_text = "所选对象经过未命名父节点，无法建立稳定绑定"
+	else:
+		_bind_event_button.tooltip_text = "在当前 FGUIView Inspector 中绑定所选对象事件"
+
+
+func _selected_target_path() -> Variant:
+	if _selected_object == null or _root_object == null:
+		return null
+	var segments: Array[String] = []
+	var current := _selected_object
+	while current != null and current != _root_object:
+		if current.name == "":
+			return null
+		segments.push_front(current.name)
+		current = current.parent
+	return PackedStringArray(segments) if current == _root_object else null
 
 
 func _on_filter_changed(query: String) -> void:

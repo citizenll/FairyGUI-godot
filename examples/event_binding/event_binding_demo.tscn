@@ -1,0 +1,26 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://examples/event_binding/main.gd" id="1_script"]
+[ext_resource type="Resource" path="res://examples/assets/ui/Basics.fui" id="2_package"]
+[ext_resource type="Script" path="res://addons/fairygui/ui/event_binding.gd" id="3_binding"]
+
+[sub_resource type="Resource" id="Resource_button_click"]
+script = ExtResource("3_binding")
+target_path = PackedStringArray("btn_Button")
+event_name = "onClick"
+handler = &"_on_btn_button_clicked"
+
+[node name="EventBindingDemo" type="Control"]
+custom_minimum_size = Vector2(1136, 640)
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_script")
+package = ExtResource("2_package")
+component_name = "Main"
+match_control_size = true
+event_bindings = Array[ExtResource("3_binding")]([SubResource("Resource_button_click")])

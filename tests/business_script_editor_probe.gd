@@ -3,6 +3,7 @@ extends SceneTree
 const SCENE_PATH := "res://examples/editor_preview/test.tscn"
 const PACKAGE_PATH := "res://examples/assets/ui/VirtualList.fui"
 const PluginScript := preload("res://addons/fairygui/plugin.gd")
+const EventBinding := preload("res://addons/fairygui/ui/event_binding.gd")
 
 
 func _initialize() -> void:
@@ -78,6 +79,11 @@ func _run() -> void:
 	manual_view.component_name = "Main"
 	manual_view.resize_to_content = false
 	manual_view.match_control_size = true
+	var preserved_binding := EventBinding.new()
+	preserved_binding.event_name = FGUIEvents.CLICK
+	preserved_binding.handler = &"_on_preserved_event"
+	var preserved_bindings: Array[EventBinding] = [preserved_binding]
+	manual_view.event_bindings = preserved_bindings
 	scene_root.add_child(manual_view)
 	manual_view.owner = scene_root
 	plugin.call("_on_inspector_business_script", manual_view)
@@ -100,7 +106,10 @@ func _run() -> void:
 		_remove_script(manual_script_path)
 		_fail("Manual script attachment cleared the configured .fui package.")
 		return
-	if manual_view.resize_to_content or not manual_view.match_control_size or manual_view.fairy == null:
+	if manual_view.resize_to_content \
+			or not manual_view.match_control_size \
+			or manual_view.fairy == null \
+			or manual_view.event_bindings.size() != 1:
 		_cleanup_scene_history(scene_root, 1)
 		manual_view.queue_free()
 		_remove_script(manual_script_path)
@@ -109,7 +118,10 @@ func _run() -> void:
 	_cleanup_scene_history(scene_root, 1)
 	for _frame in 4:
 		await process_frame
-	if manual_view.get_script() == manual_script or manual_view.package == null or manual_view.fairy == null:
+	if manual_view.get_script() == manual_script \
+			or manual_view.package == null \
+			or manual_view.fairy == null \
+			or manual_view.event_bindings.size() != 1:
 		manual_view.queue_free()
 		_remove_script(manual_script_path)
 		_fail("Undo did not restore the base FGUIView script and configuration.")

@@ -45,11 +45,12 @@ func _initialize() -> void:
 	await process_frame
 
 	var custom_scene := load("res://examples/editor_preview/test.tscn") as PackedScene
-	var custom_view := custom_scene.instantiate() as FGUIView if custom_scene != null else null
+	var custom_instance := custom_scene.instantiate() if custom_scene != null else null
+	var custom_view := _find_fui_view(custom_instance)
 	if custom_view == null:
 		_fail("Custom @tool FGUIView example could not be instantiated.")
 		return
-	root.add_child(custom_view)
+	root.add_child(custom_instance)
 	await process_frame
 	await process_frame
 	if custom_view.component_name != "Main" or custom_view.get_fairy_object() == null:
@@ -64,7 +65,7 @@ func _initialize() -> void:
 		or not str(component_property.get("hint_string", "")).split(",").has("Main"):
 		_fail("Custom @tool FGUIView did not expose component_name as a populated enum.")
 		return
-	custom_view.queue_free()
+	custom_instance.queue_free()
 	await process_frame
 	await process_frame
 	if FGUIPackageResource._package_cache.size() != baseline_cache.size():
@@ -81,6 +82,18 @@ func _initialize() -> void:
 	for _frame in 3:
 		await process_frame
 	quit(0)
+
+
+func _find_fui_view(node: Node) -> FGUIView:
+	if node == null:
+		return null
+	if node is FGUIView:
+		return node as FGUIView
+	for child: Node in node.get_children():
+		var found := _find_fui_view(child)
+		if found != null:
+			return found
+	return null
 
 
 func _fail(message: String) -> void:

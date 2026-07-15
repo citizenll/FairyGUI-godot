@@ -3,6 +3,7 @@ class_name FGUIView
 extends Control
 
 const RuntimeDebugBridge := preload("res://addons/fairygui/debug/fairygui_debug_bridge.gd")
+const EventBinding := preload("res://addons/fairygui/ui/event_binding.gd")
 
 signal fairy_ready(value: FGUIObject)
 
@@ -13,6 +14,7 @@ var _preview_package: FGUIPackage
 var _dependency_packages: Array[FGUIPackage] = []
 var _component_names := PackedStringArray()
 var _refresh_queued: bool = false
+var _active_event_bindings: Array[Dictionary] = []
 
 @export var package: FGUIPackageResource:
 	get:
@@ -56,6 +58,14 @@ var _refresh_queued: bool = false
 		match_control_size = value
 		_layout_preview()
 
+@export var event_bindings: Array[EventBinding] = []:
+	set(value):
+		_disconnect_event_binding_resources()
+		event_bindings = value
+		_connect_event_binding_resources()
+		if is_inside_tree() and not Engine.is_editor_hint():
+			_apply_event_bindings()
+
 var fairy: FGUIObject:
 	get:
 		return _preview_object
@@ -65,6 +75,7 @@ func _ready() -> void:
 	_restore_configuration_from_business_script()
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_connect_package_changed()
+	_connect_event_binding_resources()
 	if Engine.is_editor_hint():
 		_queue_preview_refresh()
 	else:
@@ -76,6 +87,7 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	_clear_preview()
 	_disconnect_package_changed()
+	_disconnect_event_binding_resources()
 
 
 func _notification(what: int) -> void:
@@ -91,6 +103,10 @@ func _validate_property(property: Dictionary) -> void:
 
 func refresh_preview() -> void:
 	_refresh_preview()
+
+
+func refresh_event_bindings() -> void:
+	_apply_event_bindings()
 
 
 func get_fairy_object() -> FGUIObject:
@@ -158,10 +174,13 @@ func _refresh_preview() -> void:
 	if Engine.is_editor_hint():
 		_set_editor_mouse_filter(_preview_object.node)
 	_layout_preview()
+	if not Engine.is_editor_hint():
+		_apply_event_bindings()
 	fairy_ready.emit(_preview_object)
 
 
 func _clear_preview() -> void:
+	_disconnect_active_event_bindings()
 	if _preview_object != null:
 		_preview_object.dispose()
 		_preview_object = null
@@ -225,6 +244,73 @@ func _disconnect_package_changed() -> void:
 
 func _on_package_changed() -> void:
 	_queue_preview_refresh()
+
+
+func _connect_event_binding_resources() -> void:
+	for binding: EventBinding in event_bindings:
+		if binding != null and not binding.changed.is_connected(_on_event_binding_changed):
+			binding.changed.connect(_on_event_binding_changed)
+
+
+func _disconnect_event_binding_resources() -> void:
+	for binding: EventBinding in event_bindings:
+		if binding != null and binding.changed.is_connected(_on_event_binding_changed):
+			binding.changed.disconnect(_on_event_binding_changed)
+
+
+func _on_event_binding_changed() -> void:
+	if is_inside_tree() and not Engine.is_editor_hint():
+		_apply_event_bindings()
+
+
+func _apply_event_bindings() -> void:
+	_disconnect_active_event_bindings()
+	if Engine.is_editor_hint() or _preview_object == null:
+		return
+	var connected_keys: Dictionary = {}
+	for binding: EventBinding in event_bindings:
+		if binding == null or not binding.enabled:
+			continue
+		if binding.event_name == "" or binding.handler == &"":
+			push_warning("[FairyGUI event binding] Event or handler is empty on %s." % name)
+			continue
+		var key: String = binding.get_key()
+		if connected_keys.has(key):
+			push_warning("[FairyGUI event binding] Duplicate binding ignored: %s." % binding.get_target_label())
+			continue
+		connected_keys[key] = true
+		var target: FGUIEventDispatcher = binding.resolve_target(_preview_object)
+		if target == null:
+			push_warning("[FairyGUI event binding] Target not found: %s." % binding.get_target_label())
+			continue
+		if not has_method(binding.handler):
+			push_warning("[FairyGUI event binding] Handler not found: %s." % binding.handler)
+			continue
+		var callback := Callable(self, binding.handler)
+		if binding.capture:
+			target.add_capture(binding.event_name, callback)
+		else:
+			target.add_event_listener(binding.event_name, callback)
+		_active_event_bindings.append({
+			"target": target,
+			"event_name": binding.event_name,
+			"callback": callback,
+			"capture": binding.capture,
+		})
+
+
+func _disconnect_active_event_bindings() -> void:
+	for connection: Dictionary in _active_event_bindings:
+		var target := connection.get("target") as FGUIEventDispatcher
+		if target == null:
+			continue
+		var event_name := str(connection.get("event_name", ""))
+		var callback := connection.get("callback") as Callable
+		if bool(connection.get("capture", false)):
+			target.remove_capture(event_name, callback)
+		else:
+			target.remove_event_listener(event_name, callback)
+	_active_event_bindings.clear()
 
 
 func _set_editor_mouse_filter(control: Control) -> void:
