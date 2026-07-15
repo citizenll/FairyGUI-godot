@@ -43,6 +43,30 @@ func _initialize() -> void:
 	host.queue_free()
 	await process_frame
 	await process_frame
+
+	var custom_scene := load("res://examples/editor_preview/test.tscn") as PackedScene
+	var custom_view := custom_scene.instantiate() as FGUIView if custom_scene != null else null
+	if custom_view == null:
+		_fail("Custom @tool FGUIView example could not be instantiated.")
+		return
+	root.add_child(custom_view)
+	await process_frame
+	await process_frame
+	if custom_view.component_name != "Main" or custom_view.get_fairy_object() == null:
+		_fail("Custom @tool FGUIView did not render its selected component in the editor.")
+		return
+	var component_property: Dictionary = {}
+	for property: Dictionary in custom_view.get_property_list():
+		if str(property.get("name", "")) == "component_name":
+			component_property = property
+			break
+	if int(component_property.get("hint", PROPERTY_HINT_NONE)) != PROPERTY_HINT_ENUM \
+		or not str(component_property.get("hint_string", "")).split(",").has("Main"):
+		_fail("Custom @tool FGUIView did not expose component_name as a populated enum.")
+		return
+	custom_view.queue_free()
+	await process_frame
+	await process_frame
 	if FGUIPackageResource._package_cache.size() != baseline_cache.size():
 		_fail("FGUIView editor preview retained imported package references after cleanup.")
 		return

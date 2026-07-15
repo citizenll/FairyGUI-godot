@@ -1,0 +1,15 @@
+[gd_scene format=3 uid="uid://dp2ufsjaa0c14"]
+
+[ext_resource type="Script" uid="uid://cfv2ruuetg165" path="res://examples/editor_preview/test.gd" id="1_xqkiy"]
+[ext_resource type="Resource" uid="uid://vbym8wjtwsmg" path="res://examples/assets/ui/Basics.fui" id="2_c6rnn"]
+
+[node name="Test" type="Control" unique_id=1499363967]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_xqkiy")
+package = ExtResource("2_c6rnn")
+component_name = "Main"
