@@ -43,6 +43,9 @@ func _run() -> void:
 			expected_count,
 		])
 		return
+	if absf(panel._component_picker.global_position.x - panel._preview_scroll.global_position.x) > 8.0:
+		_fail("Component picker was not aligned with the preview canvas.")
+		return
 
 	var first_child := (preview as FGUIComponent).get_child_at(0) if preview is FGUIComponent else null
 	if first_child == null:

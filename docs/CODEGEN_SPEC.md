@@ -201,8 +201,8 @@ res://generated/fairygui/
 
 Inspector 操作必须提供：
 
-- Generate Bindings：重新生成项目绑定。
-- Open Binding：打开当前 `FGUIView` 对应的生成脚本；未生成时禁用或先生成。
+- 生成绑定：重新生成项目绑定。
+- 打开绑定：打开当前 `FGUIView` 对应的生成脚本；未生成时禁用或先生成。
 
 生成完成后请求 EditorFileSystem 扫描，并使 `FGUIView` 刷新预览。错误必须显示在 Godot 输出面板，汇总中包含生成、跳过、删除和警告数量。
 

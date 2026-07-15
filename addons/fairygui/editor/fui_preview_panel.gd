@@ -7,6 +7,7 @@ const MIN_ZOOM := 0.10
 const MAX_ZOOM := 4.0
 const ZOOM_FACTOR := 1.2
 const PREVIEW_PADDING := 24.0
+const HIERARCHY_WIDTH := 320.0
 
 var _initialized: bool = false
 var _package_resource: FGUIPackageResource
@@ -163,8 +164,8 @@ func _ensure_ui() -> void:
 	add_child(toolbar)
 
 	_path_label = Label.new()
-	_path_label.custom_minimum_size.x = 180.0
-	_path_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_path_label.custom_minimum_size.x = HIERARCHY_WIDTH
+	_path_label.size_flags_horizontal = Control.SIZE_FILL
 	_path_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	toolbar.add_child(_path_label)
 
@@ -204,7 +205,7 @@ func _ensure_ui() -> void:
 	toolbar.add_child(_fit_button)
 
 	var split := HSplitContainer.new()
-	split.split_offset = 320
+	split.split_offset = int(HIERARCHY_WIDTH)
 	split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_child(split)

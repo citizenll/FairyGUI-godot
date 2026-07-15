@@ -10,8 +10,8 @@
 以下操作会打开编辑器底部的“GUI预览”面板：
 
 - 在 Godot 文件系统中双击导入后的 `.fui`。
-- 在 `FGUIPackageResource` Inspector 中点击 `Open Preview`。
-- 在配置了 package 的 `FGUIView` Inspector 中点击 `Open Preview`。
+- 在 `FGUIPackageResource` Inspector 中点击“打开预览”。
+- 在配置了 package 的 `FGUIView` Inspector 中点击“打开预览”。
 
 重新导入当前 `.fui` 后，已打开的面板会自动重新加载。
 

@@ -15,23 +15,23 @@ func _parse_begin(object: Object) -> void:
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	var generate_button := Button.new()
-	generate_button.text = "Generate Bindings"
-	generate_button.tooltip_text = "Regenerate strongly typed FairyGUI bindings."
+	generate_button.text = "生成绑定"
+	generate_button.tooltip_text = "重新生成 FairyGUI 强类型绑定。"
 	generate_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	generate_button.pressed.connect(_on_generate_pressed.bind(object))
 	row.add_child(generate_button)
 
 	var preview_button := Button.new()
-	preview_button.text = "Open Preview"
-	preview_button.tooltip_text = "Open this FairyGUI package or component in GUI Preview."
+	preview_button.text = "打开预览"
+	preview_button.tooltip_text = "在 GUI 预览面板中打开此 FairyGUI 包或组件。"
 	preview_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	preview_button.pressed.connect(_on_preview_pressed.bind(object))
 	row.add_child(preview_button)
 
 	if object is FGUIView:
 		var open_button := Button.new()
-		open_button.text = "Open Binding"
-		open_button.tooltip_text = "Open the generated binding script for this component."
+		open_button.text = "打开绑定"
+		open_button.tooltip_text = "打开此组件生成的绑定脚本。"
 		open_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		open_button.pressed.connect(_on_open_pressed.bind(object))
 		row.add_child(open_button)
