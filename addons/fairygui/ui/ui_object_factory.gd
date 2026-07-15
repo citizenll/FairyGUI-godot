@@ -4,8 +4,14 @@ extends RefCounted
 const Loader3D := preload("res://addons/fairygui/ui/gloader3d.gd")
 
 static var extensions: Dictionary = {}
+static var generated_extensions: Dictionary = {}
 static var loader_type: Variant = null
 static var loader3d_type: Variant = null
+static var _generated_registry_loaded: bool = false
+static var _generated_registry_loading: bool = false
+static var _generated_registry_force_reload: bool = false
+
+const DEFAULT_GENERATED_REGISTRY_PATH := "res://generated/fairygui/registry.gd"
 
 
 static func set_extension(url: String, script: Variant) -> void:
@@ -32,17 +38,48 @@ static func set_loader3d_extension(script: Variant) -> void:
 
 static func clear() -> void:
 	extensions.clear()
+	generated_extensions.clear()
 	loader_type = null
 	loader3d_type = null
+	_generated_registry_loaded = false
+	_generated_registry_loading = false
+	_generated_registry_force_reload = false
+
+
+static func set_generated_extensions(bindings: Dictionary) -> void:
+	generated_extensions.clear()
+	for key: Variant in bindings:
+		var url := str(key)
+		var creator: Variant = bindings[key]
+		if url == "" or not (creator is Script or creator is Callable):
+			continue
+		generated_extensions[url] = creator
+	_generated_registry_loaded = true
+	_generated_registry_loading = false
+	_generated_registry_force_reload = false
+
+
+static func reload_generated_extensions() -> void:
+	generated_extensions.clear()
+	_generated_registry_loaded = false
+	_generated_registry_loading = false
+	_generated_registry_force_reload = true
+	_ensure_generated_extensions()
 
 
 static func resolve_package_item_extension(item: FGUIPackageItem) -> void:
+	if item == null or item.owner == null:
+		return
 	var by_id := "ui://%s%s" % [item.owner.id, item.id]
 	var by_name := "ui://%s/%s" % [item.owner.name, item.name]
 	if extensions.has(by_id):
 		item.extension_type = extensions[by_id]
 	elif extensions.has(by_name):
 		item.extension_type = extensions[by_name]
+	elif generated_extensions.has(by_id):
+		item.extension_type = generated_extensions[by_id]
+	elif generated_extensions.has(by_name):
+		item.extension_type = generated_extensions[by_name]
 	else:
 		item.extension_type = null
 
@@ -50,6 +87,8 @@ static func resolve_package_item_extension(item: FGUIPackageItem) -> void:
 static func new_object_from_item(item: FGUIPackageItem, user_class: Variant = null) -> FGUIObject:
 	if item == null:
 		return null
+	_ensure_generated_extensions()
+	resolve_package_item_extension(item)
 	var obj: FGUIObject = null
 	if item.type == FGUIEnums.PACKAGE_ITEM_COMPONENT:
 		if user_class != null:
@@ -131,6 +170,9 @@ static func _create_from(creator: Variant) -> FGUIObject:
 	if creator is Callable:
 		value = creator.call()
 	elif creator is Script:
+		if not (creator as Script).can_instantiate():
+			push_error("FairyGUI object factory script cannot be instantiated: %s" % (creator as Script).resource_path)
+			return null
 		value = creator.new()
 	else:
 		push_error("FairyGUI object factory creator must be a Script or Callable.")
@@ -140,3 +182,34 @@ static func _create_from(creator: Variant) -> FGUIObject:
 	if value != null:
 		push_error("FairyGUI object factory creator must return FGUIObject.")
 	return null
+
+
+static func _ensure_generated_extensions() -> void:
+	if _generated_registry_loaded or _generated_registry_loading:
+		return
+	_generated_registry_loading = true
+	var registry_path := str(ProjectSettings.get_setting("fairygui/codegen/registry_path", DEFAULT_GENERATED_REGISTRY_PATH))
+	if registry_path != "" and ResourceLoader.exists(registry_path):
+		var cache_mode := ResourceLoader.CACHE_MODE_REPLACE if _generated_registry_force_reload else ResourceLoader.CACHE_MODE_REUSE
+		var registry_script := ResourceLoader.load(registry_path, "", cache_mode) as Script
+		if registry_script == null:
+			push_warning("[FairyGUI codegen] Generated registry could not be loaded: %s" % registry_path)
+		else:
+			if not registry_script.can_instantiate():
+				push_warning("[FairyGUI codegen] Generated registry cannot be instantiated: %s" % registry_path)
+				_generated_registry_loaded = true
+				_generated_registry_loading = false
+				_generated_registry_force_reload = false
+				return
+			var registry_instance: Variant = registry_script.new()
+			if registry_instance != null and registry_instance.has_method("get_bindings"):
+				var bindings: Variant = registry_instance.call("get_bindings")
+				if bindings is Dictionary:
+					set_generated_extensions(bindings)
+				else:
+					push_warning("[FairyGUI codegen] Generated registry returned an invalid binding table: %s" % registry_path)
+			else:
+				push_warning("[FairyGUI codegen] Generated registry has no get_bindings() method: %s" % registry_path)
+	_generated_registry_loaded = true
+	_generated_registry_loading = false
+	_generated_registry_force_reload = false

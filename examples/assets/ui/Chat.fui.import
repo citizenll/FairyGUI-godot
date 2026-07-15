@@ -1,7 +1,7 @@
 [remap]
 
 importer="fairygui.package"
-importer_version=4
+importer_version=5
 type="Resource"
 uid="uid://dtlxsgrgpulrm"
 path="res://.godot/imported/Chat.fui-3a81fb24fe98d33fb24c7270c243ab48.res"
@@ -13,3 +13,4 @@ dest_files=["res://.godot/imported/Chat.fui-3a81fb24fe98d33fb24c7270c243ab48.res
 
 [params]
 
+codegen/enabled=true

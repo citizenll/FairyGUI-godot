@@ -32,7 +32,10 @@ func _get_preset_name(_preset_index: int) -> String:
 
 
 func _get_import_options(_path: String, _preset_index: int) -> Array[Dictionary]:
-	return []
+	return [{
+		"name": "codegen/enabled",
+		"default_value": true,
+	}]
 
 
 func _get_import_order() -> int:
@@ -40,7 +43,7 @@ func _get_import_order() -> int:
 
 
 func _get_format_version() -> int:
-	return 4
+	return 5
 
 
 func _can_import_threaded() -> bool:
@@ -56,4 +59,5 @@ func _import(source_file: String, save_path: String, _options: Dictionary, _plat
 	resource.package_data = bytes
 	resource.source_path = source_file
 	resource.content_hash = FileAccess.get_sha256(source_file)
+	resource.codegen_enabled = bool(_options.get("codegen/enabled", true))
 	return ResourceSaver.save(resource, "%s.%s" % [save_path, _get_save_extension()], ResourceSaver.FLAG_COMPRESS)

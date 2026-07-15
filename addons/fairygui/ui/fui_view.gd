@@ -2,6 +2,8 @@
 class_name FGUIView
 extends Control
 
+signal fairy_ready(value: FGUIObject)
+
 var _package_resource: FGUIPackageResource
 var _component_name: String = ""
 var _preview_object: FGUIObject
@@ -32,6 +34,11 @@ var _refresh_queued: bool = false
 		_component_name = value
 		_queue_preview_refresh()
 
+@export var component_script: Script:
+	set(value):
+		component_script = value
+		_queue_preview_refresh()
+
 @export var preview_in_editor: bool = true:
 	set(value):
 		preview_in_editor = value
@@ -47,11 +54,18 @@ var _refresh_queued: bool = false
 		match_control_size = value
 		_layout_preview()
 
+var fairy: FGUIObject:
+	get:
+		return _preview_object
+
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_connect_package_changed()
-	_queue_preview_refresh()
+	if Engine.is_editor_hint():
+		_queue_preview_refresh()
+	else:
+		_refresh_preview()
 
 
 func _exit_tree() -> void:
@@ -110,13 +124,14 @@ func _refresh_preview() -> void:
 		selected_name = "Main" if _component_names.has("Main") else _component_names[0]
 		_component_name = selected_name
 		notify_property_list_changed()
-	_preview_object = _preview_package.create_object(selected_name)
+	_preview_object = _preview_package.create_object(selected_name, component_script)
 	if _preview_object == null or _preview_object.node == null:
 		return
 	add_child(_preview_object.node)
 	if Engine.is_editor_hint():
 		_set_editor_mouse_filter(_preview_object.node)
 	_layout_preview()
+	fairy_ready.emit(_preview_object)
 
 
 func _clear_preview() -> void:

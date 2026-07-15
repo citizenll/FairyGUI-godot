@@ -243,6 +243,37 @@ func get_child(child_name: String) -> FGUIObject:
 	return null
 
 
+func require_child(child_name: String, expected_type: Variant = null) -> FGUIObject:
+	var child := get_child(child_name)
+	if child == null:
+		push_error("[FairyGUI binding] Missing child '%s' in %s." % [child_name, _binding_context()])
+		return null
+	if expected_type != null and not is_instance_of(child, expected_type):
+		push_error("[FairyGUI binding] Child '%s' in %s expected %s, got %s." % [
+			child_name,
+			_binding_context(),
+			_binding_type_name(expected_type),
+			_binding_type_name(child.get_script()),
+		])
+		return null
+	return child
+
+
+func optional_child(child_name: String, expected_type: Variant = null) -> FGUIObject:
+	var child := get_child(child_name)
+	if child == null:
+		return null
+	if expected_type != null and not is_instance_of(child, expected_type):
+		push_error("[FairyGUI binding] Optional child '%s' in %s expected %s, got %s." % [
+			child_name,
+			_binding_context(),
+			_binding_type_name(expected_type),
+			_binding_type_name(child.get_script()),
+		])
+		return null
+	return child
+
+
 func get_visible_child(child_name: String) -> FGUIObject:
 	for child: FGUIObject in children:
 		if child.name == child_name and child.internal_visible and child.internal_visible2:
@@ -302,6 +333,13 @@ func get_controller(controller_name: String) -> FGUIController:
 	return null
 
 
+func require_controller(controller_name: String) -> FGUIController:
+	var controller := get_controller(controller_name)
+	if controller == null:
+		push_error("[FairyGUI binding] Missing controller '%s' in %s." % [controller_name, _binding_context()])
+	return controller
+
+
 func add_controller(controller: FGUIController) -> void:
 	if controller == null:
 		return
@@ -325,6 +363,13 @@ func get_transition(transition_name: String) -> FGUITransition:
 		if transition.name == transition_name:
 			return transition
 	return null
+
+
+func require_transition(transition_name: String) -> FGUITransition:
+	var transition := get_transition(transition_name)
+	if transition == null:
+		push_error("[FairyGUI binding] Missing transition '%s' in %s." % [transition_name, _binding_context()])
+	return transition
 
 
 func get_transition_at(index: int) -> FGUITransition:
@@ -645,10 +690,38 @@ func construct_from_resource2(object_pool: Array = [], pool_index: int = 0) -> v
 	_under_construct = false
 	_rebuild_native_display_list()
 	apply_all_controllers()
+	_on_construct()
+
+
+func _on_construct() -> void:
+	pass
 
 
 func construct_extension(_buffer: FGUIByteBuffer) -> void:
 	pass
+
+
+func _binding_context() -> String:
+	if package_item == null:
+		return name if name != "" else "<unpackaged component>"
+	var package_name := ""
+	if package_item.owner != null:
+		package_name = str(package_item.owner.name)
+	var component_name := package_item.name if package_item.name != "" else package_item.id
+	return "%s/%s" % [package_name if package_name != "" else "<unknown package>", component_name]
+
+
+static func _binding_type_name(value: Variant) -> String:
+	if value is Script:
+		var script := value as Script
+		var global_name := script.get_global_name()
+		if global_name != "":
+			return global_name
+		if script.resource_path != "":
+			return script.resource_path.get_file().get_basename()
+	if value == null:
+		return "<null>"
+	return str(value)
 
 
 func setup_after_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:

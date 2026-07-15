@@ -30,6 +30,14 @@ window/size/window_height_override=640
 
 enabled=PackedStringArray("res://addons/fairygui/plugin.cfg")
 
+[fairygui]
+
+codegen/auto_generate=false
+codegen/class_prefix="UI_"
+codegen/include_default_names=false
+codegen/output_dir="res://generated/fairygui"
+codegen/registry_path="res://generated/fairygui/registry.gd"
+
 [rendering]
 
 textures/vram_compression/import_etc2_astc=true

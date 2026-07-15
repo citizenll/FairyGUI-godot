@@ -1,7 +1,7 @@
 [remap]
 
 importer="fairygui.package"
-importer_version=4
+importer_version=5
 type="Resource"
 uid="uid://dgqxylctope8c"
 path="res://.godot/imported/PullToRefresh.fui-0c13a9804fbc540b5c6a6db6db749e61.res"
@@ -13,3 +13,4 @@ dest_files=["res://.godot/imported/PullToRefresh.fui-0c13a9804fbc540b5c6a6db6db7
 
 [params]
 
+codegen/enabled=true

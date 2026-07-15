@@ -1,7 +1,7 @@
 [remap]
 
 importer="fairygui.package"
-importer_version=4
+importer_version=5
 type="Resource"
 uid="uid://bs2rslgwmkpty"
 path="res://.godot/imported/ScrollPane.fui-40533519fd86aa8a8eebfee5ab23bf2c.res"
@@ -13,3 +13,4 @@ dest_files=["res://.godot/imported/ScrollPane.fui-40533519fd86aa8a8eebfee5ab23bf
 
 [params]
 
+codegen/enabled=true

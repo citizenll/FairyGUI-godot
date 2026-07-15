@@ -1,7 +1,7 @@
 [remap]
 
 importer="fairygui.package"
-importer_version=4
+importer_version=5
 type="Resource"
 uid="uid://entif5mytcdj"
 path="res://.godot/imported/VirtualList.fui-80bbfce4cfdc632cd4789a9d97053d43.res"
@@ -13,3 +13,4 @@ dest_files=["res://.godot/imported/VirtualList.fui-80bbfce4cfdc632cd4789a9d97053
 
 [params]
 
+codegen/enabled=true

@@ -8,6 +8,7 @@ static var _cache_key_by_instance: Dictionary = {}
 @export_storage var package_data: PackedByteArray = PackedByteArray()
 @export_storage var source_path: String = ""
 @export_storage var content_hash: String = ""
+@export_storage var codegen_enabled: bool = true
 
 
 func get_source_path() -> String:

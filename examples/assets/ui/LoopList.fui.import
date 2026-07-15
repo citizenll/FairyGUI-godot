@@ -1,7 +1,7 @@
 [remap]
 
 importer="fairygui.package"
-importer_version=4
+importer_version=5
 type="Resource"
 uid="uid://dpun3ono0x6yi"
 path="res://.godot/imported/LoopList.fui-6db7564de7426c39221a1898c73e6624.res"
@@ -13,3 +13,4 @@ dest_files=["res://.godot/imported/LoopList.fui-6db7564de7426c39221a1898c73e6624
 
 [params]
 
+codegen/enabled=true
