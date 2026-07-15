@@ -32,6 +32,7 @@ var _canvas_overlay_install_attempts: int = 0
 var _generation_queued: bool = false
 var _generation_running: bool = false
 var _generation_requested_while_running: bool = false
+var _pending_event_bindings: Dictionary = {}
 
 
 func _enter_tree() -> void:
@@ -70,6 +71,7 @@ func _enter_tree() -> void:
 func _exit_tree() -> void:
 	_generation_queued = false
 	_generation_requested_while_running = false
+	_pending_event_bindings.clear()
 	if _canvas_drop_overlay != null:
 		_canvas_drop_overlay.queue_free()
 		_canvas_drop_overlay = null
@@ -313,7 +315,10 @@ func _apply_view_script(view: FGUIView, script: Script, state: Dictionary) -> vo
 func _get_event_binding_model(object: Object) -> Dictionary:
 	if not object is FGUIView:
 		return {}
-	return EventBindingService.new().build_model(object as FGUIView)
+	var view := object as FGUIView
+	var model := EventBindingService.new().build_model(view)
+	model.pending = _pending_event_bindings.has(str(view.get_instance_id()))
+	return model
 
 
 func _on_event_binding_add(
@@ -331,13 +336,59 @@ func _on_event_binding_add(
 	binding.event_name = event_name
 	binding.handler = handler
 	binding.capture = capture
-	for existing: EventBinding in view.event_bindings:
-		if existing != null and existing.get_key() == binding.get_key():
-			push_warning("[FairyGUI editor] 此事件绑定已经存在。")
+	var operation_key := str(view.get_instance_id())
+	if _pending_event_bindings.has(operation_key):
+		_show_editor_toast("事件连接正在处理中，请稍候。", 1)
+		return
+	_pending_event_bindings[operation_key] = true
+	_complete_event_binding.call_deferred(weakref(view), binding, operation_key, 0)
+
+
+func _complete_event_binding(
+		view_ref: WeakRef,
+		binding: EventBinding,
+		operation_key: String,
+		attempt: int
+	) -> void:
+	var view := view_ref.get_ref() as FGUIView
+	if view == null or not is_inside_tree():
+		_pending_event_bindings.erase(operation_key)
+		return
+	var filesystem := get_editor_interface().get_resource_filesystem()
+	if filesystem.is_scanning() or filesystem.is_importing():
+		if attempt < 240:
+			_complete_event_binding.call_deferred(view_ref, binding, operation_key, attempt + 1)
 			return
-	var handler_result := EventHandlerGenerator.new().ensure_handler(view, handler)
+		_finish_event_binding_operation(
+			view,
+			operation_key,
+			false,
+			"Godot 仍在扫描资源，请稍后重试。"
+		)
+		return
+	var duplicate_index := _find_event_binding(view, binding.get_key())
+	var handler_result := EventHandlerGenerator.new().ensure_handler(view, binding.handler)
 	if not bool(handler_result.get("ok", false)):
-		push_error("[FairyGUI editor] 无法生成事件处理函数：%s" % handler_result.get("error", ""))
+		_finish_event_binding_operation(
+			view,
+			operation_key,
+			false,
+			"无法生成事件处理函数：%s" % handler_result.get("error", "")
+		)
+		return
+	if duplicate_index >= 0:
+		_open_event_handler(handler_result)
+		var duplicate_message := "此事件已经连接，已打开处理函数。"
+		if bool(handler_result.get("created", false)):
+			duplicate_message = "此事件已经连接，已补全并打开处理函数。"
+		elif bool(handler_result.get("saved_editor_changes", false)):
+			duplicate_message = "此事件已经连接，已保存并打开处理函数。"
+		_finish_event_binding_operation(
+			view,
+			operation_key,
+			true,
+			duplicate_message
+		)
 		return
 	var previous: Array[EventBinding] = []
 	previous.assign(view.event_bindings)
@@ -351,6 +402,44 @@ func _on_event_binding_add(
 	undo_redo.add_undo_method(self, "_set_view_event_bindings", view, previous)
 	undo_redo.commit_action()
 	_open_event_handler(handler_result)
+	var success_message := "已连接事件。"
+	if bool(handler_result.get("created", false)):
+		success_message = "已连接事件并生成处理函数。"
+	if bool(handler_result.get("saved_editor_changes", false)):
+		success_message = "已保存界面脚本，%s" % success_message
+	_finish_event_binding_operation(view, operation_key, true, success_message)
+
+
+func _find_event_binding(view: FGUIView, key: String) -> int:
+	for index in view.event_bindings.size():
+		var existing: EventBinding = view.event_bindings[index]
+		if existing != null and existing.get_key() == key:
+			return index
+	return -1
+
+
+func _finish_event_binding_operation(
+		view: FGUIView,
+		operation_key: String,
+		success: bool,
+		message: String
+	) -> void:
+	_pending_event_bindings.erase(operation_key)
+	if success:
+		_show_editor_toast(message, 0)
+	else:
+		push_error("[FairyGUI editor] %s" % message)
+		_show_editor_toast("FairyGUI 事件连接失败", 2, message)
+	if view != null:
+		view.notify_property_list_changed()
+
+
+func _show_editor_toast(message: String, severity: int, tooltip: String = "") -> void:
+	var editor_interface := get_editor_interface()
+	if editor_interface != null and editor_interface.has_method("get_editor_toaster"):
+		var toaster: Object = editor_interface.call("get_editor_toaster")
+		if toaster != null and toaster.has_method("push_toast"):
+			toaster.call("push_toast", message, severity, tooltip)
 
 
 func _on_event_binding_remove(object: Object, index: int) -> void:
@@ -430,7 +519,10 @@ func _open_event_handler(result: Dictionary) -> void:
 	var script := result.get("script") as Script
 	if script == null:
 		return
-	get_editor_interface().get_resource_filesystem().scan_sources()
+	if bool(result.get("refresh_open_editor", false)):
+		var close_error := get_editor_interface().get_script_editor().close_file(script.resource_path)
+		if close_error != OK and close_error != ERR_FILE_NOT_FOUND:
+			push_warning("[FairyGUI editor] 无法刷新已打开的界面脚本：%s" % error_string(close_error))
 	get_editor_interface().edit_script(script, int(result.get("line", -1)), 0, true)
 
 

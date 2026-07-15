@@ -18,6 +18,7 @@ var _target_picker: OptionButton
 var _event_picker: OptionButton
 var _method_edit: LineEdit
 var _capture_check: CheckBox
+var _action_status: Label
 var _add_button: Button
 var _remove_button: Button
 var _open_button: Button
@@ -116,6 +117,7 @@ func _build_ui() -> void:
 	_capture_check = CheckBox.new()
 	_capture_check.text = "捕获阶段"
 	_capture_check.tooltip_text = "高级选项：在事件到达目标对象之前调用处理函数。一般点击事件无需启用。"
+	_capture_check.toggled.connect(_on_capture_toggled)
 	event_row.add_child(_capture_check)
 
 	var method_row := HBoxContainer.new()
@@ -133,6 +135,10 @@ func _build_ui() -> void:
 	_add_button.tooltip_text = "保存绑定，并在界面脚本中生成缺失的处理函数"
 	_add_button.pressed.connect(_on_add_pressed)
 	method_row.add_child(_add_button)
+	_action_status = Label.new()
+	_action_status.visible = false
+	_action_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_child(_action_status)
 
 	var actions := HBoxContainer.new()
 	actions.alignment = BoxContainer.ALIGNMENT_END
@@ -233,9 +239,7 @@ func _populate_targets() -> void:
 	if not targets.is_empty():
 		_target_picker.select(selected_index)
 	_populate_events()
-	_add_button.disabled = targets.is_empty() or not bool(_model.get("script_available", false))
-	if not bool(_model.get("script_available", false)):
-		_add_button.tooltip_text = "请先创建界面脚本"
+	_refresh_add_action()
 
 
 func _populate_events() -> void:
@@ -251,6 +255,7 @@ func _populate_events() -> void:
 		_event_picker.select(0)
 	_method_dirty = false
 	_update_suggested_method()
+	_refresh_add_action()
 
 
 func _update_summary() -> void:
@@ -275,11 +280,17 @@ func _on_target_selected(_index: int) -> void:
 func _on_event_selected(_index: int) -> void:
 	if not _method_dirty:
 		_update_suggested_method()
+	_refresh_add_action()
 
 
 func _on_method_changed(_value: String) -> void:
 	if not _updating_method:
 		_method_dirty = true
+	_refresh_add_action()
+
+
+func _on_capture_toggled(_enabled: bool) -> void:
+	_refresh_add_action()
 
 
 func _update_suggested_method() -> void:
@@ -294,6 +305,67 @@ func _update_suggested_method() -> void:
 	_method_edit.remove_theme_color_override("font_color")
 	_method_edit.tooltip_text = ""
 	_updating_method = false
+	_refresh_add_action()
+
+
+func _refresh_add_action() -> void:
+	if _add_button == null:
+		return
+	_add_button.text = "连接并生成函数"
+	_add_button.tooltip_text = "保存事件连接，并在界面脚本中生成缺失的处理函数"
+	if bool(_model.get("pending", false)):
+		_add_button.disabled = true
+		_add_button.text = "处理中..."
+		_set_action_status("正在等待 Godot 完成脚本更新...", "success")
+		return
+	if not bool(_model.get("script_available", false)):
+		_add_button.disabled = true
+		_set_action_status("请先使用上方“创建界面脚本”。", "warning")
+		return
+	var target := _selected_target()
+	var event := _selected_event()
+	if target.is_empty() or event.is_empty():
+		_add_button.disabled = true
+		_set_action_status("当前组件没有可连接的目标或事件。", "warning")
+		return
+	var method_name := _method_edit.text.strip_edges()
+	if not method_name.is_valid_ascii_identifier():
+		_add_button.disabled = true
+		_set_action_status("处理函数名称无效。", "error")
+		return
+	_add_button.disabled = false
+	if _has_matching_binding(target, event, method_name, _capture_check.button_pressed):
+		_add_button.text = "打开已有处理函数"
+		_add_button.tooltip_text = "此事件已经连接；打开现有函数，函数缺失时自动补全"
+		_set_action_status("此事件已经连接。", "success")
+	else:
+		_set_action_status("", "success")
+
+
+func _has_matching_binding(
+		target: Dictionary,
+		event: Dictionary,
+		method_name: String,
+		capture: bool
+	) -> bool:
+	var target_key := str(target.get("key", ""))
+	var event_name := str(event.get("value", ""))
+	for row: Dictionary in _model.get("bindings", []):
+		if str(row.get("target_key", "")) == target_key \
+				and str(row.get("event_name", "")) == event_name \
+				and str(row.get("handler", "")) == method_name \
+				and bool(row.get("capture", false)) == capture:
+			return true
+	return false
+
+
+func _set_action_status(message: String, severity: String) -> void:
+	if _action_status == null:
+		return
+	_action_status.text = message
+	_action_status.visible = message != ""
+	if message != "":
+		_action_status.add_theme_color_override("font_color", _status_color(severity))
 
 
 func _on_add_pressed() -> void:
@@ -310,6 +382,9 @@ func _on_add_pressed() -> void:
 	_method_edit.remove_theme_color_override("font_color")
 	_method_edit.tooltip_text = ""
 	if _add_callback.is_valid():
+		_add_button.disabled = true
+		_add_button.text = "处理中..."
+		_set_action_status("正在更新界面脚本和场景连接...", "success")
 		_add_callback.call(
 			view,
 			target.get("path", PackedStringArray()),
@@ -317,6 +392,8 @@ func _on_add_pressed() -> void:
 			StringName(method_name),
 			_capture_check.button_pressed
 		)
+	else:
+		_refresh_add_action()
 
 
 func _on_binding_selected() -> void:

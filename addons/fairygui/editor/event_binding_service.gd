@@ -110,7 +110,10 @@ func build_model(view: FGUIView) -> Dictionary:
 			model.warning_count = int(model.warning_count) + 1
 		model.bindings.append({
 			"index": index,
+			"key": key,
+			"target_key": target_key,
 			"target": str(target.get("label", binding.get_target_label())),
+			"event_name": binding.event_name,
 			"event": str(event.get("label", binding.event_name)),
 			"event_constant": str(event.get("constant", binding.event_name)),
 			"handler": str(binding.handler),
