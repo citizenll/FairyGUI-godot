@@ -23,7 +23,7 @@ func _run() -> void:
 
 	var previous_registry: Variant = ProjectSettings.get_setting("fairygui/codegen/registry_path", null)
 	ProjectSettings.set_setting("fairygui/codegen/registry_path", REGISTRY_PATH)
-	var result := FGUIBindingCodeGenerator.new().generate(package_paths, OUTPUT_DIR, "UI_", false, REGISTRY_PATH)
+	var result := FGUIBindingCodeGenerator.new().generate(package_paths, OUTPUT_DIR, "SmokeUI_", false, REGISTRY_PATH)
 	if not bool(result.get("ok", false)):
 		_fail("Full binding generation failed: %s" % [result.get("errors", [])])
 		return
@@ -60,8 +60,14 @@ func _run() -> void:
 			if item.type != FGUIEnums.PACKAGE_ITEM_COMPONENT:
 				continue
 			var object := package.create_object(item.name)
-			if object == null or object.get_script() == null or not object.get_script().get_global_name().begins_with("UI_"):
-				_fail("Component did not use a generated binding: %s/%s" % [package.name, item.name])
+			if object == null:
+				_fail("Component could not be constructed during generated binding smoke coverage: %s/%s" % [package.name, item.name])
+				return
+			if not item.exported:
+				object.dispose()
+				continue
+			if object.get_script() == null or not object.get_script().get_global_name().begins_with("SmokeUI_"):
+				_fail("Exported component did not use a generated binding: %s/%s" % [package.name, item.name])
 				return
 			var url := "ui://%s%s" % [package.id, item.id]
 			var script_path := str(result.get("bindings", {}).get(url, ""))
@@ -72,8 +78,8 @@ func _run() -> void:
 					return
 			component_count += 1
 			object.dispose()
-	if component_count < 20:
-		_fail("Generated binding smoke test covered too few components: %d" % component_count)
+	if component_count < 10:
+		_fail("Generated binding smoke test covered too few exported components: %d" % component_count)
 		return
 
 	for index in range(packages.size() - 1, -1, -1):

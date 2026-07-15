@@ -51,7 +51,9 @@ static func set_generated_extensions(bindings: Dictionary) -> void:
 	for key: Variant in bindings:
 		var url := str(key)
 		var creator: Variant = bindings[key]
-		if url == "" or not (creator is Script or creator is Callable):
+		if url == "" or not (creator is Script or creator is Callable or creator is String or creator is StringName):
+			continue
+		if (creator is String or creator is StringName) and str(creator) == "":
 			continue
 		generated_extensions[url] = creator
 	_generated_registry_loaded = true
@@ -166,6 +168,13 @@ static func new_object(object_type: int) -> FGUIObject:
 static func _create_from(creator: Variant) -> FGUIObject:
 	if creator == null:
 		return null
+	if creator is String or creator is StringName:
+		var script_path := str(creator)
+		var loaded_script := ResourceLoader.load(script_path) as Script
+		if loaded_script == null:
+			push_error("FairyGUI object factory script could not be loaded: %s" % script_path)
+			return null
+		creator = loaded_script
 	var value: Variant = null
 	if creator is Callable:
 		value = creator.call()
@@ -175,7 +184,7 @@ static func _create_from(creator: Variant) -> FGUIObject:
 			return null
 		value = creator.new()
 	else:
-		push_error("FairyGUI object factory creator must be a Script or Callable.")
+		push_error("FairyGUI object factory creator must be a Script, Callable, or script resource path.")
 		return null
 	if value is FGUIObject:
 		return value
@@ -186,6 +195,12 @@ static func _create_from(creator: Variant) -> FGUIObject:
 
 static func _ensure_generated_extensions() -> void:
 	if _generated_registry_loaded or _generated_registry_loading:
+		return
+	# Editor previews render package data only. Generated application scripts are
+	# intentionally not executed inside the editor process unless set explicitly.
+	if Engine.is_editor_hint():
+		_generated_registry_loaded = true
+		_generated_registry_force_reload = false
 		return
 	_generated_registry_loading = true
 	var registry_path := str(ProjectSettings.get_setting("fairygui/codegen/registry_path", DEFAULT_GENERATED_REGISTRY_PATH))

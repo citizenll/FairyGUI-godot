@@ -406,7 +406,7 @@ func _read_items(buffer: FGUIByteBuffer, index_table_pos: int, ver2: bool, branc
 		var file_name = buffer.read_s()
 		if file_name != null:
 			item.file = file_name
-		buffer.read_bool()
+		item.exported = buffer.read_bool()
 		item.width = buffer.read_i32()
 		item.height = buffer.read_i32()
 

@@ -6,23 +6,6 @@ const UI_ROOT := "res://examples/assets/ui"
 const ICON_ROOT := "res://examples/assets/icons"
 const DESIGN_SIZE := Vector2(1136.0, 640.0)
 const INACTIVE_POINTER := -2147483648
-const DEMO_BY_BUTTON := {
-	"n1": "Basics",
-	"n2": "Transition",
-	"n4": "VirtualList",
-	"n5": "LoopList",
-	"n6": "HitTest",
-	"n7": "PullToRefresh",
-	"n8": "ModalWaiting",
-	"n9": "Joystick",
-	"n10": "Bag",
-	"n11": "Chat",
-	"n12": "ListEffect",
-	"n13": "ScrollPane",
-	"n14": "TreeView",
-	"n15": "Guide",
-	"n16": "Cooldown",
-}
 const DEMO_NAMES: Array[String] = [
 	"Basics",
 	"Transition",
@@ -81,14 +64,14 @@ var _owned_objects: Array[FGUIObject] = []
 var _windows: Array[FGUIWindow] = []
 var _tweeners: Array[FGUIGTweener] = []
 
-var _basic_container: FGUIComponent
+var _basic_container: UI_BasicsComponent4
 var _basic_controller: FGUIController
 var _basic_back_button: FGUIObject
 var _basic_demo_objects: Dictionary = {}
 var _basic_active_type := ""
 var _basic_progress_accumulator := 0.0
 var _basic_popup_menu: FGUIPopupMenu
-var _basic_popup_component: FGUIComponent
+var _basic_popup_component: UI_BasicsComponent12
 var _basic_window_a: FGUIWindow
 var _basic_window_b: FGUIWindow
 var _depth_start_position := Vector2.ZERO
@@ -116,16 +99,17 @@ var _joystick_pointer_id := INACTIVE_POINTER
 var _joystick_radius := 150.0
 
 var _bag_window: FGUIWindow
+var _bag_content: UI_BagBagWin
 var _bag_list: FGUIList
 
 var _chat_list: FGUIList
 var _chat_input: FGUITextInput
-var _emoji_select_ui: FGUIComponent
+var _emoji_select_ui: UI_ChatEmojiSelectUi
 var _messages: Array[Dictionary] = []
 
 var _scroll_list: FGUIList
 
-var _guide_layer: FGUIComponent
+var _guide_layer: UI_GuideGuideLayer
 
 
 func _ready() -> void:
@@ -248,16 +232,33 @@ func _show_main_menu() -> void:
 	_cleanup_current()
 	_current_demo_name = "MainMenu"
 	_current_package = _main_package
-	_view = _main_package.create_object("Main") as FGUIComponent
-	if _view == null:
+	var menu := UI_MainMenuMain.create_instance(_main_package)
+	_view = menu
+	if menu == null:
 		push_error("FairyGUI demo MainMenu/Main is missing.")
 		return
-	_root_ui.add_child(_view)
-	_view.make_full_screen()
-	for button_name: String in DEMO_BY_BUTTON:
-		var button := _view.get_child(button_name)
-		if button != null:
-			button.on("click", Callable(self, "_on_menu_button_clicked").bind(str(DEMO_BY_BUTTON[button_name])))
+	_root_ui.add_child(menu)
+	menu.make_full_screen()
+	_bind_menu_button(menu.n_1, "Basics")
+	_bind_menu_button(menu.n_2, "Transition")
+	_bind_menu_button(menu.n_4, "VirtualList")
+	_bind_menu_button(menu.n_5, "LoopList")
+	_bind_menu_button(menu.n_6, "HitTest")
+	_bind_menu_button(menu.n_7, "PullToRefresh")
+	_bind_menu_button(menu.n_8, "ModalWaiting")
+	_bind_menu_button(menu.n_9, "Joystick")
+	_bind_menu_button(menu.n_10, "Bag")
+	_bind_menu_button(menu.n_11, "Chat")
+	_bind_menu_button(menu.n_12, "ListEffect")
+	_bind_menu_button(menu.n_13, "ScrollPane")
+	_bind_menu_button(menu.n_14, "TreeView")
+	_bind_menu_button(menu.n_15, "Guide")
+	_bind_menu_button(menu.n_16, "Cooldown")
+
+
+func _bind_menu_button(button: FGUIObject, demo_name: String) -> void:
+	if button != null:
+		button.on("click", Callable(self, "_on_menu_button_clicked").bind(demo_name))
 
 
 func _on_menu_button_clicked(_event: Variant, demo_name: String) -> void:
@@ -293,7 +294,7 @@ func _start_demo(demo_name: String) -> void:
 		_show_main_menu()
 		return
 	_configure_demo_before_create(demo_name)
-	_view = _current_package.create_object("Main") as FGUIComponent
+	_view = _create_demo_view(demo_name)
 	if _view == null:
 		push_error("FairyGUI demo component is missing: %s/Main" % demo_name)
 		_show_main_menu()
@@ -332,6 +333,26 @@ func _start_demo(demo_name: String) -> void:
 	_add_close_button()
 
 
+func _create_demo_view(demo_name: String) -> FGUIComponent:
+	match demo_name:
+		"Basics": return UI_BasicsMain.create_instance(_current_package)
+		"Transition": return UI_TransitionMain.create_instance(_current_package)
+		"VirtualList": return UI_VirtualListMain.create_instance(_current_package)
+		"LoopList": return UI_LoopListMain.create_instance(_current_package)
+		"HitTest": return UI_HitTestMain.create_instance(_current_package)
+		"PullToRefresh": return UI_PullToRefreshMain.create_instance(_current_package)
+		"ModalWaiting": return UI_ModalWaitingMain.create_instance(_current_package)
+		"Joystick": return UI_JoystickMain.create_instance(_current_package)
+		"Bag": return UI_BagMain.create_instance(_current_package)
+		"Chat": return UI_ChatMain.create_instance(_current_package)
+		"ListEffect": return UI_ListEffectMain.create_instance(_current_package)
+		"ScrollPane": return UI_ScrollPaneMain.create_instance(_current_package)
+		"TreeView": return UI_TreeViewMain.create_instance(_current_package)
+		"Guide": return UI_GuideMain.create_instance(_current_package)
+		"Cooldown": return UI_CooldownMain.create_instance(_current_package)
+		_: return null
+
+
 func _configure_demo_before_create(demo_name: String) -> void:
 	if demo_name == "Basics":
 		FGUIConfig.vertical_scroll_bar = "ui://Basics/ScrollBar_VT"
@@ -344,7 +365,7 @@ func _configure_demo_before_create(demo_name: String) -> void:
 
 
 func _add_close_button() -> void:
-	_close_button = _main_package.create_object("CloseButton")
+	_close_button = UI_MainMenuCloseButton.create_instance(_main_package)
 	if _close_button == null:
 		return
 	_close_button.set_xy(_root_ui.width - _close_button.width - 10.0, _root_ui.height - _close_button.height - 10.0)
@@ -415,6 +436,7 @@ func _cleanup_current() -> void:
 	_joystick_center = null
 	_joystick_text = null
 	_bag_window = null
+	_bag_content = null
 	_bag_list = null
 	_chat_list = null
 	_chat_input = null
@@ -445,15 +467,40 @@ func _remember_tweener(tweener: FGUIGTweener) -> FGUIGTweener:
 # Basics
 
 func _setup_basics() -> void:
-	_basic_back_button = _view.get_child("btn_Back")
+	var view := _view as UI_BasicsMain
+	if view == null:
+		return
+	_basic_back_button = view.btn_back
 	if _basic_back_button != null:
 		_basic_back_button.visible = false
 		_basic_back_button.on("click", Callable(self, "_basic_back_clicked"))
-	_basic_container = _view.get_child("container") as FGUIComponent
-	_basic_controller = _view.get_controller("c1")
-	for child: FGUIObject in _view.children:
-		if child != _basic_back_button and child.name.begins_with("btn_"):
-			child.on("click", Callable(self, "_run_basic_demo").bind(child.name.trim_prefix("btn_")))
+	_basic_container = view.container
+	_basic_controller = view.c_1
+	_bind_basic_button(view.btn_graph, "Graph")
+	_bind_basic_button(view.btn_image, "Image")
+	_bind_basic_button(view.btn_movie_clip, "MovieClip")
+	_bind_basic_button(view.btn_text, "Text")
+	_bind_basic_button(view.btn_loader, "Loader")
+	_bind_basic_button(view.btn_list, "List")
+	_bind_basic_button(view.btn_grid, "Grid")
+	_bind_basic_button(view.btn_controller, "Controller")
+	_bind_basic_button(view.btn_relation, "Relation")
+	_bind_basic_button(view.btn_clip_scroll, "Clip&Scroll")
+	_bind_basic_button(view.btn_component, "Component")
+	_bind_basic_button(view.btn_label, "Label")
+	_bind_basic_button(view.btn_button, "Button")
+	_bind_basic_button(view.btn_combo_box, "ComboBox")
+	_bind_basic_button(view.btn_slider, "Slider")
+	_bind_basic_button(view.btn_progress_bar, "ProgressBar")
+	_bind_basic_button(view.btn_popup, "Popup")
+	_bind_basic_button(view.btn_window, "Window")
+	_bind_basic_button(view.btn_depth, "Depth")
+	_bind_basic_button(view.btn_drag_drop, "Drag&Drop")
+
+
+func _bind_basic_button(button: FGUIObject, demo_type: String) -> void:
+	if button != null:
+		button.on("click", Callable(self, "_run_basic_demo").bind(demo_type))
 
 
 func _basic_back_clicked(_event: Variant = null) -> void:
@@ -503,7 +550,8 @@ func _run_basic_demo(_event: Variant, demo_type: String) -> void:
 
 
 func _setup_basic_button(demo: FGUIComponent) -> void:
-	var button := demo.get_child("n34")
+	var typed_demo := demo as UI_BasicsDemoButton
+	var button := typed_demo.n_34 if typed_demo != null else null
 	if button != null:
 		button.on("click", Callable(self, "_basic_button_clicked"))
 
@@ -513,36 +561,40 @@ func _basic_button_clicked(_event: Variant = null) -> void:
 
 
 func _setup_basic_text(demo: FGUIComponent) -> void:
-	var link_text := demo.get_child("n12")
+	var typed_demo := demo as UI_BasicsDemoText
+	if typed_demo == null:
+		return
+	var link_text := typed_demo.n_12
 	if link_text != null:
 		link_text.on(FGUIEvents.CLICK_LINK, Callable(self, "_basic_link_clicked"))
-	var copy_button := demo.get_child("n25")
+	var copy_button := typed_demo.n_25
 	if copy_button != null:
 		copy_button.on("click", Callable(self, "_basic_copy_input"))
 
 
 func _basic_link_clicked(link: Variant) -> void:
-	var demo := _basic_demo_objects.get("Text") as FGUIComponent
+	var demo := _basic_demo_objects.get("Text") as UI_BasicsDemoText
 	if demo == null:
 		return
-	var field := demo.get_child("n12")
-	if field != null:
-		field.set_text("[color=#FF0000]你点击了链接[/color]：%s" % str(link))
+	demo.n_12.set_text("[color=#FF0000]你点击了链接[/color]：%s" % str(link))
 
 
 func _basic_copy_input(_event: Variant = null) -> void:
-	var demo := _basic_demo_objects.get("Text") as FGUIComponent
+	var demo := _basic_demo_objects.get("Text") as UI_BasicsDemoText
 	if demo == null:
 		return
-	var input := demo.get_child("n22")
-	var output := demo.get_child("n24")
+	var input := demo.n_22
+	var output := demo.n_24
 	if input != null and output != null:
 		output.set_text(input.get_text())
 
 
 func _setup_basic_window(demo: FGUIComponent) -> void:
-	var button_a := demo.get_child("n0")
-	var button_b := demo.get_child("n1")
+	var typed_demo := demo as UI_BasicsDemoWindow
+	if typed_demo == null:
+		return
+	var button_a := typed_demo.n_0
+	var button_b := typed_demo.n_1
 	if button_a != null:
 		button_a.on("click", Callable(self, "_show_basic_window_a"))
 	if button_b != null:
@@ -552,9 +604,10 @@ func _setup_basic_window(demo: FGUIComponent) -> void:
 func _show_basic_window_a(_event: Variant = null) -> void:
 	if _basic_window_a == null or _basic_window_a.is_disposed:
 		_basic_window_a = _remember_window(FGUIWindow.new())
-		_basic_window_a.content_pane = _current_package.create_object("WindowA") as FGUIComponent
+		_basic_window_a.content_pane = UI_BasicsWindowA.create_instance(_current_package)
 		_basic_window_a.center_on(_root_ui)
-	var list := _basic_window_a.content_pane.get_child("n6") as FGUIList
+	var content := _basic_window_a.content_pane as UI_BasicsWindowA
+	var list := content.n_6 if content != null else null
 	if list != null:
 		list.remove_children_to_pool()
 		for index in 6:
@@ -568,7 +621,7 @@ func _show_basic_window_a(_event: Variant = null) -> void:
 func _show_basic_window_b(_event: Variant = null) -> void:
 	if _basic_window_b == null or _basic_window_b.is_disposed:
 		_basic_window_b = _remember_window(FGUIWindow.new())
-		_basic_window_b.content_pane = _current_package.create_object("WindowB") as FGUIComponent
+		_basic_window_b.content_pane = UI_BasicsWindowB.create_instance(_current_package)
 		_basic_window_b.center_on(_root_ui)
 		_basic_window_b.set_pivot(0.5, 0.5)
 	_basic_window_b.show_on(_root_ui)
@@ -578,20 +631,24 @@ func _show_basic_window_b(_event: Variant = null) -> void:
 			.set_target(_basic_window_b, Callable(_basic_window_b, "set_scale"))
 			.set_ease(FGUIEaseType.QUAD_OUT)
 	)
-	var transition := _basic_window_b.content_pane.get_transition("t1")
+	var content := _basic_window_b.content_pane as UI_BasicsWindowB
+	var transition := content.t_1 if content != null else null
 	if transition != null:
 		transition.play()
 
 
 func _setup_basic_popup(demo: FGUIComponent) -> void:
+	var typed_demo := demo as UI_BasicsDemoPopup
+	if typed_demo == null:
+		return
 	_basic_popup_menu = FGUIPopupMenu.new()
 	for index in range(1, 5):
 		_basic_popup_menu.add_item("Item %d" % index)
-	_basic_popup_component = _remember_object(_current_package.create_object("Component12")) as FGUIComponent
+	_basic_popup_component = _remember_object(UI_BasicsComponent12.create_instance(_current_package)) as UI_BasicsComponent12
 	if _basic_popup_component != null:
 		_basic_popup_component.center()
-	var button_1 := demo.get_child("n0")
-	var button_2 := demo.get_child("n1")
+	var button_1 := typed_demo.n_0
+	var button_2 := typed_demo.n_1
 	if button_1 != null:
 		button_1.on("click", Callable(self, "_show_basic_popup_menu").bind(button_1))
 	if button_2 != null:
@@ -609,19 +666,22 @@ func _show_basic_popup_component(_event: Variant = null) -> void:
 
 
 func _setup_basic_drag_drop(demo: FGUIComponent) -> void:
-	var button_a := demo.get_child("a")
+	var typed_demo := demo as UI_BasicsDemoDragDrop
+	if typed_demo == null:
+		return
+	var button_a := typed_demo.a
 	if button_a != null:
 		button_a.draggable = true
-	var button_b := demo.get_child("b") as FGUIButton
+	var button_b := typed_demo.b
 	if button_b != null:
 		button_b.draggable = true
 		button_b.on(FGUIEvents.DRAG_START, Callable(self, "_basic_drag_started").bind(button_b))
-	var button_c := demo.get_child("c") as FGUIButton
+	var button_c := typed_demo.c
 	if button_c != null:
 		button_c.icon = ""
 		button_c.on(FGUIEvents.DROP, Callable(self, "_basic_drop_received").bind(button_c))
-	var button_d := demo.get_child("d")
-	var bounds := demo.get_child("bounds")
+	var button_d := typed_demo.d
+	var bounds := typed_demo.bounds
 	if button_d != null and bounds != null:
 		button_d.draggable = true
 		var rect := bounds.local_to_global_rect(Rect2(0.0, 0.0, bounds.width, bounds.height))
@@ -643,10 +703,13 @@ func _basic_drop_received(data: Variant, button: FGUIButton) -> void:
 
 
 func _setup_basic_depth(demo: FGUIComponent) -> void:
-	var container := demo.get_child("n22") as FGUIComponent
+	var typed_demo := demo as UI_BasicsDemoDepth
+	if typed_demo == null:
+		return
+	var container := typed_demo.n_22 as UI_BasicsComponent13
 	if container == null:
 		return
-	var fixed_object := container.get_child("n0")
+	var fixed_object := container.n_0
 	if fixed_object == null:
 		return
 	fixed_object.sorting_order = 100
@@ -655,8 +718,8 @@ func _setup_basic_depth(demo: FGUIComponent) -> void:
 		if child != fixed_object:
 			container.remove_child(child, true)
 	_depth_start_position = Vector2(fixed_object.x, fixed_object.y)
-	var normal_button := demo.get_child("btn0")
-	var sorted_button := demo.get_child("btn1")
+	var normal_button := typed_demo.btn_0
+	var sorted_button := typed_demo.btn_1
 	if normal_button != null:
 		normal_button.on("click", Callable(self, "_add_depth_graph").bind(false))
 	if sorted_button != null:
@@ -664,10 +727,10 @@ func _setup_basic_depth(demo: FGUIComponent) -> void:
 
 
 func _add_depth_graph(_event: Variant, high_order: bool) -> void:
-	var demo := _basic_demo_objects.get("Depth") as FGUIComponent
+	var demo := _basic_demo_objects.get("Depth") as UI_BasicsDemoDepth
 	if demo == null:
 		return
-	var container := demo.get_child("n22") as FGUIComponent
+	var container := demo.n_22 as UI_BasicsComponent13
 	if container == null:
 		return
 	_depth_start_position += Vector2(10.0, 10.0)
@@ -681,60 +744,67 @@ func _add_depth_graph(_event: Variant, high_order: bool) -> void:
 
 
 func _setup_basic_grid(demo: FGUIComponent) -> void:
+	var typed_demo := demo as UI_BasicsDemoGrid
+	if typed_demo == null:
+		return
 	var names := [
 		"苹果手机操作系统", "安卓手机操作系统", "微软手机操作系统",
 		"微软桌面操作系统", "苹果桌面操作系统", "未知操作系统",
 	]
 	var colors := [Color.YELLOW, Color.RED, Color.WHITE, Color.BLUE]
-	var list_1 := demo.get_child("list1") as FGUIList
+	var list_1 := typed_demo.list_1
 	if list_1 != null:
 		list_1.remove_children_to_pool()
 		for index in names.size():
-			var item := list_1.add_item_from_pool() as FGUIButton
+			var item := list_1.add_item_from_pool() as UI_BasicsGridItem
 			if item == null:
 				continue
-			item.get_child("t0").set_text(str(index + 1))
-			item.get_child("t1").set_text(names[index])
-			var color_text := item.get_child("t2") as FGUITextField
+			item.t_0.set_text(str(index + 1))
+			item.t_1.set_text(names[index])
+			var color_text := item.t_2
 			if color_text != null:
 				color_text.color = colors[_rng.randi_range(0, colors.size() - 1)]
-			var stars := item.get_child("star") as FGUIProgressBar
+			var stars := item.star
 			if stars != null:
 				stars.value = float(_rng.randi_range(1, 3)) / 3.0 * 100.0
-	var list_2 := demo.get_child("list2") as FGUIList
+	var list_2 := typed_demo.list_2
 	if list_2 != null:
 		list_2.remove_children_to_pool()
 		for index in names.size():
-			var item := list_2.add_item_from_pool() as FGUIButton
+			var item := list_2.add_item_from_pool() as UI_BasicsGridItem2
 			if item == null:
 				continue
-			var checkbox := item.get_child("cb") as FGUIButton
+			var checkbox := item.cb
 			if checkbox != null:
 				checkbox.selected = false
-			item.get_child("t1").set_text(names[index])
-			var movie_clip := item.get_child("mc") as FGUIMovieClip
+			item.t_1.set_text(names[index])
+			var movie_clip := item.mc
 			if movie_clip != null:
 				movie_clip.playing = index % 2 == 0
-			item.get_child("t3").set_text(str(_rng.randi_range(0, 9999)))
+			item.t_3.set_text(str(_rng.randi_range(0, 9999)))
 
 
 # Transition
 
 func _setup_transition() -> void:
-	_transition_group = _view.get_child("g0") as FGUIGroup
-	for resource_name in ["BOSS", "BOSS_SKILL", "TRAP", "GoodHit", "PowerUp", "PathDemo"]:
-		var component := _remember_object(_current_package.create_object(resource_name)) as FGUIComponent
-		if component != null:
-			_transition_objects[resource_name] = component
-	var power_up := _transition_objects.get("PowerUp") as FGUIComponent
+	var view := _view as UI_TransitionMain
+	if view == null:
+		return
+	_transition_group = view.g_0
+	_transition_objects["BOSS"] = _remember_object(UI_TransitionBoss.create_instance(_current_package))
+	_transition_objects["BOSS_SKILL"] = _remember_object(UI_TransitionBossSkill.create_instance(_current_package))
+	_transition_objects["TRAP"] = _remember_object(UI_TransitionTrap.create_instance(_current_package))
+	_transition_objects["GoodHit"] = _remember_object(UI_TransitionGoodHit.create_instance(_current_package))
+	_transition_objects["PowerUp"] = _remember_object(UI_TransitionPowerUp.create_instance(_current_package))
+	_transition_objects["PathDemo"] = _remember_object(UI_TransitionPathDemo.create_instance(_current_package))
+	var power_up := _transition_objects.get("PowerUp") as UI_TransitionPowerUp
 	if power_up != null:
-		var transition := power_up.get_transition("t0")
+		var transition := power_up.t_0
 		if transition != null:
 			transition.set_hook("play_num_now", Callable(self, "_transition_play_number"))
-	for index in 6:
-		var button := _view.get_child("btn%d" % index)
-		if button != null:
-			button.on("click", Callable(self, "_transition_button_clicked").bind(index))
+	var buttons: Array[FGUIObject] = [view.btn_0, view.btn_1, view.btn_2, view.btn_3, view.btn_4, view.btn_5]
+	for index in buttons.size():
+		buttons[index].on("click", Callable(self, "_transition_button_clicked").bind(index))
 
 
 func _transition_button_clicked(_event: Variant, index: int) -> void:
@@ -770,15 +840,15 @@ func _play_transition_component(target: FGUIComponent, times: int = 1) -> void:
 
 
 func _play_power_up() -> void:
-	var power_up := _transition_objects.get("PowerUp") as FGUIComponent
+	var power_up := _transition_objects.get("PowerUp") as UI_TransitionPowerUp
 	if power_up == null:
 		return
 	power_up.set_xy(20.0, _root_ui.height - power_up.height - 100.0)
 	_transition_start_value = 10000.0
 	var added := _rng.randi_range(1001, 3000)
 	_transition_end_value = _transition_start_value + added
-	power_up.get_child("value").set_text(str(int(_transition_start_value)))
-	power_up.get_child("add_value").set_text("+%d" % added)
+	power_up.value.set_text(str(int(_transition_start_value)))
+	power_up.add_value.set_text("+%d" % added)
 	_play_transition_component(power_up)
 
 
@@ -791,9 +861,9 @@ func _transition_play_number() -> void:
 
 
 func _transition_number_updated(tweener: FGUIGTweener) -> void:
-	var power_up := _transition_objects.get("PowerUp") as FGUIComponent
+	var power_up := _transition_objects.get("PowerUp") as UI_TransitionPowerUp
 	if power_up != null and not power_up.is_disposed:
-		power_up.get_child("value").set_text(str(int(floorf(tweener.value.x))))
+		power_up.value.set_text(str(int(floorf(tweener.value.x))))
 
 
 func _transition_finished(target: FGUIComponent, session: int) -> void:
@@ -808,15 +878,18 @@ func _transition_finished(target: FGUIComponent, session: int) -> void:
 # Lists
 
 func _setup_virtual_list() -> void:
-	var list := _view.get_child("mailList") as FGUIList
+	var view := _view as UI_VirtualListMain
+	if view == null:
+		return
+	var list := view.mail_list
 	if list == null:
 		return
 	list.set_virtual()
 	list.item_renderer = Callable(self, "_render_virtual_mail")
 	list.num_items = 1000
-	var select_button := _view.get_child("n6")
-	var top_button := _view.get_child("n7")
-	var bottom_button := _view.get_child("n8")
+	var select_button := view.n_6
+	var top_button := view.n_7
+	var bottom_button := view.n_8
 	if select_button != null:
 		select_button.on("click", func(_event: Variant) -> void: list.add_selection(500, true))
 	if top_button != null:
@@ -834,19 +907,32 @@ func _configure_mail_item(object: FGUIObject, index: int, include_index: bool) -
 	if item == null:
 		return
 	item.title = "%sMail title here" % ("%d " % index if include_index else "")
-	var time_text := item.get_child("timeText")
+	var time_text: FGUITextField
+	var read_controller: FGUIController
+	var fetched_controller: FGUIController
+	if object is UI_VirtualListMailItem:
+		var virtual_item := object as UI_VirtualListMailItem
+		time_text = virtual_item.time_text
+		read_controller = virtual_item.is_read
+		fetched_controller = virtual_item.c_1
+	elif object is UI_ListEffectMailItem:
+		var effect_item := object as UI_ListEffectMailItem
+		time_text = effect_item.time_text
+		read_controller = effect_item.is_read
+		fetched_controller = effect_item.c_1
 	if time_text != null:
 		time_text.set_text("5 Nov 2015 16:24:33")
-	var read_controller := item.get_controller("IsRead")
 	if read_controller != null:
 		read_controller.selected_index = 1 if index % 2 == 0 else 0
-	var fetched_controller := item.get_controller("c1")
 	if fetched_controller != null:
 		fetched_controller.selected_index = 1 if index % 3 == 0 else 0
 
 
 func _setup_loop_list() -> void:
-	_loop_list = _view.get_child("list") as FGUIList
+	var view := _view as UI_LoopListMain
+	if view == null:
+		return
+	_loop_list = view.list
 	if _loop_list == null:
 		return
 	_loop_list.set_virtual_and_loop()
@@ -857,7 +943,7 @@ func _setup_loop_list() -> void:
 
 
 func _render_loop_item(index: int, object: FGUIObject) -> void:
-	var item := object as FGUIButton
+	var item := object as UI_LoopListItem
 	if item == null:
 		return
 	item.set_pivot(0.5, 0.5)
@@ -872,20 +958,24 @@ func _update_loop_list_effect(_event: Variant = null) -> void:
 		var distance := absf(middle_x - child.x - child.width * 0.5)
 		var scale := 1.0 if distance > child.width else 1.0 + (1.0 - distance / child.width) * 0.24
 		child.set_scale(scale, scale)
-	var label := _view.get_child("n3")
+	var view := _view as UI_LoopListMain
+	var label := view.n_3 if view != null else null
 	if label != null and _loop_list.num_items > 0:
 		label.set_text(str((_loop_list.get_first_child_in_view() + 1) % _loop_list.num_items))
 
 
 func _setup_pull_to_refresh() -> void:
-	_pull_list_1 = _view.get_child("list1") as FGUIList
-	_pull_list_2 = _view.get_child("list2") as FGUIList
+	var view := _view as UI_PullToRefreshMain
+	if view == null:
+		return
+	_pull_list_1 = view.list_1
+	_pull_list_2 = view.list_2
 	if _pull_list_1 != null:
 		_pull_list_1.item_renderer = Callable(self, "_render_pull_down_item")
 		_pull_list_1.set_virtual()
 		_pull_list_1.num_items = 1
 		_pull_list_1.on(FGUIEvents.PULL_DOWN_RELEASE, Callable(self, "_pull_down_released"))
-		var header := _pull_list_1.scroll_pane.header
+		var header := _pull_list_1.scroll_pane.header as UI_PullToRefreshHeader
 		if header != null:
 			header.on(FGUIEvents.SIZE_CHANGED, Callable(self, "_pull_header_size_changed").bind(header))
 			_pull_header_size_changed(null, header)
@@ -904,8 +994,8 @@ func _render_pull_up_item(index: int, item: FGUIObject) -> void:
 	item.set_text("Item %d" % index)
 
 
-func _pull_header_size_changed(_event: Variant, header: FGUIComponent) -> void:
-	var controller := header.get_controller("c1")
+func _pull_header_size_changed(_event: Variant, header: UI_PullToRefreshHeader) -> void:
+	var controller := header.c_1
 	if controller == null or controller.selected_index in [2, 3]:
 		return
 	controller.selected_index = 1 if header.height > header.source_height else 0
@@ -914,8 +1004,10 @@ func _pull_header_size_changed(_event: Variant, header: FGUIComponent) -> void:
 func _pull_down_released(_event: Variant = null) -> void:
 	if _pull_list_1 == null or _pull_list_1.scroll_pane.header == null:
 		return
-	var header := _pull_list_1.scroll_pane.header
-	var controller := header.get_controller("c1")
+	var header := _pull_list_1.scroll_pane.header as UI_PullToRefreshHeader
+	if header == null:
+		return
+	var controller := header.c_1
 	if controller == null or controller.selected_index != 1:
 		return
 	controller.selected_index = 2
@@ -923,37 +1015,39 @@ func _pull_down_released(_event: Variant = null) -> void:
 	_finish_pull_down(_session_id, header)
 
 
-func _finish_pull_down(session: int, header: FGUIComponent) -> void:
+func _finish_pull_down(session: int, header: UI_PullToRefreshHeader) -> void:
 	await get_tree().create_timer(2.0).timeout
 	if session != _session_id or _pull_list_1 == null or header == null or header.is_disposed:
 		return
 	_pull_list_1.num_items += 5
-	header.get_controller("c1").selected_index = 3
+	header.c_1.selected_index = 3
 	_pull_list_1.scroll_pane.lock_header(35.0)
 	await get_tree().create_timer(2.0).timeout
 	if session != _session_id or _pull_list_1 == null or header == null or header.is_disposed:
 		return
-	header.get_controller("c1").selected_index = 0
+	header.c_1.selected_index = 0
 	_pull_list_1.scroll_pane.lock_header(0.0)
 
 
 func _pull_up_released(_event: Variant = null) -> void:
 	if _pull_list_2 == null or _pull_list_2.scroll_pane.footer == null:
 		return
-	var footer := _pull_list_2.scroll_pane.footer
-	var controller := footer.get_controller("c1")
+	var footer := _pull_list_2.scroll_pane.footer as UI_PullToRefreshFooter
+	if footer == null:
+		return
+	var controller := footer.c_1
 	if controller != null:
 		controller.selected_index = 1
 	_pull_list_2.scroll_pane.lock_footer(footer.source_height)
 	_finish_pull_up(_session_id, footer)
 
 
-func _finish_pull_up(session: int, footer: FGUIComponent) -> void:
+func _finish_pull_up(session: int, footer: UI_PullToRefreshFooter) -> void:
 	await get_tree().create_timer(2.0).timeout
 	if session != _session_id or _pull_list_2 == null or footer == null or footer.is_disposed:
 		return
 	_pull_list_2.num_items += 5
-	var controller := footer.get_controller("c1")
+	var controller := footer.c_1
 	if controller != null:
 		controller.selected_index = 0
 	_pull_list_2.scroll_pane.lock_footer(0.0)
@@ -962,7 +1056,8 @@ func _finish_pull_up(session: int, footer: FGUIComponent) -> void:
 # Waiting, joystick, bag and chat
 
 func _setup_modal_waiting() -> void:
-	var button := _view.get_child("n0")
+	var view := _view as UI_ModalWaitingMain
+	var button := view.n_0 if view != null else null
 	if button != null:
 		button.on("click", Callable(self, "_show_modal_test_window"))
 	_root_ui.show_modal_wait()
@@ -978,9 +1073,10 @@ func _finish_global_modal_wait(session: int) -> void:
 func _show_modal_test_window(_event: Variant = null) -> void:
 	if _modal_window == null or _modal_window.is_disposed:
 		_modal_window = _remember_window(FGUIWindow.new())
-		_modal_window.content_pane = _current_package.create_object("TestWin") as FGUIComponent
+		_modal_window.content_pane = UI_ModalWaitingTestWin.create_instance(_current_package)
 		_modal_window.center_on(_root_ui)
-		var start_button := _modal_window.content_pane.get_child("n1")
+		var content := _modal_window.content_pane as UI_ModalWaitingTestWin
+		var start_button := content.n_1 if content != null else null
 		if start_button != null:
 			start_button.on("click", Callable(self, "_start_window_modal_wait"))
 	_modal_window.show_on(_root_ui)
@@ -1000,14 +1096,18 @@ func _finish_window_modal_wait(session: int, window: FGUIWindow) -> void:
 
 
 func _setup_joystick() -> void:
-	_joystick_button = _view.get_child("joystick") as FGUIButton
-	_joystick_touch_area = _view.get_child("joystick_touch")
-	_joystick_center = _view.get_child("joystick_center")
-	_joystick_text = _view.get_child("n9")
+	var view := _view as UI_JoystickMain
+	if view == null:
+		return
+	_joystick_button = view.joystick
+	_joystick_touch_area = view.joystick_touch
+	_joystick_center = view.joystick_center
+	_joystick_text = view.n_9
 	if _joystick_button == null or _joystick_touch_area == null or _joystick_center == null:
 		return
 	_joystick_button.change_state_on_click = false
-	_joystick_thumb = _joystick_button.get_child("thumb")
+	var joystick := _joystick_button as UI_JoystickCircle
+	_joystick_thumb = joystick.thumb if joystick != null else null
 	_joystick_initial_center = Vector2(
 		_joystick_center.x + _joystick_center.width * 0.5,
 		_joystick_center.y + _joystick_center.height * 0.5
@@ -1096,7 +1196,8 @@ func _stop_joystick_state() -> void:
 
 
 func _setup_bag() -> void:
-	var button := _view.get_child("bagBtn")
+	var view := _view as UI_BagMain
+	var button := view.bag_btn if view != null else null
 	if button != null:
 		button.on("click", Callable(self, "_show_bag_window"))
 
@@ -1104,9 +1205,10 @@ func _setup_bag() -> void:
 func _show_bag_window(_event: Variant = null) -> void:
 	if _bag_window == null or _bag_window.is_disposed:
 		_bag_window = _remember_window(FGUIWindow.new())
-		_bag_window.content_pane = _current_package.create_object("BagWin") as FGUIComponent
+		_bag_content = UI_BagBagWin.create_instance(_current_package)
+		_bag_window.content_pane = _bag_content
 		_bag_window.center_on(_root_ui)
-		_bag_list = _bag_window.content_pane.get_child("list") as FGUIList
+		_bag_list = _bag_content.list if _bag_content != null else null
 		if _bag_list != null:
 			_bag_list.set_virtual()
 			_bag_list.item_renderer = Callable(self, "_render_bag_item")
@@ -1125,8 +1227,8 @@ func _bag_item_clicked(item: Variant) -> void:
 	if not (item is FGUIObject) or _bag_window == null:
 		return
 	var object := item as FGUIObject
-	var loader := _bag_window.content_pane.get_child("n11")
-	var label := _bag_window.content_pane.get_child("n13")
+	var loader := _bag_content.n_11 if _bag_content != null else null
+	var label := _bag_content.n_13 if _bag_content != null else null
 	if loader != null:
 		loader.set_icon(object.get_icon())
 	if label != null:
@@ -1134,23 +1236,26 @@ func _bag_item_clicked(item: Variant) -> void:
 
 
 func _setup_chat() -> void:
-	_chat_list = _view.get_child("list") as FGUIList
-	_chat_input = _view.get_child("input1") as FGUITextInput
+	var view := _view as UI_ChatMain
+	if view == null:
+		return
+	_chat_list = view.list
+	_chat_input = view.input_1
 	if _chat_list != null:
 		_chat_list.set_virtual()
 		_chat_list.item_provider = Callable(self, "_chat_item_provider")
 		_chat_list.item_renderer = Callable(self, "_render_chat_item")
 	if _chat_input != null:
 		_chat_input.on(FGUIEvents.SUBMIT, Callable(self, "_chat_send"))
-	var send_button := _view.get_child("btnSend1")
-	var emoji_button := _view.get_child("btnEmoji1")
+	var send_button := view.btn_send_1
+	var emoji_button := view.btn_emoji_1
 	if send_button != null:
 		send_button.on("click", Callable(self, "_chat_send"))
 	if emoji_button != null:
 		emoji_button.on("click", Callable(self, "_show_emoji_popup").bind(emoji_button))
-	_emoji_select_ui = _remember_object(_current_package.create_object("EmojiSelectUI")) as FGUIComponent
+	_emoji_select_ui = _remember_object(UI_ChatEmojiSelectUi.create_instance(_current_package)) as UI_ChatEmojiSelectUi
 	if _emoji_select_ui != null:
-		var emoji_list := _emoji_select_ui.get_child("list") as FGUIList
+		var emoji_list := _emoji_select_ui.list
 		if emoji_list != null:
 			emoji_list.on(FGUIEvents.CLICK_ITEM, Callable(self, "_emoji_clicked"))
 
@@ -1195,12 +1300,14 @@ func _render_chat_item(index: int, object: FGUIObject) -> void:
 	var item := object as FGUIButton
 	if item == null:
 		return
-	if not bool(message["from_me"]):
-		var name_label := item.get_child("name")
-		if name_label != null:
-			name_label.set_text(str(message["sender"]))
+	var text: FGUIRichTextField
+	if object is UI_ChatChatLeft:
+		var left_item := object as UI_ChatChatLeft
+		left_item.ui_name.set_text(str(message["sender"]))
+		text = left_item.msg
+	elif object is UI_ChatChatRight:
+		text = (object as UI_ChatChatRight).msg
 	item.icon = FGUIPackage.get_item_url("Chat", str(message["icon"]))
-	var text := item.get_child("msg") as FGUIRichTextField
 	if text != null:
 		text.set_text(_parse_emoji(str(message["message"])))
 		text.ensure_size_correct()
@@ -1228,7 +1335,8 @@ func _emoji_clicked(item: Variant) -> void:
 # Effects, scroll panes, trees, guide and cooldown
 
 func _setup_list_effect() -> void:
-	var list := _view.get_child("mailList") as FGUIList
+	var view := _view as UI_ListEffectMain
+	var list := view.mail_list if view != null else null
 	if list == null:
 		return
 	list.remove_children_to_pool()
@@ -1241,15 +1349,18 @@ func _setup_list_effect() -> void:
 		if not list.is_child_in_view(item):
 			break
 		item.visible = false
-		var component := item as FGUIComponent
-		var transition := component.get_transition("t0") if component != null else null
+		var component := item as UI_ListEffectMailItem
+		var transition := component.t_0 if component != null else null
 		if transition != null:
 			transition.play(Callable(), 1, delay)
 		delay += 0.2
 
 
 func _setup_scroll_pane() -> void:
-	_scroll_list = _view.get_child("list") as FGUIList
+	var view := _view as UI_ScrollPaneMain
+	if view == null:
+		return
+	_scroll_list = view.list
 	if _scroll_list == null:
 		return
 	_scroll_list.item_renderer = Callable(self, "_render_scroll_item")
@@ -1259,14 +1370,14 @@ func _setup_scroll_pane() -> void:
 
 
 func _render_scroll_item(index: int, object: FGUIObject) -> void:
-	var item := object as FGUIButton
+	var item := object as UI_ScrollPaneItem
 	if item == null:
 		return
 	item.title = "Item %d" % index
 	if item.scroll_pane != null:
 		item.scroll_pane.pos_x = 0.0
-	_connect_scroll_action(item.get_child("b0"), "Stick")
-	_connect_scroll_action(item.get_child("b1"), "Delete")
+	_connect_scroll_action(item.b_0, "Stick")
+	_connect_scroll_action(item.b_1, "Delete")
 
 
 func _connect_scroll_action(button: FGUIObject, action: String) -> void:
@@ -1277,7 +1388,8 @@ func _connect_scroll_action(button: FGUIObject, action: String) -> void:
 
 
 func _scroll_action_clicked(_event: Variant, button: FGUIObject, action: String) -> void:
-	var output := _view.get_child("txt") if _view != null else null
+	var view := _view as UI_ScrollPaneMain
+	var output := view.txt if view != null else null
 	if output != null and button.parent != null:
 		output.set_text("%s %s" % [action, button.parent.get_text()])
 
@@ -1287,11 +1399,11 @@ func _scroll_list_pressed(event: Variant) -> void:
 		return
 	var hit := _scroll_list.hit_test(FGUIToolSet.get_pointer_position(event as InputEvent))
 	for child: FGUIObject in _scroll_list.children:
-		var item := child as FGUIButton
+		var item := child as UI_ScrollPaneItem
 		if item == null or item.scroll_pane == null or is_zero_approx(item.scroll_pane.pos_x):
 			continue
-		var stick := item.get_child("b0") as FGUIComponent
-		var delete := item.get_child("b1") as FGUIComponent
+		var stick := item.b_0
+		var delete := item.b_1
 		if (stick != null and stick.is_ancestor_of(hit)) or (delete != null and delete.is_ancestor_of(hit)):
 			return
 		item.scroll_pane.set_pos_x(0.0, true)
@@ -1301,8 +1413,11 @@ func _scroll_list_pressed(event: Variant) -> void:
 
 
 func _setup_tree_view() -> void:
-	var tree_1 := _view.get_child("tree") as FGUITree
-	var tree_2 := _view.get_child("tree2") as FGUITree
+	var view := _view as UI_TreeViewMain
+	if view == null:
+		return
+	var tree_1 := view.tree
+	var tree_2 := view.tree_2
 	if tree_1 != null:
 		tree_1.on(FGUIEvents.CLICK_ITEM, Callable(self, "_tree_item_clicked"))
 	if tree_2 == null:
@@ -1340,13 +1455,16 @@ func _tree_item_clicked(item: Variant) -> void:
 
 
 func _setup_guide() -> void:
-	_guide_layer = _remember_object(_current_package.create_object("GuideLayer")) as FGUIComponent
+	var view := _view as UI_GuideMain
+	if view == null:
+		return
+	_guide_layer = _remember_object(UI_GuideGuideLayer.create_instance(_current_package)) as UI_GuideGuideLayer
 	if _guide_layer == null:
 		return
 	_guide_layer.make_full_screen()
 	_guide_layer.add_relation(_root_ui, FGUIEnums.RELATION_SIZE)
-	var bag_button := _view.get_child("bagBtn")
-	var show_button := _view.get_child("n2")
+	var bag_button := view.bag_btn
+	var show_button := view.n_2
 	if bag_button != null:
 		bag_button.on("click", Callable(self, "_hide_guide"))
 	if show_button != null:
@@ -1364,7 +1482,7 @@ func _show_guide(_event: Variant, bag_button: FGUIObject) -> void:
 	_root_ui.add_child(_guide_layer)
 	var rect := bag_button.local_to_global_rect(Rect2(0.0, 0.0, bag_button.width, bag_button.height))
 	rect = _guide_layer.global_to_local_rect(rect)
-	var window := _guide_layer.get_child("window")
+	var window := _guide_layer.window
 	if window == null:
 		return
 	window.set_size(rect.size.x, rect.size.y)
@@ -1375,15 +1493,18 @@ func _show_guide(_event: Variant, bag_button: FGUIObject) -> void:
 
 
 func _setup_cooldown() -> void:
-	var first := _view.get_child("b0") as FGUIProgressBar
-	var second := _view.get_child("b1") as FGUIProgressBar
+	var view := _view as UI_CooldownMain
+	if view == null:
+		return
+	var first := view.b_0 as UI_CooldownButton1
+	var second := view.b_1 as UI_CooldownButton2
 	if first != null:
-		var first_icon := first.get_child("icon")
+		var first_icon := first.icon
 		if first_icon != null:
 			first_icon.set_icon("%s/k0.png" % ICON_ROOT)
 		_remember_tweener(FGUIGTween.to(0.0, 100.0, 5.0).set_target(first, Callable(first, "update")).set_repeat(-1))
 	if second != null:
-		var second_icon := second.get_child("icon")
+		var second_icon := second.icon
 		if second_icon != null:
 			second_icon.set_icon("%s/k1.png" % ICON_ROOT)
 		_remember_tweener(FGUIGTween.to(10.0, 0.0, 10.0).set_target(second, Callable(second, "update")).set_repeat(-1))

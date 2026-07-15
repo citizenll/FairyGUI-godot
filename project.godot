@@ -32,9 +32,10 @@ enabled=PackedStringArray("res://addons/fairygui/plugin.cfg")
 
 [fairygui]
 
-codegen/auto_generate=false
+codegen/auto_generate=true
 codegen/class_prefix="UI_"
-codegen/include_default_names=false
+codegen/include_default_names=true
+codegen/include_internal_components=true
 codegen/output_dir="res://generated/fairygui"
 codegen/registry_path="res://generated/fairygui/registry.gd"
 

@@ -11,6 +11,7 @@ const SETTING_OUTPUT_DIR := "fairygui/codegen/output_dir"
 const SETTING_REGISTRY_PATH := "fairygui/codegen/registry_path"
 const SETTING_CLASS_PREFIX := "fairygui/codegen/class_prefix"
 const SETTING_INCLUDE_DEFAULT_NAMES := "fairygui/codegen/include_default_names"
+const SETTING_INCLUDE_INTERNAL_COMPONENTS := "fairygui/codegen/include_internal_components"
 const TOOL_MENU_NAME := "Generate FairyGUI Bindings"
 
 var _fui_importer: EditorImportPlugin
@@ -38,8 +39,6 @@ func _enter_tree() -> void:
 	var filesystem := get_editor_interface().get_resource_filesystem()
 	if not filesystem.resources_reimported.is_connected(_on_resources_reimported):
 		filesystem.resources_reimported.connect(_on_resources_reimported)
-	if bool(ProjectSettings.get_setting(SETTING_AUTO_GENERATE, true)):
-		_queue_generation()
 
 
 func _exit_tree() -> void:
@@ -83,7 +82,8 @@ func generate_all_bindings() -> Dictionary:
 		output_dir,
 		str(ProjectSettings.get_setting(SETTING_CLASS_PREFIX, "UI_")),
 		bool(ProjectSettings.get_setting(SETTING_INCLUDE_DEFAULT_NAMES, false)),
-		registry_path
+		registry_path,
+		bool(ProjectSettings.get_setting(SETTING_INCLUDE_INTERNAL_COMPONENTS, false))
 	)
 	_report_generation(result, resource_paths.size())
 	_generation_running = false
@@ -241,6 +241,7 @@ func _register_project_settings() -> void:
 	)
 	_register_setting(SETTING_CLASS_PREFIX, "UI_", TYPE_STRING)
 	_register_setting(SETTING_INCLUDE_DEFAULT_NAMES, false, TYPE_BOOL)
+	_register_setting(SETTING_INCLUDE_INTERNAL_COMPONENTS, false, TYPE_BOOL)
 
 
 func _register_setting(

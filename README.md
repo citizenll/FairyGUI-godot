@@ -85,6 +85,7 @@ func _on_item_clicked(event: FGUIEvent) -> void:
 - `registry_path`：运行时自动注册表路径。
 - `class_prefix`：生成类名前缀，默认 `UI_`。
 - `include_default_names`：是否包含 `n<number>` 自动名称，默认关闭。
+- `include_internal_components`：是否为未标记 Exported 的内部组件生成类，默认关闭；完整演示工程会开启以展示列表 Item 等内部类型绑定。
 
 单个 `.fui` 可以在 Godot Import 面板中通过 `codegen/enabled` 排除；下次手工或自动生成会同步更新该包的注册项和生成文件。
 
@@ -143,6 +144,12 @@ add_child(inventory.node)
 
 直接使用 Godot 打开仓库并运行项目，即可进入完整示例。
 
+完整 Demo 已改为强类型绑定写法，主界面、各功能页、窗口、列表 Item 和 Controller 均直接访问 `UI_*` 生成成员。演示工程为了覆盖旧示例中的 `n<number>` 和内部 Item，开启了 `include_default_names` 与 `include_internal_components`。更新 `.fui` 后可运行：
+
+```powershell
+godot --headless --path . --script res://tools/generate_demo_bindings.gd
+```
+
 ## 商业项目使用
 
 本项目采用 MIT License，可用于个人和商业项目。正式上线前仍应使用项目自己的 `.fui` 包、字体、语言、输入方式和目标设备完成回归测试，并根据实际界面规模进行性能分析。
@@ -165,7 +172,9 @@ add_child(inventory.node)
 
 ```text
 addons/fairygui/          FairyGUI 运行时、编辑器导入器与预览组件
+generated/fairygui/       完整 Demo 使用的自动生成强类型绑定
 examples/                 完整示例、最小接入示例及示例资源
+tools/                    Demo 绑定维护脚本
 demo.tscn                 示例项目入口
 project.godot             示例项目配置
 ```

@@ -24,12 +24,16 @@ func _run() -> void:
 
 	var generator := FGUIBindingCodeGenerator.new()
 	var paths := PackedStringArray([PACKAGE_PATH])
-	var first := generator.generate(paths, OUTPUT_DIR, "UI_", false, REGISTRY_PATH)
+	var first := generator.generate(paths, OUTPUT_DIR, "ProbeUI_", false, REGISTRY_PATH)
 	if not bool(first.get("ok", false)):
 		_fail("Initial binding generation failed: %s" % [first.get("errors", [])])
 		return
 	if not FileAccess.file_exists(REGISTRY_PATH) or not FileAccess.file_exists(OUTPUT_DIR + "/manifest.json"):
 		_fail("Binding generation did not create the registry and manifest.")
+		return
+	var registry_source := FileAccess.get_file_as_string(REGISTRY_PATH)
+	if registry_source.contains("preload("):
+		_fail("Generated registry eagerly preloaded component scripts.")
 		return
 
 	var package_resource := ResourceLoader.load(PACKAGE_PATH) as FGUIPackageResource
@@ -62,7 +66,7 @@ func _run() -> void:
 
 	var first_modified := FileAccess.get_modified_time(main_script_path)
 	OS.delay_msec(1100)
-	var second := generator.generate(paths, OUTPUT_DIR, "UI_", false, REGISTRY_PATH)
+	var second := generator.generate(paths, OUTPUT_DIR, "ProbeUI_", false, REGISTRY_PATH)
 	if not bool(second.get("ok", false)):
 		_fail("Repeated binding generation failed: %s" % [second.get("errors", [])])
 		return
@@ -70,7 +74,7 @@ func _run() -> void:
 		_fail("Unchanged generated binding was rewritten.")
 		return
 	var stable_source := FileAccess.get_file_as_string(main_script_path)
-	var rejected := RejectingGenerator.new().generate(paths, OUTPUT_DIR, "UI_", false, REGISTRY_PATH)
+	var rejected := RejectingGenerator.new().generate(paths, OUTPUT_DIR, "ProbeUI_", false, REGISTRY_PATH)
 	if bool(rejected.get("ok", false)) or FileAccess.get_file_as_string(main_script_path) != stable_source:
 		_fail("Rejected generated output was not rolled back transactionally.")
 		return
@@ -78,7 +82,7 @@ func _run() -> void:
 	_write_text(main_script_path + ".fairygui_backup", stable_source)
 	_write_text(main_script_path, "# interrupted generated output\n")
 	_write_text(main_script_path + ".fairygui_tmp", "# interrupted temporary output\n")
-	var recovered := generator.generate(paths, OUTPUT_DIR, "UI_", false, REGISTRY_PATH)
+	var recovered := generator.generate(paths, OUTPUT_DIR, "ProbeUI_", false, REGISTRY_PATH)
 	if not bool(recovered.get("ok", false)) or FileAccess.get_file_as_string(main_script_path) != stable_source:
 		_fail("Interrupted generated output was not recovered.")
 		return
@@ -89,7 +93,7 @@ func _run() -> void:
 	FGUIObjectFactory.reload_generated_extensions()
 	var runtime_package := FGUIPackage.add_package(PACKAGE_PATH)
 	var view := runtime_package.create_object("Main") as FGUIComponent if runtime_package != null else null
-	if view == null or view.get_script() == null or view.get_script().get_global_name() != "UI_VirtualListMain":
+	if view == null or view.get_script() == null or view.get_script().get_global_name() != "ProbeUI_VirtualListMain":
 		var actual_script := "<null>"
 		if view != null and view.get_script() != null:
 			actual_script = "%s (%s)" % [view.get_script().get_global_name(), view.get_script().resource_path]
@@ -108,7 +112,7 @@ func _run() -> void:
 	var failed := generator.generate(
 		PackedStringArray(["res://tests/does_not_exist.fui"]),
 		OUTPUT_DIR,
-		"UI_",
+		"ProbeUI_",
 		false,
 		REGISTRY_PATH
 	)
@@ -123,7 +127,9 @@ func _run() -> void:
 	_write_text(main_script_path, protected_source)
 	var user_file := OUTPUT_DIR + "/user_notes.gd"
 	_write_text(user_file, "extends RefCounted\n")
-	var cleared := generator.generate(PackedStringArray(), OUTPUT_DIR, "UI_", false, REGISTRY_PATH)
+	if stale_generated_path != "":
+		_write_text(stale_generated_path + ".uid", "uid://fairyguicodegenprobe\n")
+	var cleared := generator.generate(PackedStringArray(), OUTPUT_DIR, "ProbeUI_", false, REGISTRY_PATH)
 	if not bool(cleared.get("ok", false)):
 		_fail("Empty generation failed: %s" % [cleared.get("errors", [])])
 		return
@@ -132,6 +138,9 @@ func _run() -> void:
 		return
 	if stale_generated_path != "" and FileAccess.file_exists(stale_generated_path):
 		_fail("Stale cleanup did not remove an obsolete generated binding.")
+		return
+	if stale_generated_path != "" and FileAccess.file_exists(stale_generated_path + ".uid"):
+		_fail("Stale cleanup did not remove an obsolete generated binding UID.")
 		return
 
 	FGUIObjectFactory.set_generated_extensions({})

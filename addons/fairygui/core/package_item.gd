@@ -9,6 +9,7 @@ var name: String = ""
 var width: int = 0
 var height: int = 0
 var file: String = ""
+var exported: bool = false
 var decoded: bool = false
 var raw_data: FGUIByteBuffer
 var high_resolution: Array = []
