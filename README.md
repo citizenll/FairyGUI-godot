@@ -113,7 +113,7 @@ var ui: UI_TYPE
 
 ## 可视化事件绑定
 
-配置了界面脚本的 `FGUIView` 会在 Inspector 中显示“FairyGUI 事件绑定”面板：
+配置了界面脚本的 `FGUIView` 会在 Inspector 中显示“FairyGUI 事件连接”面板：
 
 1. 选择 `.fui` 中的真实命名对象。
 2. 选择该对象支持的点击、状态、列表、滚动、拖动或文本事件。

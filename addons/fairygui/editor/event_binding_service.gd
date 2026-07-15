@@ -163,11 +163,12 @@ func _append_target(
 	if lookup.has(key):
 		return
 	var events := _events_for_object(value)
-	var label := "ui · %s" % component_name if path.is_empty() else " / ".join(path)
+	var label := "%s（界面根节点）" % component_name if path.is_empty() else str(path[path.size() - 1])
 	var target := {
 		"key": key,
 		"path": path.duplicate(),
 		"label": label,
+		"path_label": "界面根节点" if path.is_empty() else " / ".join(path),
 		"type": _object_type_name(value),
 		"component_name": component_name,
 		"events": events,
@@ -253,35 +254,35 @@ func _identifier_token(value: String) -> String:
 
 func _object_type_name(value: FGUIObject) -> String:
 	if value is FGUITree:
-		return "Tree"
+		return "树"
 	if value is FGUIList:
-		return "List"
+		return "列表"
 	if value is FGUIComboBox:
-		return "ComboBox"
+		return "下拉框"
 	if value is FGUISlider:
-		return "Slider"
+		return "滑动条"
 	if value is FGUIProgressBar:
-		return "ProgressBar"
+		return "进度条"
 	if value is FGUIButton:
-		return "Button"
+		return "按钮"
 	if value is FGUITextInput:
-		return "TextInput"
+		return "输入框"
 	if value is FGUIRichTextField:
-		return "RichText"
+		return "富文本"
 	if value is FGUITextField:
-		return "Text"
+		return "文本"
 	if value is FGUIMovieClip:
-		return "MovieClip"
+		return "动画"
 	if value is FGUIImage:
-		return "Image"
+		return "图片"
 	if value is FGUILoader3D:
-		return "Loader3D"
+		return "3D 加载器"
 	if value is FGUILoader:
-		return "Loader"
+		return "加载器"
 	if value is FGUIGraph:
-		return "Graph"
+		return "图形"
 	if value is FGUIGroup:
-		return "Group"
+		return "分组"
 	if value is FGUIComponent:
-		return "Component"
-	return "Object"
+		return "组件"
+	return "对象"

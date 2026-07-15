@@ -48,7 +48,7 @@ func _on_start_button_clicked(event: FGUIEventContext) -> void:
 
 ## 4. P2-2：Inspector 事件面板
 
-`FGUIView` Inspector 增加“FairyGUI 事件绑定”区域：
+`FGUIView` Inspector 增加“FairyGUI 事件连接”区域：
 
 - 现有绑定列表显示目标、事件、处理函数和诊断状态。
 - 目标选择器递归展示真实 `.fui` 命名对象。
