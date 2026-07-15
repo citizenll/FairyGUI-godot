@@ -76,6 +76,10 @@ func _run() -> void:
 
 	var preview_scroll: ScrollContainer = panel._preview_scroll
 	var selection_overlay: Control = panel._selection_overlay
+	if preview_scroll.horizontal_scroll_mode != ScrollContainer.SCROLL_MODE_SHOW_NEVER \
+			or preview_scroll.vertical_scroll_mode != ScrollContainer.SCROLL_MODE_SHOW_NEVER:
+		_fail("GUI preview did not configure an editor-style hidden-scrollbar canvas.")
+		return
 	if selection_overlay.mouse_filter != Control.MOUSE_FILTER_STOP:
 		_fail("GUI preview selection overlay did not own canvas navigation input.")
 		return
@@ -129,6 +133,7 @@ func _run() -> void:
 	var pan_motion_in_scroll := Vector2(120.0, 90.0)
 	middle_motion.position = selection_overlay.get_global_transform().affine_inverse() \
 			* (preview_scroll.get_global_transform() * pan_motion_in_scroll)
+	middle_motion.relative = Vector2(-40.0, -30.0)
 	selection_overlay.emit_signal("gui_input", middle_motion)
 	var pan_end := Vector2(preview_scroll.scroll_horizontal, preview_scroll.scroll_vertical)
 	if pan_end.distance_to(pan_start + Vector2(40.0, 30.0)) > 2.0:
@@ -143,8 +148,13 @@ func _run() -> void:
 		_fail("Middle mouse release did not stop GUI preview panning.")
 		return
 
-	preview_scroll.scroll_horizontal = 180
-	preview_scroll.scroll_vertical = 140
+	panel._fit_preview()
+	await process_frame
+	await process_frame
+	if panel._preview_canvas.custom_minimum_size.x <= preview_scroll.size.x * 2.0 \
+			or panel._preview_canvas.custom_minimum_size.y <= preview_scroll.size.y * 2.0:
+		_fail("Fit preview did not retain free middle-mouse panning space.")
+		return
 	var routed_pan_start := Vector2(preview_scroll.scroll_horizontal, preview_scroll.scroll_vertical)
 	var visible_overlay_rect := selection_overlay.get_global_rect().intersection(preview_scroll.get_global_rect())
 	if not visible_overlay_rect.has_area():
@@ -159,7 +169,8 @@ func _run() -> void:
 	selection_overlay.get_viewport().push_input(routed_press, true)
 	await process_frame
 	var routed_motion := InputEventMouseMotion.new()
-	routed_motion.button_mask = MOUSE_BUTTON_MASK_MIDDLE
+	# Some editor/window paths report motion without a reliable middle-button mask.
+	routed_motion.button_mask = 0
 	routed_motion.position = routed_press_position - Vector2(40.0, 30.0)
 	routed_motion.global_position = routed_motion.position
 	routed_motion.relative = Vector2(-40.0, -30.0)

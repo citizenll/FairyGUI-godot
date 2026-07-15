@@ -25,7 +25,7 @@ var _preview_origin := Vector2.ZERO
 var _syncing_selection: bool = false
 var _panning: bool = false
 var _pan_start_mouse := Vector2.ZERO
-var _pan_start_scroll := Vector2.ZERO
+var _last_navigation_event_id: int = 0
 var _view_states: Dictionary = {}
 var _context_view_ref: WeakRef
 
@@ -48,7 +48,36 @@ var _status_label: Label
 
 
 func _ready() -> void:
+	set_process_input(true)
 	_ensure_ui()
+
+
+func _input(event: InputEvent) -> void:
+	if not _initialized or not is_visible_in_tree() or _preview_scroll == null:
+		return
+	if event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		if mouse_event.button_index != MOUSE_BUTTON_MIDDLE:
+			return
+		if mouse_event.pressed:
+			if not _preview_scroll.get_global_rect().has_point(mouse_event.position):
+				return
+			if not _claim_navigation_event(event):
+				return
+			_begin_panning(mouse_event.position)
+		elif _panning:
+			if not _claim_navigation_event(event):
+				return
+			_stop_panning()
+		else:
+			return
+		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventMouseMotion and _panning:
+		if not _claim_navigation_event(event):
+			return
+		_update_panning(event as InputEventMouseMotion, null)
+		get_viewport().set_input_as_handled()
 
 
 func _notification(what: int) -> void:
@@ -267,8 +296,8 @@ func _ensure_ui() -> void:
 	split.add_child(preview_panel)
 
 	_preview_scroll = ScrollContainer.new()
-	_preview_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	_preview_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_preview_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	_preview_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 	_preview_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_preview_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_preview_scroll.resized.connect(_layout_preview)
@@ -675,6 +704,8 @@ func _fit_preview() -> void:
 	if available.x <= 0.0 or available.y <= 0.0:
 		return
 	_set_zoom(minf(1.0, minf(available.x / _content_size.x, available.y / _content_size.y)))
+	_center_preview_content()
+	call_deferred("_center_preview_content")
 
 
 func _layout_preview() -> void:
@@ -682,13 +713,13 @@ func _layout_preview() -> void:
 		return
 	var scaled_size := _content_size * _zoom
 	var available := _preview_scroll.size if _preview_scroll != null else Vector2.ZERO
-	var canvas_size := Vector2(
-		maxf(available.x, scaled_size.x + PREVIEW_PADDING * 2.0),
-		maxf(available.y, scaled_size.y + PREVIEW_PADDING * 2.0)
+	var pan_margin := Vector2(
+		maxf(available.x, PREVIEW_PADDING),
+		maxf(available.y, PREVIEW_PADDING)
 	)
+	var canvas_size := scaled_size + pan_margin * 2.0
 	_preview_canvas.custom_minimum_size = canvas_size
-	var origin := (canvas_size - scaled_size) * 0.5
-	_preview_origin = origin
+	_preview_origin = pan_margin
 	_preview_view.position = _preview_origin
 	_preview_view.scale = Vector2.ONE * _zoom
 	_selection_overlay.position = _preview_origin
@@ -696,19 +727,23 @@ func _layout_preview() -> void:
 	_selection_overlay.queue_redraw()
 
 
+func _center_preview_content() -> void:
+	if _preview_scroll == null:
+		return
+	var scaled_size := _content_size * _zoom
+	var target_scroll := _preview_origin + scaled_size * 0.5 - _preview_scroll.size * 0.5
+	_apply_scroll_position(target_scroll)
+
+
 func _on_preview_gui_input(event: InputEvent, source: Control = null) -> void:
 	if event is InputEventMouseButton:
 		var mouse_event := event as InputEventMouseButton
 		var event_position := _preview_input_position(mouse_event.position, source)
 		if mouse_event.button_index == MOUSE_BUTTON_MIDDLE:
+			if not _claim_navigation_event(event):
+				return
 			if mouse_event.pressed:
-				_panning = true
-				_pan_start_mouse = event_position
-				_pan_start_scroll = Vector2(
-					_preview_scroll.scroll_horizontal,
-					_preview_scroll.scroll_vertical
-				)
-				_preview_scroll.mouse_default_cursor_shape = Control.CURSOR_DRAG
+				_begin_panning(event_position)
 			else:
 				_stop_panning()
 			_accept_preview_input(source)
@@ -721,14 +756,37 @@ func _on_preview_gui_input(event: InputEvent, source: Control = null) -> void:
 			_accept_preview_input(source)
 			return
 	if event is InputEventMouseMotion and _panning:
-		var motion_event := event as InputEventMouseMotion
-		if (motion_event.button_mask & MOUSE_BUTTON_MASK_MIDDLE) == 0:
-			_stop_panning()
+		if not _claim_navigation_event(event):
 			return
-		var event_position := _preview_input_position(motion_event.position, source)
-		var target_scroll := _pan_start_scroll - (event_position - _pan_start_mouse)
-		_apply_scroll_position(target_scroll)
+		_update_panning(event as InputEventMouseMotion, source)
 		_accept_preview_input(source)
+
+
+func _claim_navigation_event(event: InputEvent) -> bool:
+	var event_id := event.get_instance_id()
+	if event_id == _last_navigation_event_id:
+		return false
+	_last_navigation_event_id = event_id
+	return true
+
+
+func _begin_panning(position: Vector2) -> void:
+	_panning = true
+	_pan_start_mouse = position
+	_preview_scroll.mouse_default_cursor_shape = Control.CURSOR_DRAG
+
+
+func _update_panning(event: InputEventMouseMotion, source: Control) -> void:
+	var event_position := _preview_input_position(event.position, source)
+	var delta := event.relative
+	if delta.is_zero_approx():
+		delta = event_position - _pan_start_mouse
+	_pan_start_mouse = event_position
+	var current_scroll := Vector2(
+		_preview_scroll.scroll_horizontal,
+		_preview_scroll.scroll_vertical
+	)
+	_apply_scroll_position(current_scroll - delta)
 
 
 func _preview_input_position(position: Vector2, source: Control) -> Vector2:
