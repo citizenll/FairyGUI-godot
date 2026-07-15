@@ -72,6 +72,24 @@ func _run() -> void:
 	if not str(created.script_path).ends_with("/mail_panel.gd"):
 		_fail("Business script path was not derived from the FGUIView node name: %s" % created.script_path)
 		return
+	var business_script := ResourceLoader.load(str(created.script_path), "", ResourceLoader.CACHE_MODE_REPLACE) as Script
+	if business_script == null:
+		_fail("Generated business script could not be loaded.")
+		return
+	FGUIObjectFactory.reload_generated_extensions()
+	var recovered_view := FGUIView.new()
+	recovered_view.set_script(business_script)
+	root.add_child(recovered_view)
+	for _frame in 4:
+		await process_frame
+	if recovered_view.package == null or recovered_view.package.get_source_path() != PACKAGE_PATH:
+		_fail("Business script did not restore its generated .fui package configuration.")
+		return
+	if recovered_view.component_name != "Main" or recovered_view.fairy == null:
+		_fail("Business script did not restore its generated component preview.")
+		return
+	recovered_view.queue_free()
+	await process_frame
 
 	var diagnostics := PackageDiagnostics.new().analyze(resource, view.component_name)
 	if int(diagnostics.error_count) != 0 or int(diagnostics.warning_count) != 0:
@@ -103,7 +121,6 @@ func _run() -> void:
 		return
 	drop_overlay.free()
 
-	FGUIObjectFactory.reload_generated_extensions()
 	root.add_child(view)
 	for _frame in 4:
 		await process_frame

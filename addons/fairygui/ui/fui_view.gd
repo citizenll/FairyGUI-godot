@@ -62,6 +62,7 @@ var fairy: FGUIObject:
 
 
 func _ready() -> void:
+	_restore_configuration_from_business_script()
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_connect_package_changed()
 	if Engine.is_editor_hint():
@@ -94,6 +95,28 @@ func refresh_preview() -> void:
 
 func get_fairy_object() -> FGUIObject:
 	return _preview_object
+
+
+func _restore_configuration_from_business_script() -> void:
+	if _package_resource != null and _component_name != "":
+		return
+	var view_script := get_script() as Script
+	if view_script == null:
+		return
+	var ui_type := view_script.get_script_constant_map().get("UI_TYPE") as Script
+	if ui_type == null:
+		return
+	var constants := ui_type.get_script_constant_map()
+	var package_path := str(constants.get("PACKAGE_PATH", ""))
+	if not package_path.begins_with("res://"):
+		return
+	if _package_resource == null:
+		var resource := ResourceLoader.load(package_path) as FGUIPackageResource
+		if resource == null:
+			return
+		package = resource
+	if _component_name == "" and _package_resource.get_source_path() == package_path:
+		component_name = str(constants.get("COMPONENT_NAME", ""))
 
 
 func _queue_preview_refresh() -> void:

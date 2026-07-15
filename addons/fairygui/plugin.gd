@@ -200,23 +200,23 @@ func _on_inspector_business_script(object: Object) -> void:
 	if view.package == null:
 		push_error("[FairyGUI editor] 请先为 FGUIView 配置 .fui 包。")
 		return
-	_prepare_business_script.call_deferred(weakref(view), 0)
+	_prepare_business_script.call_deferred(weakref(view), 0, true)
 
 
-func _prepare_business_script(view_ref: WeakRef, attempt: int) -> void:
+func _prepare_business_script(view_ref: WeakRef, attempt: int, use_undo: bool) -> void:
 	var view := view_ref.get_ref() as FGUIView
 	if view == null or not is_inside_tree():
 		return
 	var filesystem := get_editor_interface().get_resource_filesystem()
 	if (filesystem.is_scanning() or filesystem.is_importing()) and attempt < 240:
-		_prepare_business_script.call_deferred(view_ref, attempt + 1)
+		_prepare_business_script.call_deferred(view_ref, attempt + 1, use_undo)
 		return
 	var generator := BusinessScriptGenerator.new()
 	var binding := generator.resolve_binding(view.package, view.component_name)
 	if not bool(binding.ok) or not bool(binding.current):
 		var generation := generate_all_bindings()
 		if bool(generation.get("busy", false)) and attempt < 240:
-			_prepare_business_script.call_deferred(view_ref, attempt + 1)
+			_prepare_business_script.call_deferred(view_ref, attempt + 1, use_undo)
 			return
 		if not bool(generation.get("ok", false)):
 			push_error("[FairyGUI editor] 无法为当前 .fui 生成强类型绑定。")
@@ -228,28 +228,75 @@ func _prepare_business_script(view_ref: WeakRef, attempt: int) -> void:
 		push_error("[FairyGUI editor] 无法创建界面脚本：%s" % result.error)
 		return
 	get_editor_interface().get_resource_filesystem().scan_sources()
-	_attach_business_script_when_ready.call_deferred(weakref(view), str(result.script_path), view.get_script() as Script, 0)
+	_attach_business_script_when_ready.call_deferred(
+		weakref(view),
+		str(result.script_path),
+		view.get_script() as Script,
+		use_undo,
+		0
+	)
 
 
-func _attach_business_script_when_ready(view_ref: WeakRef, script_path: String, previous_script: Script, attempt: int) -> void:
+func _attach_business_script_when_ready(
+		view_ref: WeakRef,
+		script_path: String,
+		previous_script: Script,
+		use_undo: bool,
+		attempt: int
+	) -> void:
 	var view := view_ref.get_ref() as FGUIView
 	if view == null or not is_inside_tree():
 		return
 	var filesystem := get_editor_interface().get_resource_filesystem()
 	if filesystem.is_scanning() and attempt < 240:
-		_attach_business_script_when_ready.call_deferred(view_ref, script_path, previous_script, attempt + 1)
+		_attach_business_script_when_ready.call_deferred(
+			view_ref,
+			script_path,
+			previous_script,
+			use_undo,
+			attempt + 1
+		)
 		return
 	var script := ResourceLoader.load(script_path, "", ResourceLoader.CACHE_MODE_REPLACE) as Script
 	if script == null:
 		push_error("[FairyGUI editor] 界面脚本无法加载：%s" % script_path)
 		return
-	var undo_redo := get_undo_redo()
-	undo_redo.create_action("创建 FairyGUI 界面脚本")
-	undo_redo.add_do_method(view, "set_script", script)
-	undo_redo.add_undo_method(view, "set_script", previous_script)
-	undo_redo.commit_action()
+	var state := _capture_view_configuration(view)
+	if use_undo:
+		var scene_root := get_editor_interface().get_edited_scene_root()
+		var undo_redo := get_undo_redo()
+		undo_redo.create_action("创建 FairyGUI 界面脚本", UndoRedo.MERGE_DISABLE, scene_root if scene_root != null else view)
+		undo_redo.add_do_method(self, "_apply_view_script", view, script, state)
+		undo_redo.add_undo_method(self, "_apply_view_script", view, previous_script, state)
+		undo_redo.commit_action()
+		get_editor_interface().edit_script(script)
+	else:
+		_apply_view_script(view, script, state)
+
+
+func _capture_view_configuration(view: FGUIView) -> Dictionary:
+	return {
+		"package": view.package,
+		"component_name": view.component_name,
+		"component_script": view.component_script,
+		"preview_in_editor": view.preview_in_editor,
+		"resize_to_content": view.resize_to_content,
+		"match_control_size": view.match_control_size,
+	}
+
+
+func _apply_view_script(view: FGUIView, script: Script, state: Dictionary) -> void:
+	if view == null:
+		return
+	view.call("_clear_preview")
+	view.set_script(script)
+	view.package = state.get("package") as FGUIPackageResource
+	view.component_name = str(state.get("component_name", ""))
+	view.component_script = state.get("component_script") as Script
+	view.preview_in_editor = bool(state.get("preview_in_editor", true))
+	view.resize_to_content = bool(state.get("resize_to_content", true))
+	view.match_control_size = bool(state.get("match_control_size", false))
 	view.notify_property_list_changed()
-	get_editor_interface().edit_script(script)
 
 
 func _on_diagnostic_path(path: String) -> void:
@@ -353,6 +400,7 @@ func _on_canvas_component_dropped(package_path: String, component_name: String, 
 	undo_redo.add_undo_method(parent, "remove_child", view)
 	undo_redo.add_do_reference(view)
 	undo_redo.commit_action()
+	_prepare_business_script.call_deferred(weakref(view), 0, false)
 
 
 func _drop_parent(scene_root: Node) -> Node:
