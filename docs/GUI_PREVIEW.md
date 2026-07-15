@@ -3,6 +3,8 @@
 状态：已实施  
 适用版本：Godot 4.x，主要在 Godot 4.7 上验证
 
+![GUI 预览面板](gui-preview-panel.png)
+
 ## 1. 入口
 
 以下操作会打开编辑器底部的“GUI预览”面板：
