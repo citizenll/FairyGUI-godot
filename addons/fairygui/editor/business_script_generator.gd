@@ -51,7 +51,7 @@ func resolve_binding(resource: FGUIPackageResource, component_name: String = "")
 	result.binding_path = binding_path
 	result.binding_class = binding_class
 	var source_path := resource.resource_path if resource.resource_path.get_extension().to_lower() == "fui" else resource.get_source_path()
-	result.current = str(manifest.get("inputs", {}).get(source_path, "")) == resource.content_hash
+	result.current = str(manifest.get("inputs", {}).get(source_path, "")) == resource.get_binding_hash()
 	return result
 
 

@@ -92,7 +92,7 @@ func _analyze_bindings(resource: FGUIPackageResource, component_name: String, re
 	var manifest_hash := str(manifest.get("inputs", {}).get(source_path, ""))
 	if manifest_hash == "":
 		_add_issue(result, "warning", "当前包尚未写入绑定清单。", manifest_path)
-	elif manifest_hash != resource.content_hash:
+	elif manifest_hash != resource.get_binding_hash():
 		_add_issue(result, "warning", "绑定已过期，需要重新生成。", manifest_path)
 
 	var component := resource.get_component_info(component_name)

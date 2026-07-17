@@ -7,6 +7,7 @@ const BusinessScriptGenerator := preload("res://addons/fairygui/editor/business_
 const PackageDiagnostics := preload("res://addons/fairygui/editor/package_diagnostics.gd")
 const CanvasDropOverlay := preload("res://addons/fairygui/editor/fui_canvas_drop_overlay.gd")
 const RuntimeDebugBridge := preload("res://addons/fairygui/debug/fairygui_debug_bridge.gd")
+const BindingSignature := preload("res://addons/fairygui/core/binding_signature.gd")
 
 var _previous_output: Variant
 var _previous_registry: Variant
@@ -95,10 +96,14 @@ func _run() -> void:
 	if int(diagnostics.error_count) != 0 or int(diagnostics.warning_count) != 0:
 		_fail("Valid generated package reported diagnostics: %s" % [diagnostics.issues])
 		return
-	var original_hash := resource.content_hash
-	resource.content_hash = original_hash + "_stale"
+	var original_hash := resource.binding_hash
+	var original_hash_version := resource.binding_hash_version
+	var current_hash := resource.get_binding_hash()
+	resource.binding_hash_version = BindingSignature.SIGNATURE_VERSION
+	resource.binding_hash = current_hash + "_stale"
 	var stale_diagnostics := PackageDiagnostics.new().analyze(resource, view.component_name)
-	resource.content_hash = original_hash
+	resource.binding_hash = original_hash
+	resource.binding_hash_version = original_hash_version
 	if int(stale_diagnostics.warning_count) == 0:
 		_fail("Stale generated bindings were not reported by package diagnostics.")
 		return

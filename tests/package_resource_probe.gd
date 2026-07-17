@@ -1,11 +1,15 @@
 extends SceneTree
 
+const BindingSignature := preload("res://addons/fairygui/core/binding_signature.gd")
+
 
 func _initialize() -> void:
 	var resource := FGUIPackageResource.new()
 	resource.package_data = PackedByteArray([0x46, 0x47, 0x55, 0x49])
 	resource.source_path = "res://probe.fui"
 	resource.content_hash = "probe"
+	resource.binding_hash = "binding-probe"
+	resource.binding_hash_version = BindingSignature.SIGNATURE_VERSION
 
 	var binary_path := "user://fairygui_package_probe.res"
 	var text_path := "user://fairygui_package_probe.tres"
@@ -24,7 +28,9 @@ func _initialize() -> void:
 		_fail("Text package resource did not load as FGUIPackageResource.")
 		return
 	var typed_binary := binary_loaded as FGUIPackageResource
-	if typed_binary.package_data != resource.package_data or typed_binary.source_path != resource.source_path:
+	if typed_binary.package_data != resource.package_data \
+			or typed_binary.source_path != resource.source_path \
+			or typed_binary.get_binding_hash() != resource.binding_hash:
 		_fail("Package resource data was not preserved through save/load.")
 		return
 	quit(0)

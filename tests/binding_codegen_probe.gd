@@ -3,6 +3,7 @@ extends SceneTree
 const PACKAGE_PATH := "res://examples/assets/ui/VirtualList.fui"
 const OUTPUT_DIR := "res://tests/_generated_fairygui_bindings"
 const REGISTRY_PATH := OUTPUT_DIR + "/registry.gd"
+const BindingSignature := preload("res://addons/fairygui/core/binding_signature.gd")
 
 
 class RejectingGenerator extends FGUIBindingCodeGenerator:
@@ -24,6 +25,17 @@ func _run() -> void:
 
 	var generator := FGUIBindingCodeGenerator.new()
 	var paths := PackedStringArray([PACKAGE_PATH])
+	var package_resource := ResourceLoader.load(PACKAGE_PATH) as FGUIPackageResource
+	if package_resource == null:
+		_fail("Could not load the generated binding package resource.")
+		return
+	if package_resource.binding_hash == "" \
+			or package_resource.binding_hash_version != BindingSignature.SIGNATURE_VERSION:
+		package_resource.binding_hash = BindingSignature.from_bytes(package_resource.package_data, PACKAGE_PATH)
+		package_resource.binding_hash_version = BindingSignature.SIGNATURE_VERSION
+	if package_resource.binding_hash == "":
+		_fail("Could not compute the package binding signature.")
+		return
 	var first := generator.generate(paths, OUTPUT_DIR, "ProbeUI_", false, REGISTRY_PATH)
 	if not bool(first.get("ok", false)):
 		_fail("Initial binding generation failed: %s" % [first.get("errors", [])])
@@ -36,7 +48,6 @@ func _run() -> void:
 		_fail("Generated registry eagerly preloaded component scripts.")
 		return
 
-	var package_resource := ResourceLoader.load(PACKAGE_PATH) as FGUIPackageResource
 	var package := package_resource.acquire_package() if package_resource != null else null
 	if package == null:
 		_fail("Could not load the generated binding package.")
@@ -49,6 +60,24 @@ func _run() -> void:
 	var main_script_path := str(manifest.get("bindings", {}).get(main_url, "")) if manifest is Dictionary else ""
 	if main_script_path == "" or not FileAccess.file_exists(main_script_path):
 		_fail("The generated manifest did not contain the Main component binding.")
+		return
+	var freshness := generator.check_current(paths, OUTPUT_DIR, "ProbeUI_", false, REGISTRY_PATH)
+	if not bool(freshness.get("current", false)):
+		_fail("Fresh generated bindings were not recognized as current: %s" % freshness.get("reason", ""))
+		return
+	var original_content_hash := package_resource.content_hash
+	package_resource.content_hash = original_content_hash + "_visual_only"
+	var visual_freshness := generator.check_current(paths, OUTPUT_DIR, "ProbeUI_", false, REGISTRY_PATH)
+	package_resource.content_hash = original_content_hash
+	if not bool(visual_freshness.get("current", false)):
+		_fail("A runtime-only package content change invalidated typed bindings.")
+		return
+	var original_binding_hash := package_resource.binding_hash
+	package_resource.binding_hash = original_binding_hash + "_schema_change"
+	var schema_freshness := generator.check_current(paths, OUTPUT_DIR, "ProbeUI_", false, REGISTRY_PATH)
+	package_resource.binding_hash = original_binding_hash
+	if bool(schema_freshness.get("current", false)):
+		_fail("A binding schema change did not invalidate generated bindings.")
 		return
 	var source := FileAccess.get_file_as_string(main_script_path)
 	if not source.contains("var mail_list: FGUIList"):

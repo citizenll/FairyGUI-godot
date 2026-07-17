@@ -20,6 +20,7 @@ const SETTING_CLASS_PREFIX := "fairygui/codegen/class_prefix"
 const SETTING_INCLUDE_DEFAULT_NAMES := "fairygui/codegen/include_default_names"
 const SETTING_INCLUDE_INTERNAL_COMPONENTS := "fairygui/codegen/include_internal_components"
 const TOOL_MENU_NAME := "Generate FairyGUI Bindings"
+const GENERATION_DEBOUNCE_MSEC := 250
 
 var _fui_importer: EditorImportPlugin
 var _binding_inspector: EditorInspectorPlugin
@@ -32,10 +33,14 @@ var _canvas_overlay_install_attempts: int = 0
 var _generation_queued: bool = false
 var _generation_running: bool = false
 var _generation_requested_while_running: bool = false
+var _generation_force_queued: bool = false
+var _generation_force_requested_while_running: bool = false
+var _generation_due_msec: int = 0
 var _pending_event_bindings: Dictionary = {}
 
 
 func _enter_tree() -> void:
+	set_process(false)
 	_register_project_settings()
 	_fui_importer = FUIImportPlugin.new()
 	add_import_plugin(_fui_importer, true)
@@ -53,7 +58,7 @@ func _enter_tree() -> void:
 	_binding_inspector.event_toggle_callback = Callable(self, "_on_event_binding_toggle")
 	add_inspector_plugin(_binding_inspector)
 	_binding_exporter = BindingExportPlugin.new()
-	_binding_exporter.generate_callback = Callable(self, "generate_all_bindings")
+	_binding_exporter.generate_callback = Callable(self, "ensure_bindings_current")
 	add_export_plugin(_binding_exporter)
 	add_tool_menu_item(TOOL_MENU_NAME, Callable(self, "generate_all_bindings"))
 	_preview_panel = FUIPreviewPanel.new()
@@ -69,8 +74,11 @@ func _enter_tree() -> void:
 
 
 func _exit_tree() -> void:
+	set_process(false)
 	_generation_queued = false
 	_generation_requested_while_running = false
+	_generation_force_queued = false
+	_generation_force_requested_while_running = false
 	_pending_event_bindings.clear()
 	if _canvas_drop_overlay != null:
 		_canvas_drop_overlay.queue_free()
@@ -99,15 +107,22 @@ func _exit_tree() -> void:
 		_fui_importer = null
 
 
-func generate_all_bindings() -> Dictionary:
+func ensure_bindings_current() -> Dictionary:
+	return generate_all_bindings(false)
+
+
+func generate_all_bindings(force: bool = true) -> Dictionary:
 	if _generation_running:
 		_generation_requested_while_running = true
+		_generation_force_requested_while_running = _generation_force_requested_while_running or force
 		return {"ok": false, "busy": true}
 	var filesystem := get_editor_interface().get_resource_filesystem()
-	if filesystem.is_scanning() or filesystem.get_filesystem() == null:
-		_queue_generation()
+	if filesystem.is_scanning() or filesystem.is_importing() or filesystem.get_filesystem() == null:
+		_queue_generation(force)
 		return {"ok": false, "busy": true, "reason": "filesystem_not_ready"}
 	_generation_queued = false
+	_generation_force_queued = false
+	set_process(false)
 	_generation_running = true
 
 	var resource_paths := _collect_codegen_resources()
@@ -117,45 +132,73 @@ func generate_all_bindings() -> Dictionary:
 		SETTING_REGISTRY_PATH,
 		"%s/%s" % [output_dir.trim_suffix("/"), BindingCodeGenerator.REGISTRY_FILE]
 	))
+	var class_prefix := str(ProjectSettings.get_setting(SETTING_CLASS_PREFIX, "UI_"))
+	var include_default_names := bool(ProjectSettings.get_setting(SETTING_INCLUDE_DEFAULT_NAMES, false))
+	var include_internal_components := bool(ProjectSettings.get_setting(SETTING_INCLUDE_INTERNAL_COMPONENTS, false))
+	if not force:
+		var freshness := generator.check_current(
+			resource_paths,
+			output_dir,
+			class_prefix,
+			include_default_names,
+			registry_path,
+			include_internal_components
+		)
+		if bool(freshness.get("current", false)):
+			var skipped_result := _skipped_generation_result(freshness)
+			_generation_running = false
+			_finish_generation_cycle()
+			return skipped_result
 	var result: Dictionary = generator.generate(
 		resource_paths,
 		output_dir,
-		str(ProjectSettings.get_setting(SETTING_CLASS_PREFIX, "UI_")),
-		bool(ProjectSettings.get_setting(SETTING_INCLUDE_DEFAULT_NAMES, false)),
+		class_prefix,
+		include_default_names,
 		registry_path,
-		bool(ProjectSettings.get_setting(SETTING_INCLUDE_INTERNAL_COMPONENTS, false))
+		include_internal_components
 	)
 	_report_generation(result, resource_paths.size())
 	_generation_running = false
 
-	if bool(result.get("ok", false)):
+	if bool(result.get("ok", false)) and _generation_changes_scripts(result):
 		filesystem.scan_sources()
 		call_deferred("_reload_generated_bindings")
 
-	if _generation_requested_while_running:
-		_generation_requested_while_running = false
-		_queue_generation()
+	_finish_generation_cycle()
 	return result
 
 
-func _queue_generation() -> void:
+func _queue_generation(force: bool = false) -> void:
 	if _generation_running:
 		_generation_requested_while_running = true
-		return
-	if _generation_queued:
+		_generation_force_requested_while_running = _generation_force_requested_while_running or force
 		return
 	_generation_queued = true
-	call_deferred("_run_queued_generation")
+	_generation_force_queued = _generation_force_queued or force
+	_generation_due_msec = Time.get_ticks_msec() + GENERATION_DEBOUNCE_MSEC
+	set_process(true)
+
+
+func _process(_delta: float) -> void:
+	if not _generation_queued:
+		set_process(false)
+		return
+	if Time.get_ticks_msec() < _generation_due_msec:
+		return
+	var filesystem := get_editor_interface().get_resource_filesystem()
+	if filesystem.is_scanning() or filesystem.is_importing() or filesystem.get_filesystem() == null:
+		return
+	_run_queued_generation()
 
 
 func _run_queued_generation() -> void:
 	if not is_inside_tree() or not _generation_queued:
 		return
-	var filesystem := get_editor_interface().get_resource_filesystem()
-	if filesystem.is_scanning() or filesystem.get_filesystem() == null:
-		call_deferred("_run_queued_generation")
-		return
-	generate_all_bindings()
+	var force := _generation_force_queued
+	_generation_queued = false
+	_generation_force_queued = false
+	set_process(false)
+	generate_all_bindings(force)
 
 
 func _on_resources_reimported(paths: PackedStringArray) -> void:
@@ -165,7 +208,7 @@ func _on_resources_reimported(paths: PackedStringArray) -> void:
 		return
 	for path: String in paths:
 		if path.get_extension().to_lower() == "fui":
-			_queue_generation()
+			_queue_generation(false)
 			return
 
 
@@ -706,6 +749,37 @@ func _refresh_fui_views(node: Node) -> void:
 		(node as FGUIView).refresh_preview()
 	for child: Node in node.get_children():
 		_refresh_fui_views(child)
+
+
+func _finish_generation_cycle() -> void:
+	if not _generation_requested_while_running:
+		return
+	var force := _generation_force_requested_while_running
+	_generation_requested_while_running = false
+	_generation_force_requested_while_running = false
+	_queue_generation(force)
+
+
+func _skipped_generation_result(freshness: Dictionary) -> Dictionary:
+	return {
+		"ok": true,
+		"skipped": true,
+		"reason": freshness.get("reason", "current"),
+		"generated_files": PackedStringArray(),
+		"removed_files": PackedStringArray(),
+		"unchanged_files": PackedStringArray(),
+		"warnings": PackedStringArray(),
+		"errors": PackedStringArray(),
+		"bindings": {},
+	}
+
+
+func _generation_changes_scripts(result: Dictionary) -> bool:
+	for key: String in ["generated_files", "removed_files"]:
+		for value: Variant in result.get(key, PackedStringArray()):
+			if str(value).get_extension().to_lower() == "gd":
+				return true
+	return false
 
 
 func _report_generation(result: Dictionary, package_count: int) -> void:

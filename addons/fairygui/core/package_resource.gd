@@ -2,12 +2,19 @@
 class_name FGUIPackageResource
 extends Resource
 
+const BindingSignature := preload("res://addons/fairygui/core/binding_signature.gd")
+
 static var _package_cache: Dictionary = {}
 static var _cache_key_by_instance: Dictionary = {}
+
+var _computed_binding_hash: String = ""
+var _computed_binding_source_hash: String = ""
 
 @export_storage var package_data: PackedByteArray = PackedByteArray()
 @export_storage var source_path: String = ""
 @export_storage var content_hash: String = ""
+@export_storage var binding_hash: String = ""
+@export_storage var binding_hash_version: int = 0
 @export_storage var codegen_enabled: bool = true
 
 
@@ -17,6 +24,16 @@ func get_source_path() -> String:
 
 func get_package_data() -> PackedByteArray:
 	return package_data
+
+
+func get_binding_hash() -> String:
+	if binding_hash != "" and binding_hash_version == BindingSignature.SIGNATURE_VERSION:
+		return binding_hash
+	var source_hash := content_hash if content_hash != "" else _hash_bytes(package_data)
+	if _computed_binding_source_hash != source_hash:
+		_computed_binding_hash = BindingSignature.from_bytes(package_data, get_source_path())
+		_computed_binding_source_hash = source_hash
+	return _computed_binding_hash if _computed_binding_hash != "" else content_hash
 
 
 func get_component_names() -> PackedStringArray:

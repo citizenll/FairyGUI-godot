@@ -330,7 +330,12 @@ func _internal_create_object(item: FGUIPackageItem, user_class: Variant = null) 
 	return obj
 
 
-func _load_package(buffer: FGUIByteBuffer) -> void:
+func _load_package(
+		buffer: FGUIByteBuffer,
+		apply_translations: bool = true,
+		resolve_extensions: bool = true,
+		load_auxiliary_data: bool = true
+	) -> void:
 	if buffer.read_u32() != MAGIC:
 		push_error("FairyGUI old or invalid package format: %s" % res_key)
 		return
@@ -384,15 +389,23 @@ func _load_package(buffer: FGUIByteBuffer) -> void:
 				branch_index = branches.find(_branch)
 		branch_included = count > 0
 
-	_read_items(buffer, index_table_pos, ver2, branch_included)
-	for item: FGUIPackageItem in items:
-		if item.type == FGUIEnums.PACKAGE_ITEM_COMPONENT:
-			TranslationHelper.translate_component(item)
-	_read_sprites(buffer, index_table_pos, ver2)
-	_read_pixel_hit_tests(buffer, index_table_pos)
+	_read_items(buffer, index_table_pos, ver2, branch_included, resolve_extensions)
+	if apply_translations:
+		for item: FGUIPackageItem in items:
+			if item.type == FGUIEnums.PACKAGE_ITEM_COMPONENT:
+				TranslationHelper.translate_component(item)
+	if load_auxiliary_data:
+		_read_sprites(buffer, index_table_pos, ver2)
+		_read_pixel_hit_tests(buffer, index_table_pos)
 
 
-func _read_items(buffer: FGUIByteBuffer, index_table_pos: int, ver2: bool, branch_included: bool) -> void:
+func _read_items(
+		buffer: FGUIByteBuffer,
+		index_table_pos: int,
+		ver2: bool,
+		branch_included: bool,
+		resolve_extensions: bool = true
+	) -> void:
 	buffer.seek(index_table_pos, 1)
 	var count := buffer.read_u16()
 	for i in count:
@@ -434,7 +447,8 @@ func _read_items(buffer: FGUIByteBuffer, index_table_pos: int, ver2: bool, branc
 				var extension := buffer.read_i8()
 				item.object_type = extension if extension > 0 else FGUIEnums.OBJECT_COMPONENT
 				item.raw_data = buffer.read_buffer()
-				FGUIObjectFactory.resolve_package_item_extension(item)
+				if resolve_extensions:
+					FGUIObjectFactory.resolve_package_item_extension(item)
 
 			FGUIEnums.PACKAGE_ITEM_ATLAS, FGUIEnums.PACKAGE_ITEM_SOUND, FGUIEnums.PACKAGE_ITEM_MISC:
 				item.file = _package_relative_file("%s_%s" % [res_key.get_file(), item.file])

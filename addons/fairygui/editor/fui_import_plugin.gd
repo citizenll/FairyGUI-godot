@@ -1,6 +1,8 @@
 @tool
 extends EditorImportPlugin
 
+const BindingSignature := preload("res://addons/fairygui/core/binding_signature.gd")
+
 func _get_importer_name() -> String:
 	return "fairygui.package"
 
@@ -43,7 +45,7 @@ func _get_import_order() -> int:
 
 
 func _get_format_version() -> int:
-	return 5
+	return 7
 
 
 func _can_import_threaded() -> bool:
@@ -59,5 +61,10 @@ func _import(source_file: String, save_path: String, _options: Dictionary, _plat
 	resource.package_data = bytes
 	resource.source_path = source_file
 	resource.content_hash = FileAccess.get_sha256(source_file)
+	resource.binding_hash = BindingSignature.from_bytes(bytes, source_file)
+	if resource.binding_hash == "":
+		push_error("Could not compute FairyGUI binding signature: %s" % source_file)
+		return ERR_FILE_CORRUPT
+	resource.binding_hash_version = BindingSignature.SIGNATURE_VERSION
 	resource.codegen_enabled = bool(_options.get("codegen/enabled", true))
 	return ResourceSaver.save(resource, "%s.%s" % [save_path, _get_save_extension()], ResourceSaver.FLAG_COMPRESS)
