@@ -13,6 +13,7 @@ const ZOOM_FACTOR := 1.2
 const PREVIEW_PADDING := 24.0
 const HIERARCHY_WIDTH := 320.0
 
+var context_view_resolver: Callable
 var _initialized: bool = false
 var _package_resource: FGUIPackageResource
 var _component_names := PackedStringArray()
@@ -31,6 +32,7 @@ var _pan_start_mouse := Vector2.ZERO
 var _last_navigation_event_id: int = 0
 var _view_states: Dictionary = {}
 var _context_view_ref: WeakRef
+var _context_view_is_explicit: bool = false
 var _pending_target_selection: Resource
 
 var _path_label: Label
@@ -102,6 +104,7 @@ func open_package(
 		clear_preview()
 		return
 	_save_current_view_state()
+	_context_view_is_explicit = context_view != null
 	_context_view_ref = weakref(context_view) if context_view != null else null
 	_package_resource = resource
 	_component_names = resource.get_component_names()
@@ -134,7 +137,7 @@ func reload_current() -> void:
 	if source_path == "":
 		source_path = _package_resource.get_source_path()
 	var preferred_component := _current_component
-	var context_view := _context_view_ref.get_ref() as FGUIView if _context_view_ref != null else null
+	var context_view := _get_context_view() if _context_view_is_explicit else null
 	_preview_view.package = null
 	var reloaded := ResourceLoader.load(source_path, "", ResourceLoader.CACHE_MODE_REPLACE)
 	if reloaded is FGUIPackageResource:
@@ -146,6 +149,7 @@ func clear_preview() -> void:
 	_save_current_view_state()
 	_package_resource = null
 	_context_view_ref = null
+	_context_view_is_explicit = false
 	_pending_target_selection = null
 	_component_names.clear()
 	_current_component = ""
@@ -185,6 +189,12 @@ func get_selected_object() -> FGUIObject:
 func select_target_ref(reference: Resource) -> void:
 	_pending_target_selection = reference
 	_select_pending_target()
+
+
+func refresh_context_view() -> void:
+	if not _context_view_is_explicit:
+		_context_view_ref = null
+	_update_bind_event_button()
 
 
 func get_hierarchy_node_count() -> int:
@@ -379,6 +389,8 @@ func _show_component(component_name: String) -> void:
 	if _current_component != component_name and _root_object != null and _preview_view.package == _package_resource:
 		_save_current_view_state()
 	_current_component = component_name
+	if not _context_view_is_explicit:
+		_context_view_ref = null
 	_clear_hierarchy()
 	_status_label.text = "正在加载 %s..." % component_name
 	var changed := _preview_view.package != _package_resource or _preview_view.component_name != component_name
@@ -625,7 +637,7 @@ func _select_object(value: FGUIObject, reveal_in_tree: bool, center_preview: boo
 
 
 func _on_bind_event_pressed() -> void:
-	var view := _context_view_ref.get_ref() as FGUIView if _context_view_ref != null else null
+	var view := _get_context_view()
 	var target_path := _selected_target_path()
 	if view == null or target_path == null:
 		return
@@ -635,7 +647,7 @@ func _on_bind_event_pressed() -> void:
 
 
 func _on_expose_target_pressed() -> void:
-	var view := _context_view_ref.get_ref() as FGUIView if _context_view_ref != null else null
+	var view := _get_context_view()
 	var reference := _selected_target_reference()
 	if view == null or reference == null:
 		return
@@ -648,7 +660,7 @@ func _on_expose_target_pressed() -> void:
 func _update_bind_event_button() -> void:
 	if _bind_event_button == null:
 		return
-	var view := _context_view_ref.get_ref() as FGUIView if _context_view_ref != null else null
+	var view := _get_context_view()
 	var valid_context := view != null \
 		and view.package != null \
 		and _package_resource != null \
@@ -657,7 +669,7 @@ func _update_bind_event_button() -> void:
 	var target_path := _selected_target_path() if valid_context else null
 	_bind_event_button.disabled = not valid_context or target_path == null
 	if view == null:
-		_bind_event_button.tooltip_text = "从 FGUIView Inspector 打开预览后可绑定事件"
+		_bind_event_button.tooltip_text = "当前场景没有唯一匹配的 FGUIView；请先选中目标 FGUIView"
 	elif not valid_context:
 		_bind_event_button.tooltip_text = "预览组件与当前 FGUIView 配置不一致"
 	elif target_path == null:
@@ -670,7 +682,7 @@ func _update_bind_event_button() -> void:
 func _update_expose_target_button() -> void:
 	if _expose_target_button == null:
 		return
-	var view := _context_view_ref.get_ref() as FGUIView if _context_view_ref != null else null
+	var view := _get_context_view()
 	var valid_context := view != null \
 		and view.package != null \
 		and _package_resource != null \
@@ -679,13 +691,33 @@ func _update_expose_target_button() -> void:
 	var reference := _selected_target_reference() if valid_context else null
 	_expose_target_button.disabled = not valid_context or reference == null
 	if view == null:
-		_expose_target_button.tooltip_text = "从 FGUIView Inspector 打开预览后可以暴露节点"
+		_expose_target_button.tooltip_text = "当前场景没有唯一匹配的 FGUIView；请先选中目标 FGUIView"
 	elif not valid_context:
 		_expose_target_button.tooltip_text = "预览组件与当前 FGUIView 配置不一致"
 	elif reference == null:
 		_expose_target_button.tooltip_text = "动态列表或无法建立稳定引用的对象不能持久暴露"
 	else:
 		_expose_target_button.tooltip_text = "在当前 FGUIView 下创建可配置材质和附件的 FGUITarget"
+
+
+func _get_context_view() -> FGUIView:
+	var view := _context_view_ref.get_ref() as FGUIView if _context_view_ref != null else null
+	if view != null and (_context_view_is_explicit or _view_matches_context(view)):
+		return view
+	if _context_view_is_explicit or not context_view_resolver.is_valid() \
+			or _package_resource == null or _current_component == "":
+		return view
+	_context_view_ref = null
+	view = context_view_resolver.call(_package_resource, _current_component) as FGUIView
+	if view != null:
+		_context_view_ref = weakref(view)
+	return view
+
+
+func _view_matches_context(view: FGUIView) -> bool:
+	return view != null and view.package != null and _package_resource != null \
+		and view.package.get_source_path() == _package_resource.get_source_path() \
+		and view.component_name == _current_component
 
 
 func _selected_target_path() -> Variant:

@@ -70,6 +70,7 @@ func _enter_tree() -> void:
 	add_export_plugin(_binding_exporter)
 	add_tool_menu_item(TOOL_MENU_NAME, Callable(self, "generate_all_bindings"))
 	_preview_panel = FUIPreviewPanel.new()
+	_preview_panel.set("context_view_resolver", Callable(self, "_resolve_preview_context_view"))
 	_preview_panel.connect("target_expose_requested", Callable(self, "_on_preview_target_expose_requested"))
 	_preview_bottom_button = add_control_to_bottom_panel(_preview_panel, "GUI预览")
 	call_deferred("_configure_preview_bottom_button")
@@ -80,6 +81,9 @@ func _enter_tree() -> void:
 	var filesystem := get_editor_interface().get_resource_filesystem()
 	if not filesystem.resources_reimported.is_connected(_on_resources_reimported):
 		filesystem.resources_reimported.connect(_on_resources_reimported)
+	var selection := get_editor_interface().get_selection()
+	if not selection.selection_changed.is_connected(_on_editor_selection_changed):
+		selection.selection_changed.connect(_on_editor_selection_changed)
 
 
 func _exit_tree() -> void:
@@ -99,6 +103,9 @@ func _exit_tree() -> void:
 	var filesystem := get_editor_interface().get_resource_filesystem()
 	if filesystem.resources_reimported.is_connected(_on_resources_reimported):
 		filesystem.resources_reimported.disconnect(_on_resources_reimported)
+	var selection := get_editor_interface().get_selection()
+	if selection.selection_changed.is_connected(_on_editor_selection_changed):
+		selection.selection_changed.disconnect(_on_editor_selection_changed)
 	remove_tool_menu_item(TOOL_MENU_NAME)
 	if _preview_panel != null:
 		_preview_panel.call("clear_preview")
@@ -663,6 +670,68 @@ func _open_preview(
 		return
 	_preview_panel.call("open_package", resource, component_name, context_view)
 	make_bottom_panel_item_visible(_preview_panel)
+
+
+func _on_editor_selection_changed() -> void:
+	if _preview_panel != null:
+		_preview_panel.call("refresh_context_view")
+
+
+func _resolve_preview_context_view(
+		resource: FGUIPackageResource,
+		component_name: String
+	) -> FGUIView:
+	if resource == null or component_name == "":
+		return null
+	var selection := get_editor_interface().get_selection()
+	for selected: Node in selection.get_selected_nodes():
+		var selected_view := _find_ancestor_view(selected)
+		if _view_matches_preview(selected_view, resource, component_name):
+			return selected_view
+
+	var scene_root := get_editor_interface().get_edited_scene_root()
+	if scene_root == null:
+		return null
+	var matches: Array[FGUIView] = []
+	_collect_matching_views(scene_root, resource, component_name, matches)
+	return matches[0] if matches.size() == 1 else null
+
+
+func _find_ancestor_view(node: Node) -> FGUIView:
+	var current := node
+	while current != null:
+		if current is FGUIView:
+			return current as FGUIView
+		if current.has_meta("fgui_target_proxy"):
+			var target_view := current.call("get_view") as FGUIView
+			if target_view != null:
+				return target_view
+		current = current.get_parent()
+	return null
+
+
+func _collect_matching_views(
+		node: Node,
+		resource: FGUIPackageResource,
+		component_name: String,
+		matches: Array[FGUIView]
+	) -> void:
+	if node is FGUIView and _view_matches_preview(node as FGUIView, resource, component_name):
+		matches.append(node as FGUIView)
+	for child: Node in node.get_children():
+		if child.has_meta("fgui_owner"):
+			continue
+		_collect_matching_views(child, resource, component_name, matches)
+
+
+func _view_matches_preview(
+		view: FGUIView,
+		resource: FGUIPackageResource,
+		component_name: String
+	) -> bool:
+	return view != null and view.package != null \
+		and view.package.get_source_path() == resource.get_source_path() \
+		and view.component_name == component_name
 
 
 func _create_exposed_target(view: FGUIView, reference: Resource, suggested_name: String) -> void:

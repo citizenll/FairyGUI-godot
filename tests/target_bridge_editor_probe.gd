@@ -49,7 +49,28 @@ func _run() -> void:
 		_fail("Basics/Main did not provide stable target references.")
 		return
 
-	plugin.call("_on_preview_target_expose_requested", _view, first_reference, "btn_Graph")
+	var selection := EditorInterface.get_selection()
+	selection.clear()
+	selection.add_node(_view)
+	plugin.call("_open_preview", resource, "Main")
+	var panel := plugin.get("_preview_panel") as Control
+	for _frame in 12:
+		if panel != null and panel.call("get_preview_object") != null:
+			break
+		await process_frame
+	var preview_object := _find_object_by_name(
+		panel.call("get_preview_object") as FGUIObject if panel != null else null,
+		"btn_Graph"
+	)
+	if preview_object == null:
+		_fail("Direct FUI preview did not construct btn_Graph.")
+		return
+	panel.call("select_object", preview_object, true)
+	var expose_button := panel.get("_expose_target_button") as Button
+	if expose_button == null or expose_button.disabled:
+		_fail("Direct FUI preview did not infer the selected matching FGUIView.")
+		return
+	panel.call("_on_expose_target_pressed")
 	_undo_count += 1
 	for _frame in 4:
 		await process_frame
@@ -66,7 +87,7 @@ func _run() -> void:
 		_fail("FGUITarget Inspector controls were not created.")
 		return
 
-	plugin.call("_on_preview_target_expose_requested", _view, first_reference, "btn_Graph")
+	panel.call("_on_expose_target_pressed")
 	await process_frame
 	if _count_direct_targets(_view) != 1:
 		_fail("Repeated exposure created a duplicate FGUITarget.")
@@ -115,6 +136,19 @@ func _count_direct_targets(view: FGUIView) -> int:
 		if child.get_script() == TargetScript:
 			count += 1
 	return count
+
+
+func _find_object_by_name(object: FGUIObject, target_name: String) -> FGUIObject:
+	if object == null:
+		return null
+	if object.name == target_name:
+		return object
+	if object is FGUIComponent:
+		for child: FGUIObject in (object as FGUIComponent).children:
+			var found := _find_object_by_name(child, target_name)
+			if found != null:
+				return found
+	return null
 
 
 func _find_node_by_script(node: Node, script: Script) -> Node:
