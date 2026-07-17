@@ -1044,8 +1044,9 @@ func _validate_generated_scripts(paths: PackedStringArray) -> PackedStringArray:
 	for path: String in paths:
 		if path.get_extension().to_lower() != "gd":
 			continue
-		var script := ResourceLoader.load(path, "GDScript", ResourceLoader.CACHE_MODE_REPLACE) as Script
-		if script == null or not script.can_instantiate():
+		# Non-tool scripts cannot instantiate while editor scripting is disabled; reload validates syntax directly.
+		var script := ResourceLoader.load(path, "GDScript", ResourceLoader.CACHE_MODE_IGNORE) as Script
+		if script == null or script.reload() != OK:
 			errors.append("Generated binding script failed validation: %s" % path)
 	return errors
 
@@ -1055,8 +1056,8 @@ func _reload_restored_scripts(paths: PackedStringArray) -> PackedStringArray:
 	for path: String in paths:
 		if path.get_extension().to_lower() != "gd" or not FileAccess.file_exists(path):
 			continue
-		var script := ResourceLoader.load(path, "GDScript", ResourceLoader.CACHE_MODE_REPLACE) as Script
-		if script == null or not script.can_instantiate():
+		var script := ResourceLoader.load(path, "GDScript", ResourceLoader.CACHE_MODE_IGNORE) as Script
+		if script == null or script.reload() != OK:
 			errors.append("Could not reload restored generated binding script: %s" % path)
 	return errors
 
