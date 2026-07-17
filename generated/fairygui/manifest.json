@@ -481,7 +481,7 @@
 		"res://generated/fairygui/virtual_list/ui_virtual_list_mail_item.gd",
 		"res://generated/fairygui/virtual_list/ui_virtual_list_main.gd"
 	],
-	"generator_version": 10,
+	"generator_version": 11,
 	"inputs": {
 		"res://examples/assets/ui/Bag.fui": "e356e4444474d86a3b8c424d636e7fe11611fc8ae30087374789b011d3c5ead1",
 		"res://examples/assets/ui/Basics.fui": "73ddc6d28288a6142570c17b0828cb45bab4f7a88f66b721ae93e1d4ffe3acf9",

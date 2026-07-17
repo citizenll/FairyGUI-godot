@@ -137,6 +137,16 @@ func get_icon() -> String:
 	return url
 
 
+func get_material_target() -> CanvasItem:
+	if fill_renderer != null and fill_renderer.visible:
+		return fill_renderer
+	if content_movie_clip != null:
+		return content_movie_clip.get_material_target()
+	if content_component != null:
+		return content_component.node
+	return texture_rect if texture_rect != null else node
+
+
 func set_icon(value: String) -> void:
 	url = value
 

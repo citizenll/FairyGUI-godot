@@ -16,6 +16,12 @@ var _setting_input_text: bool = false
 var native_input: Control:
 	get:
 		return _input_control
+
+
+func get_material_target() -> CanvasItem:
+	return _input_control if _input_control != null else node
+
+
 var editable: bool:
 	get:
 		return _editable

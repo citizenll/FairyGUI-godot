@@ -4,6 +4,7 @@ extends EditorPlugin
 const FUIImportPlugin := preload("res://addons/fairygui/editor/fui_import_plugin.gd")
 const BindingCodeGenerator := preload("res://addons/fairygui/editor/binding_codegen.gd")
 const BindingInspectorPlugin := preload("res://addons/fairygui/editor/binding_inspector_plugin.gd")
+const TargetInspectorPlugin := preload("res://addons/fairygui/editor/target_inspector_plugin.gd")
 const BindingExportPlugin := preload("res://addons/fairygui/editor/binding_export_plugin.gd")
 const FUIPreviewPanel := preload("res://addons/fairygui/editor/fui_preview_panel.gd")
 const FUICanvasDropOverlay := preload("res://addons/fairygui/editor/fui_canvas_drop_overlay.gd")
@@ -12,6 +13,7 @@ const EventBinding := preload("res://addons/fairygui/ui/event_binding.gd")
 const EventBindingService := preload("res://addons/fairygui/editor/event_binding_service.gd")
 const EventHandlerGenerator := preload("res://addons/fairygui/editor/event_handler_generator.gd")
 const FairyGUIDebuggerPlugin := preload("res://addons/fairygui/editor/fairygui_debugger_plugin.gd")
+const TargetScript := preload("res://addons/fairygui/ui/fgui_target.gd")
 
 const SETTING_AUTO_GENERATE := "fairygui/codegen/auto_generate"
 const SETTING_OUTPUT_DIR := "fairygui/codegen/output_dir"
@@ -24,6 +26,7 @@ const GENERATION_DEBOUNCE_MSEC := 250
 
 var _fui_importer: EditorImportPlugin
 var _binding_inspector: EditorInspectorPlugin
+var _target_inspector: EditorInspectorPlugin
 var _binding_exporter: EditorExportPlugin
 var _preview_panel: Control
 var _preview_bottom_button: Button
@@ -37,6 +40,7 @@ var _generation_force_queued: bool = false
 var _generation_force_requested_while_running: bool = false
 var _generation_due_msec: int = 0
 var _pending_event_bindings: Dictionary = {}
+var _pending_target_rebind: WeakRef
 
 
 func _enter_tree() -> void:
@@ -57,11 +61,16 @@ func _enter_tree() -> void:
 	_binding_inspector.event_open_callback = Callable(self, "_on_event_binding_open")
 	_binding_inspector.event_toggle_callback = Callable(self, "_on_event_binding_toggle")
 	add_inspector_plugin(_binding_inspector)
+	_target_inspector = TargetInspectorPlugin.new()
+	_target_inspector.locate_callback = Callable(self, "_on_target_locate")
+	_target_inspector.rebind_callback = Callable(self, "_on_target_rebind")
+	add_inspector_plugin(_target_inspector)
 	_binding_exporter = BindingExportPlugin.new()
 	_binding_exporter.generate_callback = Callable(self, "ensure_bindings_current")
 	add_export_plugin(_binding_exporter)
 	add_tool_menu_item(TOOL_MENU_NAME, Callable(self, "generate_all_bindings"))
 	_preview_panel = FUIPreviewPanel.new()
+	_preview_panel.connect("target_expose_requested", Callable(self, "_on_preview_target_expose_requested"))
 	_preview_bottom_button = add_control_to_bottom_panel(_preview_panel, "GUI预览")
 	call_deferred("_configure_preview_bottom_button")
 	_debugger_plugin = FairyGUIDebuggerPlugin.new()
@@ -80,6 +89,7 @@ func _exit_tree() -> void:
 	_generation_force_queued = false
 	_generation_force_requested_while_running = false
 	_pending_event_bindings.clear()
+	_pending_target_rebind = null
 	if _canvas_drop_overlay != null:
 		_canvas_drop_overlay.queue_free()
 		_canvas_drop_overlay = null
@@ -102,6 +112,9 @@ func _exit_tree() -> void:
 	if _binding_inspector != null:
 		remove_inspector_plugin(_binding_inspector)
 		_binding_inspector = null
+	if _target_inspector != null:
+		remove_inspector_plugin(_target_inspector)
+		_target_inspector = null
 	if _fui_importer != null:
 		remove_import_plugin(_fui_importer)
 		_fui_importer = null
@@ -218,11 +231,56 @@ func _on_inspector_generate(object: Object) -> void:
 
 
 func _on_inspector_preview(object: Object) -> void:
+	_pending_target_rebind = null
 	if object is FGUIPackageResource:
 		_open_preview(object as FGUIPackageResource)
 	elif object is FGUIView:
 		var view := object as FGUIView
 		_open_preview(view.package, view.component_name, view)
+
+
+func _on_target_locate(object: Object) -> void:
+	if not _is_target_object(object):
+		return
+	var view := object.call("get_view") as FGUIView
+	var reference := object.get("target_ref") as Resource
+	if view == null or view.package == null or reference == null:
+		return
+	_pending_target_rebind = null
+	_open_preview(view.package, view.component_name, view)
+	_preview_panel.call_deferred("select_target_ref", reference)
+
+
+func _on_target_rebind(object: Object) -> void:
+	if not _is_target_object(object):
+		return
+	var view := object.call("get_view") as FGUIView
+	if view == null or view.package == null:
+		return
+	_pending_target_rebind = weakref(object)
+	_open_preview(view.package, view.component_name, view)
+	var reference := object.get("target_ref") as Resource
+	if reference != null:
+		_preview_panel.call_deferred("select_target_ref", reference)
+
+
+func _on_preview_target_expose_requested(
+		view: FGUIView,
+		reference: Resource,
+		suggested_name: String
+	) -> void:
+	if view == null or reference == null or not view.is_inside_tree():
+		return
+	var pending := _pending_target_rebind.get_ref() if _pending_target_rebind != null else null
+	_pending_target_rebind = null
+	if _is_target_object(pending) and pending.call("get_view") == view:
+		_rebind_target(pending, reference)
+		return
+	var existing := _find_exposed_target(view, str(reference.call("get_key")))
+	if existing != null:
+		_select_scene_node(existing)
+		return
+	_create_exposed_target(view, reference, suggested_name)
 
 
 func _on_inspector_open(object: Object) -> void:
@@ -605,6 +663,86 @@ func _open_preview(
 		return
 	_preview_panel.call("open_package", resource, component_name, context_view)
 	make_bottom_panel_item_visible(_preview_panel)
+
+
+func _create_exposed_target(view: FGUIView, reference: Resource, suggested_name: String) -> void:
+	var scene_root := get_editor_interface().get_edited_scene_root()
+	if scene_root == null:
+		push_error("[FairyGUI editor] 请先创建或打开一个 2D 场景。")
+		return
+	var target := TargetScript.new() as Control
+	if target == null:
+		push_error("[FairyGUI editor] 无法创建 FGUITarget。")
+		return
+	target.name = _unique_target_name(view, suggested_name)
+	target.call("set_target_reference", reference)
+
+	var undo_redo := get_undo_redo()
+	var selection := get_editor_interface().get_selection()
+	undo_redo.create_action("暴露 FairyGUI 节点", UndoRedo.MERGE_DISABLE, scene_root)
+	undo_redo.add_do_method(target, "request_ready")
+	undo_redo.add_do_method(view, "add_child", target, true)
+	undo_redo.add_do_method(target, "set_owner", scene_root)
+	undo_redo.add_do_method(selection, "clear")
+	undo_redo.add_do_method(selection, "add_node", target)
+	undo_redo.add_undo_method(selection, "clear")
+	undo_redo.add_undo_method(view, "remove_child", target)
+	undo_redo.add_do_reference(target)
+	undo_redo.commit_action()
+
+
+func _rebind_target(target: Object, reference: Resource) -> void:
+	var previous := target.call("get_target_reference") as Resource
+	if previous == reference or (previous != null and previous.call("get_key") == reference.call("get_key")):
+		_select_scene_node(target as Node)
+		return
+	var scene_root := get_editor_interface().get_edited_scene_root()
+	var undo_redo := get_undo_redo()
+	undo_redo.create_action("更换 FairyGUI 暴露目标", UndoRedo.MERGE_DISABLE, scene_root if scene_root != null else target)
+	undo_redo.add_do_method(target, "set_target_reference", reference)
+	undo_redo.add_do_method(target, "refresh_target")
+	undo_redo.add_undo_method(target, "set_target_reference", previous)
+	undo_redo.add_undo_method(target, "refresh_target")
+	undo_redo.commit_action()
+	_select_scene_node(target as Node)
+
+
+func _find_exposed_target(node: Node, reference_key: String) -> Node:
+	for child: Node in node.get_children():
+		if child.has_meta("fgui_target_proxy") \
+				and child.call("get_target_reference") != null \
+				and str(child.call("get_target_reference").call("get_key")) == reference_key:
+			return child
+		if child is FGUIView or child.has_meta("fgui_owner"):
+			continue
+		var found := _find_exposed_target(child, reference_key)
+		if found != null:
+			return found
+	return null
+
+
+func _is_target_object(object: Object) -> bool:
+	return object is Node and (object as Node).has_meta("fgui_target_proxy")
+
+
+func _select_scene_node(node: Node) -> void:
+	if node == null:
+		return
+	var selection := get_editor_interface().get_selection()
+	selection.clear()
+	selection.add_node(node)
+	get_editor_interface().edit_node(node)
+
+
+func _unique_target_name(view: FGUIView, suggested_name: String) -> String:
+	var segment := suggested_name.strip_edges().to_pascal_case().validate_node_name()
+	var base_name := "%sTarget" % segment if segment != "" else "FUITarget"
+	var candidate := base_name
+	var suffix := 2
+	while view.get_node_or_null(NodePath(candidate)) != null:
+		candidate = "%s%d" % [base_name, suffix]
+		suffix += 1
+	return candidate
 
 
 func _configure_preview_bottom_button() -> void:

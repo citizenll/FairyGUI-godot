@@ -6,6 +6,7 @@ const RuntimeDebugBridge := preload("res://addons/fairygui/debug/fairygui_debug_
 const EventBinding := preload("res://addons/fairygui/ui/event_binding.gd")
 
 signal fairy_ready(value: FGUIObject)
+signal fairy_cleared(value: FGUIObject)
 
 var _package_resource: FGUIPackageResource
 var _component_name: String = ""
@@ -182,6 +183,7 @@ func _refresh_preview() -> void:
 func _clear_preview() -> void:
 	_disconnect_active_event_bindings()
 	if _preview_object != null:
+		fairy_cleared.emit(_preview_object)
 		_preview_object.dispose()
 		_preview_object = null
 	for pkg in _dependency_packages:
@@ -190,8 +192,6 @@ func _clear_preview() -> void:
 	if _preview_package != null:
 		FGUIPackageResource.release_package(_preview_package)
 		_preview_package = null
-
-
 func _layout_preview() -> void:
 	if _preview_object == null:
 		return

@@ -76,6 +76,12 @@ func construct_from_resource() -> void:
 	set_size(source_width, source_height)
 
 
+func get_material_target() -> CanvasItem:
+	if fill_renderer != null and fill_renderer.visible:
+		return fill_renderer
+	return image_node if image_node != null else node
+
+
 func setup_before_add(buffer: FGUIByteBuffer, begin_pos: int) -> void:
 	super.setup_before_add(buffer, begin_pos)
 	if not buffer.seek(begin_pos, 5):

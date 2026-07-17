@@ -520,6 +520,10 @@ func construct_from_resource() -> void:
 	pass
 
 
+func get_material_target() -> CanvasItem:
+	return node
+
+
 func ensure_size_correct() -> void:
 	pass
 

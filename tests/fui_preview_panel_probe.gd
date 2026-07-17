@@ -240,6 +240,46 @@ func _run() -> void:
 			_fail("GUI preview reload did not restore tree collapse state.")
 			return
 
+	var context_view := FGUIView.new()
+	context_view.package = resource
+	context_view.component_name = "Main"
+	var context_preview_id: int = int(panel.get_preview_object().get_instance_id())
+	panel.open_package(resource, "Main", context_view)
+	for _frame in 20:
+		if panel.get_preview_object() != null and panel.get_preview_object().get_instance_id() != context_preview_id:
+			break
+		await process_frame
+	var expose_object := _find_object_by_name(panel.get_preview_object(), "btn_Graph")
+	if expose_object == null:
+		context_view.free()
+		_fail("GUI preview could not locate btn_Graph for target exposure.")
+		return
+	panel.select_object(expose_object, true)
+	if panel._expose_target_button == null or panel._expose_target_button.disabled:
+		context_view.free()
+		_fail("GUI preview did not enable FGUI target exposure for a stable object.")
+		return
+	var exposure: Dictionary = {}
+	panel.target_expose_requested.connect(func(view: FGUIView, reference: Resource, suggested_name: String) -> void:
+		exposure.view = view
+		exposure.reference = reference
+		exposure.suggested_name = suggested_name
+	, CONNECT_ONE_SHOT)
+	panel._on_expose_target_pressed()
+	if exposure.get("view") != context_view \
+			or exposure.get("reference") == null \
+			or exposure.get("reference").call("resolve", panel.get_preview_object()) != expose_object:
+		context_view.free()
+		_fail("GUI preview did not emit a resolvable target exposure request.")
+		return
+	panel.select_object(panel.get_preview_object(), true)
+	panel.select_target_ref(exposure.reference)
+	if panel.get_selected_object() != expose_object:
+		context_view.free()
+		_fail("GUI preview could not locate an existing FGUIObjectRef.")
+		return
+	context_view.free()
+
 	panel.clear_preview()
 	await process_frame
 	await process_frame

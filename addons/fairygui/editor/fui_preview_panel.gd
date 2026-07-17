@@ -3,6 +3,9 @@ extends VBoxContainer
 
 const SelectionOverlay := preload("res://addons/fairygui/editor/fui_preview_selection.gd")
 const EventBindingService := preload("res://addons/fairygui/editor/event_binding_service.gd")
+const ObjectReference := preload("res://addons/fairygui/ui/object_reference.gd")
+
+signal target_expose_requested(view: FGUIView, reference: Resource, suggested_name: String)
 
 const MIN_ZOOM := 0.10
 const MAX_ZOOM := 4.0
@@ -28,11 +31,13 @@ var _pan_start_mouse := Vector2.ZERO
 var _last_navigation_event_id: int = 0
 var _view_states: Dictionary = {}
 var _context_view_ref: WeakRef
+var _pending_target_selection: Resource
 
 var _path_label: Label
 var _component_picker: OptionButton
 var _reload_button: Button
 var _bind_event_button: Button
+var _expose_target_button: Button
 var _filter_edit: LineEdit
 var _tree: Tree
 var _preview_scroll: ScrollContainer
@@ -141,6 +146,7 @@ func clear_preview() -> void:
 	_save_current_view_state()
 	_package_resource = null
 	_context_view_ref = null
+	_pending_target_selection = null
 	_component_names.clear()
 	_current_component = ""
 	_path_label.text = ""
@@ -174,6 +180,11 @@ func get_preview_object() -> FGUIObject:
 
 func get_selected_object() -> FGUIObject:
 	return _selected_object
+
+
+func select_target_ref(reference: Resource) -> void:
+	_pending_target_selection = reference
+	_select_pending_target()
 
 
 func get_hierarchy_node_count() -> int:
@@ -231,6 +242,13 @@ func _ensure_ui() -> void:
 	_bind_event_button.disabled = true
 	_bind_event_button.pressed.connect(_on_bind_event_pressed)
 	toolbar.add_child(_bind_event_button)
+
+	_expose_target_button = Button.new()
+	_expose_target_button.text = "暴露节点"
+	_expose_target_button.tooltip_text = "把所选 FUI 对象暴露为当前 FGUIView 下的 Godot 节点"
+	_expose_target_button.disabled = true
+	_expose_target_button.pressed.connect(_on_expose_target_pressed)
+	toolbar.add_child(_expose_target_button)
 
 	var toolbar_spacer := Control.new()
 	toolbar_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -340,6 +358,7 @@ func _apply_editor_theme() -> void:
 	var editor_theme := EditorInterface.get_editor_theme()
 	_set_button_icon(_reload_button, editor_theme, "Reload")
 	_set_button_icon(_bind_event_button, editor_theme, "Signals")
+	_set_button_icon(_expose_target_button, editor_theme, "Add")
 	_set_button_icon(_zoom_out_button, editor_theme, "ZoomLess")
 	_set_button_icon(_zoom_in_button, editor_theme, "ZoomMore")
 	_set_button_icon(_fit_button, editor_theme, "ZoomReset")
@@ -394,6 +413,7 @@ func _on_preview_ready(value: FGUIObject) -> void:
 		call_deferred("_fit_preview")
 	else:
 		_restore_view_state(state)
+	_select_pending_target()
 	_update_bind_event_button()
 
 
@@ -614,6 +634,17 @@ func _on_bind_event_pressed() -> void:
 	EditorInterface.edit_node(view)
 
 
+func _on_expose_target_pressed() -> void:
+	var view := _context_view_ref.get_ref() as FGUIView if _context_view_ref != null else null
+	var reference := _selected_target_reference()
+	if view == null or reference == null:
+		return
+	var suggested_name := _selected_object.name
+	if suggested_name == "":
+		suggested_name = _object_type_name(_selected_object)
+	target_expose_requested.emit(view, reference, suggested_name)
+
+
 func _update_bind_event_button() -> void:
 	if _bind_event_button == null:
 		return
@@ -633,6 +664,28 @@ func _update_bind_event_button() -> void:
 		_bind_event_button.tooltip_text = "所选对象经过未命名父节点，无法建立稳定绑定"
 	else:
 		_bind_event_button.tooltip_text = "在当前 FGUIView Inspector 中绑定所选对象事件"
+	_update_expose_target_button()
+
+
+func _update_expose_target_button() -> void:
+	if _expose_target_button == null:
+		return
+	var view := _context_view_ref.get_ref() as FGUIView if _context_view_ref != null else null
+	var valid_context := view != null \
+		and view.package != null \
+		and _package_resource != null \
+		and view.package.get_source_path() == _package_resource.get_source_path() \
+		and view.component_name == _current_component
+	var reference := _selected_target_reference() if valid_context else null
+	_expose_target_button.disabled = not valid_context or reference == null
+	if view == null:
+		_expose_target_button.tooltip_text = "从 FGUIView Inspector 打开预览后可以暴露节点"
+	elif not valid_context:
+		_expose_target_button.tooltip_text = "预览组件与当前 FGUIView 配置不一致"
+	elif reference == null:
+		_expose_target_button.tooltip_text = "动态列表或无法建立稳定引用的对象不能持久暴露"
+	else:
+		_expose_target_button.tooltip_text = "在当前 FGUIView 下创建可配置材质和附件的 FGUITarget"
 
 
 func _selected_target_path() -> Variant:
@@ -646,6 +699,21 @@ func _selected_target_path() -> Variant:
 		segments.push_front(current.name)
 		current = current.parent
 	return PackedStringArray(segments) if current == _root_object else null
+
+
+func _selected_target_reference() -> Resource:
+	if _selected_object == null or _root_object == null:
+		return null
+	return ObjectReference.from_object(_root_object, _selected_object)
+
+
+func _select_pending_target() -> void:
+	if _pending_target_selection == null or _root_object == null:
+		return
+	var value := _pending_target_selection.call("resolve", _root_object) as FGUIObject
+	_pending_target_selection = null
+	if value != null:
+		_select_object(value, true, true)
 
 
 func _on_filter_changed(query: String) -> void:
