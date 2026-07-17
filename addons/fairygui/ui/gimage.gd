@@ -36,7 +36,7 @@ var fill_amount: float = 1.0:
 
 func _create_display_object() -> void:
 	image_node = NinePatchRect.new()
-	image_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	image_node.mouse_filter = Control.MOUSE_FILTER_PASS
 	fill_renderer = FillRenderer.new()
 	fill_renderer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fill_renderer.visible = false

@@ -196,7 +196,7 @@ var text_height: float:
 
 func _create_display_object() -> void:
 	label = Label.new()
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.mouse_filter = Control.MOUSE_FILTER_PASS
 	label.clip_text = false
 	label.label_settings = LabelSettings.new()
 	node = label

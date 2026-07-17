@@ -104,6 +104,25 @@ func _initialize() -> void:
 		_fail("A logical GGroup intercepted input intended for one of its grouped controls.")
 		return
 
+	var standalone_image := FGUIImage.new()
+	standalone_image.set_xy(240.0, 120.0)
+	standalone_image.set_size(30.0, 30.0)
+	host.add_child(standalone_image.node)
+	var image_clicks := [0]
+	standalone_image.add_event_listener(FGUIEvents.CLICK, func(_context: FGUIEventContext) -> void: image_clicks[0] += 1)
+	root.push_input(_mouse_press(Vector2(250.0, 130.0)))
+	await process_frame
+	root.push_input(_mouse_release(Vector2(250.0, 130.0)))
+	await process_frame
+	if standalone_image.node.mouse_filter != Control.MOUSE_FILTER_PASS or image_clicks[0] != 1:
+		_fail("A touchable GImage did not receive native click input.")
+		return
+	var standalone_text := FGUITextField.new()
+	if standalone_text.node.mouse_filter != Control.MOUSE_FILTER_PASS:
+		_fail("A touchable GTextField did not expose native pointer input.")
+		return
+	standalone_text.dispose()
+
 	var masked_button := FGUIButton.new()
 	masked_button.set_xy(170.0, 10.0)
 	masked_button.set_size(80.0, 60.0)
@@ -146,6 +165,7 @@ func _initialize() -> void:
 	group_parent.dispose()
 	reverse_mask_parent.dispose()
 	masked_button.dispose()
+	standalone_image.dispose()
 	component.dispose()
 	await process_frame
 	quit(0)
