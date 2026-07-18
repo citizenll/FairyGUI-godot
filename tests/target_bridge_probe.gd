@@ -46,6 +46,11 @@ func _run() -> void:
 	attachment.name = "Attachment"
 	attachment.size = Vector2(12.0, 12.0)
 	target.add_child(attachment)
+	var particles := GPUParticles2D.new()
+	particles.name = "Particles"
+	particles.amount = 1
+	particles.emitting = false
+	target.add_child(particles)
 	target.set("target_ref", reference)
 	var shader := Shader.new()
 	shader.code = "shader_type canvas_item; void fragment() { COLOR = texture(TEXTURE, UV); }"
@@ -60,6 +65,12 @@ func _run() -> void:
 		await process_frame
 	if target.call("get_resolved_object") != image:
 		_fail("FGUITarget did not resolve its FUI object.")
+		return
+	if not target.call("is_preserving_fui_hierarchy") \
+			or not target.call("is_hierarchy_rendering_active") \
+			or target.z_index != 0 \
+			or attachment.get_parent() != target or particles.get_parent() != target:
+		_fail("FGUITarget did not preserve the FUI render hierarchy by default.")
 		return
 	if original_canvas.material != material:
 		_fail("FGUITarget did not apply the ShaderMaterial override.")
@@ -77,6 +88,16 @@ func _run() -> void:
 	await process_frame
 	if original_canvas.material != material:
 		_fail("Re-enabling FGUITarget did not restore its material override.")
+		return
+	target.set("attachment_mode", 1)
+	await process_frame
+	if target.call("is_hierarchy_rendering_active") or target.z_index != 1:
+		_fail("FGUITarget overlay attachment mode did not restore scene render parenting.")
+		return
+	target.set("attachment_mode", 0)
+	await process_frame
+	if not target.call("is_hierarchy_rendering_active") or target.z_index != 0:
+		_fail("FGUITarget did not restore FUI hierarchy attachment mode.")
 		return
 
 	var invalid_reference := reference.duplicate(true)
@@ -108,7 +129,9 @@ func _run() -> void:
 	if rebuilt_object.get_material_target().material != material:
 		_fail("FGUITarget did not reapply its material after preview rebuild.")
 		return
-	if attachment.get_parent() != target or not attachment.is_inside_tree():
+	if attachment.get_parent() != target or particles.get_parent() != target \
+			or not attachment.is_inside_tree() or not particles.is_inside_tree() \
+			or not target.call("is_hierarchy_rendering_active"):
 		_fail("FGUITarget lost its scene-owned attachment during FUI rebuild.")
 		return
 
@@ -156,8 +179,14 @@ func _verify_scene_roundtrip(
 	target.name = "ImageTarget"
 	target.set("target_ref", reference)
 	target.set("material_override", material)
+	target.set("attachment_behind_target", true)
 	view.add_child(target)
 	target.owner = scene_root
+	var attachment := GPUParticles2D.new()
+	attachment.name = "Particles"
+	attachment.emitting = false
+	target.add_child(attachment)
+	attachment.owner = scene_root
 	var packed := PackedScene.new()
 	if packed.pack(scene_root) != OK:
 		scene_root.free()
@@ -170,11 +199,16 @@ func _verify_scene_roundtrip(
 	var loaded := ResourceLoader.load(path, "PackedScene", ResourceLoader.CACHE_MODE_IGNORE) as PackedScene
 	var instance := loaded.instantiate() if loaded != null else null
 	var loaded_target := instance.get_node_or_null("View/ImageTarget") if instance != null else null
+	var loaded_attachment := instance.get_node_or_null("View/ImageTarget/Particles") if instance != null else null
 	var valid: bool = loaded_target != null \
+		and loaded_attachment != null \
+		and loaded_attachment.get_parent() == loaded_target \
 		and loaded_target.get_script() == TargetScript \
 		and loaded_target.get("target_ref") != null \
 		and loaded_target.get("target_ref").call("get_key") == reference.call("get_key") \
-		and loaded_target.get("material_override") is ShaderMaterial
+		and loaded_target.get("material_override") is ShaderMaterial \
+		and bool(loaded_target.get("attachment_behind_target")) \
+		and loaded_target.call("is_preserving_fui_hierarchy")
 	if instance != null:
 		instance.free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

@@ -7,8 +7,15 @@ const ObjectReference := preload("res://addons/fairygui/ui/object_reference.gd")
 signal target_resolved(value: FGUIObject)
 signal target_cleared()
 
+enum AttachmentMode {
+	FUI_HIERARCHY,
+	OVERLAY,
+}
+
 var _target_ref: Resource
 var _material_override: Material
+var _attachment_mode: int = AttachmentMode.FUI_HIERARCHY
+var _attachment_behind_target: bool = false
 var _enabled: bool = true
 var _sync_transform: bool = true
 var _sync_size: bool = true
@@ -20,6 +27,8 @@ var _resolved_object: FGUIObject
 var _material_target: CanvasItem
 var _previous_material: Material
 var _applied_material: Material
+var _render_parent_overridden: bool = false
+var _render_parent_target: CanvasItem
 
 @export_category("FairyGUI Target")
 @export var target_ref: Resource:
@@ -46,6 +55,25 @@ var _applied_material: Material
 		_release_material()
 		_material_override = value
 		_apply_material()
+
+@export_category("Attachment Hierarchy")
+@export_enum("Preserve FUI Hierarchy", "Overlay") var attachment_mode: int = AttachmentMode.FUI_HIERARCHY:
+	get:
+		return _attachment_mode
+	set(value):
+		var next_mode := clampi(value, AttachmentMode.FUI_HIERARCHY, AttachmentMode.OVERLAY)
+		if _attachment_mode == next_mode:
+			return
+		_restore_scene_render_parent()
+		_attachment_mode = next_mode
+		_update_attachment_mode()
+
+@export var attachment_behind_target: bool = false:
+	get:
+		return _attachment_behind_target
+	set(value):
+		_attachment_behind_target = value
+		_update_attachment_mode()
 
 @export_category("Attachment Sync")
 @export var enabled: bool = true:
@@ -96,9 +124,10 @@ func _init() -> void:
 	set_meta("fgui_target_proxy", true)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	focus_mode = Control.FOCUS_NONE
-	z_index = 1
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_preset(Control.PRESET_TOP_LEFT)
 	set_process(true)
+	_update_attachment_mode()
 
 
 func _ready() -> void:
@@ -111,6 +140,7 @@ func _ready() -> void:
 	clip_contents = _clip_attachments
 	_connect_target_ref()
 	_refresh_view_binding()
+	_sync_render_hierarchy()
 
 
 func _exit_tree() -> void:
@@ -152,6 +182,14 @@ func get_target_reference() -> Resource:
 
 func get_resolved_object() -> FGUIObject:
 	return _resolved_object
+
+
+func is_preserving_fui_hierarchy() -> bool:
+	return _attachment_mode == AttachmentMode.FUI_HIERARCHY
+
+
+func is_hierarchy_rendering_active() -> bool:
+	return _render_parent_overridden and is_instance_valid(_render_parent_target)
 
 
 func get_target_label() -> String:
@@ -247,6 +285,7 @@ func _resolve_target() -> void:
 
 
 func _release_target() -> void:
+	_restore_scene_render_parent()
 	_release_material()
 	if _resolved_object != null:
 		_resolved_object = null
@@ -256,9 +295,11 @@ func _release_target() -> void:
 func _sync_proxy() -> void:
 	if not _enabled:
 		visible = false
+		_sync_render_hierarchy()
 		return
 	if _resolved_object == null or _resolved_object.is_disposed or _resolved_object.node == null:
 		visible = not _hide_when_missing
+		_sync_render_hierarchy()
 		return
 	var native := _resolved_object.node
 	if _sync_transform and native.is_inside_tree() and is_inside_tree():
@@ -275,6 +316,60 @@ func _sync_proxy() -> void:
 		visible = native.is_visible_in_tree()
 	else:
 		visible = true
+	_sync_render_hierarchy()
+
+
+func _update_attachment_mode() -> void:
+	var preserve_hierarchy := _attachment_mode == AttachmentMode.FUI_HIERARCHY
+	z_index = 0 if preserve_hierarchy else 1
+	z_as_relative = true
+	show_behind_parent = _attachment_behind_target if preserve_hierarchy else false
+	if preserve_hierarchy:
+		_sync_render_hierarchy()
+	else:
+		_restore_scene_render_parent()
+
+
+func _sync_render_hierarchy() -> void:
+	if _attachment_mode != AttachmentMode.FUI_HIERARCHY or not is_inside_tree() \
+			or _resolved_object == null or _resolved_object.is_disposed \
+			or _resolved_object.node == null or not _resolved_object.node.is_inside_tree():
+		_restore_scene_render_parent()
+		return
+	var native := _resolved_object.node as CanvasItem
+	if native == null or native == self:
+		_restore_scene_render_parent()
+		return
+	if not _render_parent_overridden or _render_parent_target != native:
+		RenderingServer.canvas_item_set_parent(get_canvas_item(), native.get_canvas_item())
+	var render_transform := Transform2D.IDENTITY
+	if not _sync_transform:
+		render_transform = native.get_global_transform().affine_inverse() * get_global_transform()
+	RenderingServer.canvas_item_set_transform(get_canvas_item(), render_transform)
+	_render_parent_overridden = true
+	_render_parent_target = native
+
+
+func _restore_scene_render_parent() -> void:
+	if not _render_parent_overridden:
+		return
+	_render_parent_overridden = false
+	_render_parent_target = null
+	if not is_inside_tree():
+		return
+	var scene_parent := _find_scene_canvas_parent()
+	var parent_rid := scene_parent.get_canvas_item() if scene_parent != null else get_canvas()
+	RenderingServer.canvas_item_set_parent(get_canvas_item(), parent_rid)
+	RenderingServer.canvas_item_set_transform(get_canvas_item(), get_transform())
+
+
+func _find_scene_canvas_parent() -> CanvasItem:
+	var current := get_parent()
+	while current != null:
+		if current is CanvasItem:
+			return current as CanvasItem
+		current = current.get_parent()
+	return null
 
 
 func _refresh_material_target() -> void:
